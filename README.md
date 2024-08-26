@@ -15,7 +15,7 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 2. Navigate to the project directory
 3. Install dependencies: `pip install -r requeriments.txt`
 4. Make the decoder and the script executables: `chmod +x ftdc_decoder bighole.sh`
-6. Run the script with the diagnostic data as argument: `./bighole.sh /home/any_directory/diagnostic.data/`
+6. Run the script with the diagnostic data folder as argument: `./bighole.sh /home/any_directory/diagnostic.data/`
 
 ## Usage
 The script will decode all the diagnostic data files and launch two docker containers, InfluxDB and Grafana
