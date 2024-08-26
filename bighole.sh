@@ -43,7 +43,7 @@ process_file() {
         temp_json="temp_${timestamp}.json"
 
         # Running Go program with the metric file and temp.json
-        go run main.go -input "$metric_file" -output "$temp_json"
+        ./ftdc_decoder -input "$metric_file" -output "$temp_json"
 
         # Check if temp.json was created
         if [[ -f "$temp_json" ]]; then
