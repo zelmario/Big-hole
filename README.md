@@ -20,7 +20,25 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 ## Usage
 The script will decode all the diagnostic data files and launch two docker containers, InfluxDB and Grafana
 
-To see the default dashboard you can go to the link that the script shows when it finish the process.
+```bash
+zelmar@LAPTOP:~/Big-hole$ ./bighole.sh /home/zelmar/diagnostic.data/
+[+] Running 4/4
+ ✔ Network big-hole_default         Created                                                                                                                0.0s
+ ✔ Volume "big-hole_influxdb-data"  Created                                                                                                                0.0s
+ ✔ Container big-hole-influxdb-1    Started                                                                                                                0.7s
+ ✔ Container big-hole-grafana-1     Started                                                                                                                1.0s
+Reading MongoDB FTDC file starting...
+Decoding MongoDB FTDC data...
+Converting MongoDB metrics...
+Successfully wrote metrics to JSON file
+Processing metrics: 79it [00:11,  6.63it/s]
+Chunk processed
+Processing completed.
+Access your dashboard at: http://localhost:3001/d/ddnw277huiv40ae/ftdc-dashboard?orgId=1&from=1714151615931&to=1724692415930
+```
+
+
+To see the default dashboard you can go to the link that the script shows when it finish the process:
 
 ![Screenshoot](https://github.com/zelmario/Big-hole/blob/main/big_hole.png?raw=true)
 
