@@ -1,0 +1,30 @@
+services:
+  influxdb:
+    image: influxdb:latest
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=zelmario
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password
+      - DOCKER_INFLUXDB_INIT_ORG=percona
+      - DOCKER_INFLUXDB_INIT_BUCKET=ftdc
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=ftdc
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    links:
+      - influxdb
+    volumes:
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/main.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./grafana/dashboards/:/etc/grafana/provisioning/dashboards/
+volumes:
+  influxdb-data:

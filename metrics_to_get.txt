@@ -1,0 +1,125 @@
+serverStatus.localTime
+serverStatus.mem.resident
+serverStatus.mem.virtual
+serverStatus.network.bytesIn
+serverStatus.network.bytesOut
+serverStatus.network.numRequests
+serverStatus.network.physicalBytesIn
+serverStatus.network.physicalBytesOut
+serverStatus.connections.current
+serverStatus.connections.totalCreated
+serverStatus.connections.available
+serverStatus.connections.active
+serverStatus.extra_info.page_faults
+serverStatus.globalLock.activeClients.readers
+serverStatus.globalLock.activeClients.writers
+serverStatus.globalLock.currentQueue.readers
+serverStatus.globalLock.currentQueue.writers
+serverStatus.metrics.queryExecutor.scanned
+serverStatus.metrics.queryExecutor.scannedObjects
+serverStatus.metrics.operation.scanAndOrder
+serverStatus.opLatencies.commands.latency
+serverStatus.opLatencies.commands.ops
+serverStatus.opLatencies.reads.latency
+serverStatus.opLatencies.reads.ops
+serverStatus.opLatencies.writes.latency
+serverStatus.opLatencies.writes.ops
+serverStatus.opcounters.command
+serverStatus.opcounters.delete
+serverStatus.opcounters.getmore
+serverStatus.opcounters.insert
+serverStatus.opcounters.query
+serverStatus.opcounters.update
+serverStatus.uptime
+serverStatus.flowControl.targetRateLimit
+serverStatus.wiredTiger.block-manager.bytes read
+serverStatus.wiredTiger.block-manager.bytes written
+serverStatus.wiredTiger.block-manager.bytes written for checkpoint
+serverStatus.wiredTiger.cache.bytes currently in the cache
+serverStatus.wiredTiger.cache.maximum bytes configured
+serverStatus.wiredTiger.cache.modified pages evicted
+serverStatus.wiredTiger.cache.bytes read into cache
+serverStatus.wiredTiger.cache.bytes written from cache
+serverStatus.wiredTiger.cache.tracked dirty bytes in the cache
+serverStatus.wiredTiger.cache.unmodified pages evicted
+serverStatus.wiredTiger.data-handle.connection data handles currently active
+serverStatus.wiredTiger.concurrentTransactions.read.available
+serverStatus.wiredTiger.concurrentTransactions.write.available
+serverStatus.flowControl.enabled
+serverStatus.flowControl.isLagged
+serverStatus.flowControl.isLaggedCount
+serverStatus.flowControl.isLaggedTimeMicros
+serverStatus.flowControl.locksPerKiloOp
+serverStatus.flowControl.sustainerRate
+serverStatus.flowControl.targetRateLimit
+serverStatus.flowControl.timeAcquiringMicros
+serverStatus.asserts.msg
+serverStatus.asserts.regular
+serverStatus.asserts.rollovers
+serverStatus.asserts.user
+serverStatus.asserts.warning
+serverStatus.metrics.queryExecutor.collectionScans.total
+serverStatus.metrics.queryExecutor.scanned
+local.oplog.rs.stats.avgObjSize
+serverStatus.metrics.commands.listCollections.total
+serverStatus.metrics.commands.listDatabases.total
+serverStatus.metrics.commands.listIndexes.total
+serverStatus.metrics.commands.createIndexes.total
+serverStatus.metrics.commands.dropIndexes.total
+serverStatus.metrics.cursor.open.noTimeout
+serverStatus.metrics.cursor.open.pinned
+serverStatus.metrics.cursor.open.total
+serverStatus.metrics.cursor.timedOut
+local.oplog.rs.stats.freeStorageSize
+local.oplog.rs.stats.storageSize
+serverStatus.metrics.commands.dataSize.total
+serverStatus.metrics.document.deleted
+serverStatus.metrics.document.inserted
+serverStatus.metrics.document.returned
+serverStatus.metrics.document.updated
+local.oplog.rs.stats.nindexes
+local.oplog.rs.stats.totalIndexSize
+serverStatus.globalLock.currentQueue.readers
+serverStatus.globalLock.currentQueue.total
+serverStatus.globalLock.currentQueue.writers
+serverStatus.opcountersRepl.command
+serverStatus.opcountersRepl.delete
+serverStatus.opcountersRepl.getmore
+serverStatus.opcountersRepl.insert
+serverStatus.opcountersRepl.query
+serverStatus.opcountersRepl.update
+serverStatus.oplog.earliestOptime/t
+serverStatus.oplog.latestOptime/t
+local.oplog.rs.stats.start
+local.oplog.rs.stats.end
+serverStatus.extra_info.page_faults
+serverStatus.metrics.queryExecutor.collectionScans.total
+serverStatus.metrics.document.returned
+serverStatus.metrics.operation.scanAndOrder
+systemMetrics.cpu.idle_ms
+systemMetrics.cpu.user_ms
+systemMetrics.cpu.iowait_ms
+systemMetrics.cpu.nice_ms
+systemMetrics.cpu.softirq_ms
+systemMetrics.cpu.steal_ms
+systemMetrics.cpu.system_ms
+systemMetrics.memory.MemAvailable_kb
+systemMetrics.memory.MemFree_kb
+systemMetrics.memory.SwapFree_kb
+systemMetrics.memory.SwapTotal_kb
+systemMetrics.netstat.Tcp:ActiveOpens
+systemMetrics.netstat.Tcp:AttemptFails
+systemMetrics.netstat.Tcp:EstabResets
+systemMetrics.netstat.Tcp:InCsumErrors
+systemMetrics.netstat.Tcp:InErrs
+systemMetrics.netstat.Tcp:RetransSegs
+systemMetrics.netstat.Ip:InDiscards
+systemMetrics.netstat.Ip:OutDiscards
+systemMetrics.netstat.Ip:FragFails
+systemMetrics.netstat.Ip:ReasmFails
+systemMetrics.netstat.Ip:OutNoRoutes
+systemMetrics.netstat.Tcp:CurrEstab
+systemMetrics.netstat.Tcp:EstabResets
+systemMetrics.netstat.Tcp:OutRsts
+systemMetrics.netstat.Tcp:InSegs
+systemMetrics.netstat.Tcp:OutSegs

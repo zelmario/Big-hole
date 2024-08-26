@@ -1,0 +1,2063 @@
+end
+local.oplog.rs.stats.avgObjSize
+local.oplog.rs.stats.capped
+local.oplog.rs.stats.count
+local.oplog.rs.stats.end
+local.oplog.rs.stats.freeStorageSize
+local.oplog.rs.stats.max
+local.oplog.rs.stats.maxSize
+local.oplog.rs.stats.nindexes
+local.oplog.rs.stats.ok
+local.oplog.rs.stats.scaleFactor
+local.oplog.rs.stats.size
+local.oplog.rs.stats.sleepCount
+local.oplog.rs.stats.sleepMS
+local.oplog.rs.stats.start
+local.oplog.rs.stats.storageSize
+local.oplog.rs.stats.totalIndexSize
+local.oplog.rs.stats.totalSize
+local.oplog.rs.stats.wiredTiger.block-manager.allocations requiring file extension
+local.oplog.rs.stats.wiredTiger.block-manager.blocks allocated
+local.oplog.rs.stats.wiredTiger.block-manager.blocks freed
+local.oplog.rs.stats.wiredTiger.block-manager.checkpoint size
+local.oplog.rs.stats.wiredTiger.block-manager.file allocation unit size
+local.oplog.rs.stats.wiredTiger.block-manager.file bytes available for reuse
+local.oplog.rs.stats.wiredTiger.block-manager.file magic number
+local.oplog.rs.stats.wiredTiger.block-manager.file major version number
+local.oplog.rs.stats.wiredTiger.block-manager.file size in bytes
+local.oplog.rs.stats.wiredTiger.block-manager.minor version number
+local.oplog.rs.stats.wiredTiger.btree.btree checkpoint generation
+local.oplog.rs.stats.wiredTiger.btree.btree clean tree checkpoint expiration time
+local.oplog.rs.stats.wiredTiger.btree.btree compact pages reviewed
+local.oplog.rs.stats.wiredTiger.btree.btree compact pages selected to be rewritten
+local.oplog.rs.stats.wiredTiger.btree.btree compact pages skipped
+local.oplog.rs.stats.wiredTiger.btree.btree skipped by compaction as process would not reduce size
+local.oplog.rs.stats.wiredTiger.btree.column-store fixed-size leaf pages
+local.oplog.rs.stats.wiredTiger.btree.column-store internal pages
+local.oplog.rs.stats.wiredTiger.btree.column-store variable-size deleted values
+local.oplog.rs.stats.wiredTiger.btree.column-store variable-size leaf pages
+local.oplog.rs.stats.wiredTiger.btree.column-store variable-size RLE encoded values
+local.oplog.rs.stats.wiredTiger.btree.fixed-record size
+local.oplog.rs.stats.wiredTiger.btree.maximum internal page key size
+local.oplog.rs.stats.wiredTiger.btree.maximum internal page size
+local.oplog.rs.stats.wiredTiger.btree.maximum leaf page key size
+local.oplog.rs.stats.wiredTiger.btree.maximum leaf page size
+local.oplog.rs.stats.wiredTiger.btree.maximum leaf page value size
+local.oplog.rs.stats.wiredTiger.btree.maximum tree depth
+local.oplog.rs.stats.wiredTiger.btree.number of key/value pairs
+local.oplog.rs.stats.wiredTiger.btree.overflow pages
+local.oplog.rs.stats.wiredTiger.btree.pages rewritten by compaction
+local.oplog.rs.stats.wiredTiger.btree.row-store empty values
+local.oplog.rs.stats.wiredTiger.btree.row-store internal pages
+local.oplog.rs.stats.wiredTiger.btree.row-store leaf pages
+local.oplog.rs.stats.wiredTiger.cache.bytes currently in the cache
+local.oplog.rs.stats.wiredTiger.cache.bytes dirty in the cache cumulative
+local.oplog.rs.stats.wiredTiger.cache.bytes read into cache
+local.oplog.rs.stats.wiredTiger.cache.bytes written from cache
+local.oplog.rs.stats.wiredTiger.cache.checkpoint blocked page eviction
+local.oplog.rs.stats.wiredTiger.cache.checkpoint of history store file blocked non-history store page eviction
+local.oplog.rs.stats.wiredTiger.cache.data source pages selected for eviction unable to be evicted
+local.oplog.rs.stats.wiredTiger.cache.eviction gave up due to detecting an out of order on disk value behind the last update on the chain
+local.oplog.rs.stats.wiredTiger.cache.eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update
+local.oplog.rs.stats.wiredTiger.cache.eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update after validating the update chain
+local.oplog.rs.stats.wiredTiger.cache.eviction gave up due to detecting out of order timestamps on the update chain after the selected on disk update
+local.oplog.rs.stats.wiredTiger.cache.eviction walk passes of a file
+local.oplog.rs.stats.wiredTiger.cache.eviction walk target pages histogram - 0-9
+local.oplog.rs.stats.wiredTiger.cache.eviction walk target pages histogram - 10-31
+local.oplog.rs.stats.wiredTiger.cache.eviction walk target pages histogram - 32-63
+local.oplog.rs.stats.wiredTiger.cache.eviction walk target pages histogram - 64-128
+local.oplog.rs.stats.wiredTiger.cache.eviction walk target pages histogram - 128 and higher
+local.oplog.rs.stats.wiredTiger.cache.eviction walk target pages reduced due to history store cache pressure
+local.oplog.rs.stats.wiredTiger.cache.eviction walks abandoned
+local.oplog.rs.stats.wiredTiger.cache.eviction walks gave up because they restarted their walk twice
+local.oplog.rs.stats.wiredTiger.cache.eviction walks gave up because they saw too many pages and found no candidates
+local.oplog.rs.stats.wiredTiger.cache.eviction walks gave up because they saw too many pages and found too few candidates
+local.oplog.rs.stats.wiredTiger.cache.eviction walks reached end of tree
+local.oplog.rs.stats.wiredTiger.cache.eviction walks restarted
+local.oplog.rs.stats.wiredTiger.cache.eviction walks started from root of tree
+local.oplog.rs.stats.wiredTiger.cache.eviction walks started from saved location in tree
+local.oplog.rs.stats.wiredTiger.cache.hazard pointer blocked page eviction
+local.oplog.rs.stats.wiredTiger.cache.history store table insert calls
+local.oplog.rs.stats.wiredTiger.cache.history store table insert calls that returned restart
+local.oplog.rs.stats.wiredTiger.cache.history store table out-of-order resolved updates that lose their durable timestamp
+local.oplog.rs.stats.wiredTiger.cache.history store table out-of-order updates that were fixed up by reinserting with the fixed timestamp
+local.oplog.rs.stats.wiredTiger.cache.history store table reads
+local.oplog.rs.stats.wiredTiger.cache.history store table reads missed
+local.oplog.rs.stats.wiredTiger.cache.history store table reads requiring squashed modifies
+local.oplog.rs.stats.wiredTiger.cache.history store table truncation by rollback to stable to remove an unstable update
+local.oplog.rs.stats.wiredTiger.cache.history store table truncation by rollback to stable to remove an update
+local.oplog.rs.stats.wiredTiger.cache.history store table truncation to remove an update
+local.oplog.rs.stats.wiredTiger.cache.history store table truncation to remove range of updates due to key being removed from the data page during reconciliation
+local.oplog.rs.stats.wiredTiger.cache.history store table truncation to remove range of updates due to out-of-order timestamp update on data page
+local.oplog.rs.stats.wiredTiger.cache.history store table writes requiring squashed modifies
+local.oplog.rs.stats.wiredTiger.cache.in-memory page passed criteria to be split
+local.oplog.rs.stats.wiredTiger.cache.in-memory page splits
+local.oplog.rs.stats.wiredTiger.cache.internal pages evicted
+local.oplog.rs.stats.wiredTiger.cache.internal pages split during eviction
+local.oplog.rs.stats.wiredTiger.cache.leaf pages split during eviction
+local.oplog.rs.stats.wiredTiger.cache.modified pages evicted
+local.oplog.rs.stats.wiredTiger.cache.overflow pages read into cache
+local.oplog.rs.stats.wiredTiger.cache.page split during eviction deepened the tree
+local.oplog.rs.stats.wiredTiger.cache.page written requiring history store records
+local.oplog.rs.stats.wiredTiger.cache.pages read into cache
+local.oplog.rs.stats.wiredTiger.cache.pages read into cache after truncate
+local.oplog.rs.stats.wiredTiger.cache.pages read into cache after truncate in prepare state
+local.oplog.rs.stats.wiredTiger.cache.pages requested from the cache
+local.oplog.rs.stats.wiredTiger.cache.pages seen by eviction walk
+local.oplog.rs.stats.wiredTiger.cache.pages written from cache
+local.oplog.rs.stats.wiredTiger.cache.pages written requiring in-memory restoration
+local.oplog.rs.stats.wiredTiger.cache.the number of times full update inserted to history store
+local.oplog.rs.stats.wiredTiger.cache.the number of times reverse modify inserted to history store
+local.oplog.rs.stats.wiredTiger.cache.tracked dirty bytes in the cache
+local.oplog.rs.stats.wiredTiger.cache.unmodified pages evicted
+local.oplog.rs.stats.wiredTiger.cache_walk.Average difference between current eviction generation when the page was last considered
+local.oplog.rs.stats.wiredTiger.cache_walk.Average on-disk page image size seen
+local.oplog.rs.stats.wiredTiger.cache_walk.Average time in cache for pages that have been visited by the eviction server
+local.oplog.rs.stats.wiredTiger.cache_walk.Average time in cache for pages that have not been visited by the eviction server
+local.oplog.rs.stats.wiredTiger.cache_walk.Clean pages currently in cache
+local.oplog.rs.stats.wiredTiger.cache_walk.Current eviction generation
+local.oplog.rs.stats.wiredTiger.cache_walk.Dirty pages currently in cache
+local.oplog.rs.stats.wiredTiger.cache_walk.Entries in the root page
+local.oplog.rs.stats.wiredTiger.cache_walk.Internal pages currently in cache
+local.oplog.rs.stats.wiredTiger.cache_walk.Leaf pages currently in cache
+local.oplog.rs.stats.wiredTiger.cache_walk.Maximum difference between current eviction generation when the page was last considered
+local.oplog.rs.stats.wiredTiger.cache_walk.Maximum page size seen
+local.oplog.rs.stats.wiredTiger.cache_walk.Minimum on-disk page image size seen
+local.oplog.rs.stats.wiredTiger.cache_walk.Number of pages never visited by eviction server
+local.oplog.rs.stats.wiredTiger.cache_walk.On-disk page image sizes smaller than a single allocation unit
+local.oplog.rs.stats.wiredTiger.cache_walk.Pages created in memory and never written
+local.oplog.rs.stats.wiredTiger.cache_walk.Pages currently queued for eviction
+local.oplog.rs.stats.wiredTiger.cache_walk.Pages that could not be queued for eviction
+local.oplog.rs.stats.wiredTiger.cache_walk.Refs skipped during cache traversal
+local.oplog.rs.stats.wiredTiger.cache_walk.Size of the root page
+local.oplog.rs.stats.wiredTiger.cache_walk.Total number of pages currently in cache
+local.oplog.rs.stats.wiredTiger.checkpoint-cleanup.pages added for eviction
+local.oplog.rs.stats.wiredTiger.checkpoint-cleanup.pages removed
+local.oplog.rs.stats.wiredTiger.checkpoint-cleanup.pages skipped during tree walk
+local.oplog.rs.stats.wiredTiger.checkpoint-cleanup.pages visited
+local.oplog.rs.stats.wiredTiger.compression.compressed page maximum internal page size prior to compression
+local.oplog.rs.stats.wiredTiger.compression.compressed page maximum leaf page size prior to compression 
+local.oplog.rs.stats.wiredTiger.compression.compressed pages read
+local.oplog.rs.stats.wiredTiger.compression.compressed pages written
+local.oplog.rs.stats.wiredTiger.compression.page written failed to compress
+local.oplog.rs.stats.wiredTiger.compression.page written was too small to compress
+local.oplog.rs.stats.wiredTiger.cursor.bulk loaded cursor insert calls
+local.oplog.rs.stats.wiredTiger.cursor.cache cursors reuse count
+local.oplog.rs.stats.wiredTiger.cursor.close calls that result in cache
+local.oplog.rs.stats.wiredTiger.cursor.create calls
+local.oplog.rs.stats.wiredTiger.cursor.cursor next calls that skip due to a globally visible history store tombstone
+local.oplog.rs.stats.wiredTiger.cursor.cursor next calls that skip greater than or equal to 100 entries
+local.oplog.rs.stats.wiredTiger.cursor.cursor next calls that skip less than 100 entries
+local.oplog.rs.stats.wiredTiger.cursor.cursor prev calls that skip due to a globally visible history store tombstone
+local.oplog.rs.stats.wiredTiger.cursor.cursor prev calls that skip greater than or equal to 100 entries
+local.oplog.rs.stats.wiredTiger.cursor.cursor prev calls that skip less than 100 entries
+local.oplog.rs.stats.wiredTiger.cursor.insert calls
+local.oplog.rs.stats.wiredTiger.cursor.insert key and value bytes
+local.oplog.rs.stats.wiredTiger.cursor.modify
+local.oplog.rs.stats.wiredTiger.cursor.modify key and value bytes affected
+local.oplog.rs.stats.wiredTiger.cursor.modify value bytes modified
+local.oplog.rs.stats.wiredTiger.cursor.next calls
+local.oplog.rs.stats.wiredTiger.cursor.open cursor count
+local.oplog.rs.stats.wiredTiger.cursor.operation restarted
+local.oplog.rs.stats.wiredTiger.cursor.prev calls
+local.oplog.rs.stats.wiredTiger.cursor.remove calls
+local.oplog.rs.stats.wiredTiger.cursor.remove key bytes removed
+local.oplog.rs.stats.wiredTiger.cursor.reserve calls
+local.oplog.rs.stats.wiredTiger.cursor.reset calls
+local.oplog.rs.stats.wiredTiger.cursor.search calls
+local.oplog.rs.stats.wiredTiger.cursor.search history store calls
+local.oplog.rs.stats.wiredTiger.cursor.search near calls
+local.oplog.rs.stats.wiredTiger.cursor.Total number of entries skipped by cursor next calls
+local.oplog.rs.stats.wiredTiger.cursor.Total number of entries skipped by cursor prev calls
+local.oplog.rs.stats.wiredTiger.cursor.Total number of entries skipped to position the history store cursor
+local.oplog.rs.stats.wiredTiger.cursor.Total number of times a search near has exited due to prefix config
+local.oplog.rs.stats.wiredTiger.cursor.truncate calls
+local.oplog.rs.stats.wiredTiger.cursor.update calls
+local.oplog.rs.stats.wiredTiger.cursor.update key and value bytes
+local.oplog.rs.stats.wiredTiger.cursor.update value size change
+local.oplog.rs.stats.wiredTiger.LSM.bloom filter false positives
+local.oplog.rs.stats.wiredTiger.LSM.bloom filter hits
+local.oplog.rs.stats.wiredTiger.LSM.bloom filter misses
+local.oplog.rs.stats.wiredTiger.LSM.bloom filter pages evicted from cache
+local.oplog.rs.stats.wiredTiger.LSM.bloom filter pages read into cache
+local.oplog.rs.stats.wiredTiger.LSM.bloom filters in the LSM tree
+local.oplog.rs.stats.wiredTiger.LSM.chunks in the LSM tree
+local.oplog.rs.stats.wiredTiger.LSM.highest merge generation in the LSM tree
+local.oplog.rs.stats.wiredTiger.LSM.queries that could have benefited from a Bloom filter that did not exist
+local.oplog.rs.stats.wiredTiger.LSM.sleep for LSM checkpoint throttle
+local.oplog.rs.stats.wiredTiger.LSM.sleep for LSM merge throttle
+local.oplog.rs.stats.wiredTiger.LSM.total size of bloom filters
+local.oplog.rs.stats.wiredTiger.metadata.formatVersion
+local.oplog.rs.stats.wiredTiger.metadata.oplogKeyExtractionVersion
+local.oplog.rs.stats.wiredTiger.reconciliation.approximate byte size of timestamps in pages written
+local.oplog.rs.stats.wiredTiger.reconciliation.approximate byte size of transaction IDs in pages written
+local.oplog.rs.stats.wiredTiger.reconciliation.dictionary matches
+local.oplog.rs.stats.wiredTiger.reconciliation.fast-path pages deleted
+local.oplog.rs.stats.wiredTiger.reconciliation.internal page key bytes discarded using suffix compression
+local.oplog.rs.stats.wiredTiger.reconciliation.internal page multi-block writes
+local.oplog.rs.stats.wiredTiger.reconciliation.internal-page overflow keys
+local.oplog.rs.stats.wiredTiger.reconciliation.leaf page key bytes discarded using prefix compression
+local.oplog.rs.stats.wiredTiger.reconciliation.leaf page multi-block writes
+local.oplog.rs.stats.wiredTiger.reconciliation.leaf-page overflow keys
+local.oplog.rs.stats.wiredTiger.reconciliation.maximum blocks required for a page
+local.oplog.rs.stats.wiredTiger.reconciliation.overflow values written
+local.oplog.rs.stats.wiredTiger.reconciliation.page reconciliation calls
+local.oplog.rs.stats.wiredTiger.reconciliation.page reconciliation calls for eviction
+local.oplog.rs.stats.wiredTiger.reconciliation.pages deleted
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including an aggregated newest start durable timestamp 
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including an aggregated newest stop durable timestamp 
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including an aggregated newest stop timestamp 
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including an aggregated newest stop transaction ID
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including an aggregated newest transaction ID 
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including an aggregated oldest start timestamp 
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including an aggregated prepare
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including at least one prepare
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including at least one start durable timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including at least one start timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including at least one start transaction ID
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including at least one stop durable timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including at least one stop timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.pages written including at least one stop transaction ID
+local.oplog.rs.stats.wiredTiger.reconciliation.records written including a prepare
+local.oplog.rs.stats.wiredTiger.reconciliation.records written including a start durable timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.records written including a start timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.records written including a start transaction ID
+local.oplog.rs.stats.wiredTiger.reconciliation.records written including a stop durable timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.records written including a stop timestamp
+local.oplog.rs.stats.wiredTiger.reconciliation.records written including a stop transaction ID
+local.oplog.rs.stats.wiredTiger.session.object compaction
+local.oplog.rs.stats.wiredTiger.session.tiered operations dequeued and processed
+local.oplog.rs.stats.wiredTiger.session.tiered operations scheduled
+local.oplog.rs.stats.wiredTiger.session.tiered storage local retention time (secs)
+local.oplog.rs.stats.wiredTiger.transaction.checkpoint has acquired a snapshot for its transaction
+local.oplog.rs.stats.wiredTiger.transaction.race to read prepared update retry
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable history store records with stop timestamps older than newer records
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable inconsistent checkpoint
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable keys removed
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable keys restored
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable restored tombstones from history store
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable restored updates from history store
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable skipping delete rle
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable skipping stable rle
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable sweeping history store keys
+local.oplog.rs.stats.wiredTiger.transaction.rollback to stable updates removed from history store
+local.oplog.rs.stats.wiredTiger.transaction.transaction checkpoints due to obsolete pages
+local.oplog.rs.stats.wiredTiger.transaction.update conflicts
+replSetGetStatus.date
+replSetGetStatus.electionCandidateMetrics.electionTerm
+replSetGetStatus.electionCandidateMetrics.electionTimeoutMillis
+replSetGetStatus.electionCandidateMetrics.lastCommittedOpTimeAtElection.t
+replSetGetStatus.electionCandidateMetrics.lastCommittedOpTimeAtElection.ts/i
+replSetGetStatus.electionCandidateMetrics.lastCommittedOpTimeAtElection.ts/t
+replSetGetStatus.electionCandidateMetrics.lastElectionDate
+replSetGetStatus.electionCandidateMetrics.lastSeenOpTimeAtElection.t
+replSetGetStatus.electionCandidateMetrics.lastSeenOpTimeAtElection.ts/i
+replSetGetStatus.electionCandidateMetrics.lastSeenOpTimeAtElection.ts/t
+replSetGetStatus.electionCandidateMetrics.newTermStartDate
+replSetGetStatus.electionCandidateMetrics.numCatchUpOps
+replSetGetStatus.electionCandidateMetrics.numVotesNeeded
+replSetGetStatus.electionCandidateMetrics.priorityAtElection
+replSetGetStatus.electionCandidateMetrics.priorPrimaryMemberId
+replSetGetStatus.electionCandidateMetrics.wMajorityWriteAvailabilityDate
+replSetGetStatus.end
+replSetGetStatus.heartbeatIntervalMillis
+replSetGetStatus.lastStableRecoveryTimestamp/i
+replSetGetStatus.lastStableRecoveryTimestamp/t
+replSetGetStatus.majorityVoteCount
+replSetGetStatus.members.0._id
+replSetGetStatus.members.0.configTerm
+replSetGetStatus.members.0.configVersion
+replSetGetStatus.members.0.electionDate
+replSetGetStatus.members.0.electionTime/i
+replSetGetStatus.members.0.electionTime/t
+replSetGetStatus.members.0.health
+replSetGetStatus.members.0.lastAppliedWallTime
+replSetGetStatus.members.0.lastDurableWallTime
+replSetGetStatus.members.0.optime.t
+replSetGetStatus.members.0.optime.ts/i
+replSetGetStatus.members.0.optime.ts/t
+replSetGetStatus.members.0.optimeDate
+replSetGetStatus.members.0.self
+replSetGetStatus.members.0.state
+replSetGetStatus.members.0.syncSourceId
+replSetGetStatus.members.0.uptime
+replSetGetStatus.members.1._id
+replSetGetStatus.members.1.configTerm
+replSetGetStatus.members.1.configVersion
+replSetGetStatus.members.1.health
+replSetGetStatus.members.1.lastAppliedWallTime
+replSetGetStatus.members.1.lastDurableWallTime
+replSetGetStatus.members.1.lastHeartbeat
+replSetGetStatus.members.1.lastHeartbeatRecv
+replSetGetStatus.members.1.optime.t
+replSetGetStatus.members.1.optime.ts/i
+replSetGetStatus.members.1.optime.ts/t
+replSetGetStatus.members.1.optimeDate
+replSetGetStatus.members.1.optimeDurable.t
+replSetGetStatus.members.1.optimeDurable.ts/i
+replSetGetStatus.members.1.optimeDurable.ts/t
+replSetGetStatus.members.1.optimeDurableDate
+replSetGetStatus.members.1.pingMs
+replSetGetStatus.members.1.state
+replSetGetStatus.members.1.syncSourceId
+replSetGetStatus.members.1.uptime
+replSetGetStatus.members.2._id
+replSetGetStatus.members.2.configTerm
+replSetGetStatus.members.2.configVersion
+replSetGetStatus.members.2.health
+replSetGetStatus.members.2.lastAppliedWallTime
+replSetGetStatus.members.2.lastDurableWallTime
+replSetGetStatus.members.2.lastHeartbeat
+replSetGetStatus.members.2.lastHeartbeatRecv
+replSetGetStatus.members.2.optime.t
+replSetGetStatus.members.2.optime.ts/i
+replSetGetStatus.members.2.optime.ts/t
+replSetGetStatus.members.2.optimeDate
+replSetGetStatus.members.2.optimeDurable.t
+replSetGetStatus.members.2.optimeDurable.ts/i
+replSetGetStatus.members.2.optimeDurable.ts/t
+replSetGetStatus.members.2.optimeDurableDate
+replSetGetStatus.members.2.pingMs
+replSetGetStatus.members.2.state
+replSetGetStatus.members.2.syncSourceId
+replSetGetStatus.members.2.uptime
+replSetGetStatus.myState
+replSetGetStatus.ok
+replSetGetStatus.optimes.appliedOpTime.t
+replSetGetStatus.optimes.appliedOpTime.ts/i
+replSetGetStatus.optimes.appliedOpTime.ts/t
+replSetGetStatus.optimes.durableOpTime.t
+replSetGetStatus.optimes.durableOpTime.ts/i
+replSetGetStatus.optimes.durableOpTime.ts/t
+replSetGetStatus.optimes.lastAppliedWallTime
+replSetGetStatus.optimes.lastCommittedOpTime.t
+replSetGetStatus.optimes.lastCommittedOpTime.ts/i
+replSetGetStatus.optimes.lastCommittedOpTime.ts/t
+replSetGetStatus.optimes.lastCommittedWallTime
+replSetGetStatus.optimes.lastDurableWallTime
+replSetGetStatus.optimes.readConcernMajorityOpTime.t
+replSetGetStatus.optimes.readConcernMajorityOpTime.ts/i
+replSetGetStatus.optimes.readConcernMajorityOpTime.ts/t
+replSetGetStatus.optimes.readConcernMajorityWallTime
+replSetGetStatus.start
+replSetGetStatus.syncSourceId
+replSetGetStatus.term
+replSetGetStatus.votingMembersCount
+replSetGetStatus.writableVotingMembersCount
+replSetGetStatus.writeMajorityCount
+serverStatus.asserts.msg
+serverStatus.asserts.regular
+serverStatus.asserts.rollovers
+serverStatus.asserts.user
+serverStatus.asserts.warning
+serverStatus.connections.active
+serverStatus.connections.available
+serverStatus.connections.awaitingTopologyChanges
+serverStatus.connections.current
+serverStatus.connections.exhaustHello
+serverStatus.connections.exhaustIsMaster
+serverStatus.connections.totalCreated
+serverStatus.electionMetrics.averageCatchUpOps
+serverStatus.electionMetrics.catchUpTakeover.called
+serverStatus.electionMetrics.catchUpTakeover.successful
+serverStatus.electionMetrics.electionTimeout.called
+serverStatus.electionMetrics.electionTimeout.successful
+serverStatus.electionMetrics.freezeTimeout.called
+serverStatus.electionMetrics.freezeTimeout.successful
+serverStatus.electionMetrics.numCatchUps
+serverStatus.electionMetrics.numCatchUpsAlreadyCaughtUp
+serverStatus.electionMetrics.numCatchUpsFailedWithError
+serverStatus.electionMetrics.numCatchUpsFailedWithNewTerm
+serverStatus.electionMetrics.numCatchUpsFailedWithReplSetAbortPrimaryCatchUpCmd
+serverStatus.electionMetrics.numCatchUpsSkipped
+serverStatus.electionMetrics.numCatchUpsSucceeded
+serverStatus.electionMetrics.numCatchUpsTimedOut
+serverStatus.electionMetrics.numStepDownsCausedByHigherTerm
+serverStatus.electionMetrics.priorityTakeover.called
+serverStatus.electionMetrics.priorityTakeover.successful
+serverStatus.electionMetrics.stepUpCmd.called
+serverStatus.electionMetrics.stepUpCmd.successful
+serverStatus.end
+serverStatus.extra_info.input_blocks
+serverStatus.extra_info.involuntary_context_switches
+serverStatus.extra_info.maximum_resident_set_kb
+serverStatus.extra_info.output_blocks
+serverStatus.extra_info.page_faults
+serverStatus.extra_info.page_reclaims
+serverStatus.extra_info.system_time_us
+serverStatus.extra_info.user_time_us
+serverStatus.extra_info.voluntary_context_switches
+serverStatus.featureCompatibilityVersion.major
+serverStatus.featureCompatibilityVersion.minor
+serverStatus.featureCompatibilityVersion.transitioning
+serverStatus.flowControl.enabled
+serverStatus.flowControl.isLagged
+serverStatus.flowControl.isLaggedCount
+serverStatus.flowControl.isLaggedTimeMicros
+serverStatus.flowControl.locksPerKiloOp
+serverStatus.flowControl.sustainerRate
+serverStatus.flowControl.targetRateLimit
+serverStatus.flowControl.timeAcquiringMicros
+serverStatus.globalLock.activeClients.readers
+serverStatus.globalLock.activeClients.total
+serverStatus.globalLock.activeClients.writers
+serverStatus.globalLock.currentQueue.readers
+serverStatus.globalLock.currentQueue.total
+serverStatus.globalLock.currentQueue.writers
+serverStatus.globalLock.totalTime
+serverStatus.indexBulkBuilder.count
+serverStatus.indexBulkBuilder.filesClosedForExternalSort
+serverStatus.indexBulkBuilder.filesOpenedForExternalSort
+serverStatus.localTime
+serverStatus.locks.Collection.acquireCount.r
+serverStatus.locks.Collection.acquireCount.W
+serverStatus.locks.Collection.acquireCount.w
+serverStatus.locks.Database.acquireCount.r
+serverStatus.locks.Database.acquireCount.W
+serverStatus.locks.Database.acquireCount.w
+serverStatus.locks.Database.acquireWaitCount.r
+serverStatus.locks.Database.acquireWaitCount.W
+serverStatus.locks.Database.acquireWaitCount.w
+serverStatus.locks.Database.timeAcquiringMicros.r
+serverStatus.locks.Database.timeAcquiringMicros.W
+serverStatus.locks.Database.timeAcquiringMicros.w
+serverStatus.locks.FeatureCompatibilityVersion.acquireCount.r
+serverStatus.locks.FeatureCompatibilityVersion.acquireCount.w
+serverStatus.locks.Global.acquireCount.r
+serverStatus.locks.Global.acquireCount.W
+serverStatus.locks.Global.acquireCount.w
+serverStatus.locks.Mutex.acquireCount.r
+serverStatus.locks.Mutex.acquireCount.W
+serverStatus.locks.oplog.acquireCount.r
+serverStatus.locks.oplog.acquireCount.w
+serverStatus.locks.ParallelBatchWriterMode.acquireCount.r
+serverStatus.locks.ParallelBatchWriterMode.acquireCount.W
+serverStatus.locks.ParallelBatchWriterMode.acquireWaitCount.r
+serverStatus.locks.ParallelBatchWriterMode.acquireWaitCount.W
+serverStatus.locks.ParallelBatchWriterMode.timeAcquiringMicros.r
+serverStatus.locks.ParallelBatchWriterMode.timeAcquiringMicros.W
+serverStatus.locks.ReplicationStateTransition.acquireCount.W
+serverStatus.locks.ReplicationStateTransition.acquireCount.w
+serverStatus.locks.ReplicationStateTransition.acquireWaitCount.W
+serverStatus.locks.ReplicationStateTransition.acquireWaitCount.w
+serverStatus.locks.ReplicationStateTransition.timeAcquiringMicros.W
+serverStatus.locks.ReplicationStateTransition.timeAcquiringMicros.w
+serverStatus.logicalSessionRecordCache.activeSessionsCount
+serverStatus.logicalSessionRecordCache.lastSessionsCollectionJobCursorsClosed
+serverStatus.logicalSessionRecordCache.lastSessionsCollectionJobDurationMillis
+serverStatus.logicalSessionRecordCache.lastSessionsCollectionJobEntriesEnded
+serverStatus.logicalSessionRecordCache.lastSessionsCollectionJobEntriesRefreshed
+serverStatus.logicalSessionRecordCache.lastSessionsCollectionJobTimestamp
+serverStatus.logicalSessionRecordCache.lastTransactionReaperJobDurationMillis
+serverStatus.logicalSessionRecordCache.lastTransactionReaperJobEntriesCleanedUp
+serverStatus.logicalSessionRecordCache.lastTransactionReaperJobTimestamp
+serverStatus.logicalSessionRecordCache.sessionCatalogSize
+serverStatus.logicalSessionRecordCache.sessionsCollectionJobCount
+serverStatus.logicalSessionRecordCache.transactionReaperJobCount
+serverStatus.mem.bits
+serverStatus.mem.resident
+serverStatus.mem.supported
+serverStatus.mem.virtual
+serverStatus.metrics.aggStageCounters.$_internalApplyOplogUpdate
+serverStatus.metrics.aggStageCounters.$_internalInhibitOptimization
+serverStatus.metrics.aggStageCounters.$_internalSplitPipeline
+serverStatus.metrics.aggStageCounters.$addFields
+serverStatus.metrics.aggStageCounters.$backupCursor
+serverStatus.metrics.aggStageCounters.$backupCursorExtend
+serverStatus.metrics.aggStageCounters.$bucket
+serverStatus.metrics.aggStageCounters.$bucketAuto
+serverStatus.metrics.aggStageCounters.$changeStream
+serverStatus.metrics.aggStageCounters.$collStats
+serverStatus.metrics.aggStageCounters.$count
+serverStatus.metrics.aggStageCounters.$currentOp
+serverStatus.metrics.aggStageCounters.$documents
+serverStatus.metrics.aggStageCounters.$facet
+serverStatus.metrics.aggStageCounters.$geoNear
+serverStatus.metrics.aggStageCounters.$graphLookup
+serverStatus.metrics.aggStageCounters.$group
+serverStatus.metrics.aggStageCounters.$indexStats
+serverStatus.metrics.aggStageCounters.$limit
+serverStatus.metrics.aggStageCounters.$listLocalSessions
+serverStatus.metrics.aggStageCounters.$listSessions
+serverStatus.metrics.aggStageCounters.$lookup
+serverStatus.metrics.aggStageCounters.$match
+serverStatus.metrics.aggStageCounters.$merge
+serverStatus.metrics.aggStageCounters.$mergeCursors
+serverStatus.metrics.aggStageCounters.$out
+serverStatus.metrics.aggStageCounters.$planCacheStats
+serverStatus.metrics.aggStageCounters.$project
+serverStatus.metrics.aggStageCounters.$queue
+serverStatus.metrics.aggStageCounters.$redact
+serverStatus.metrics.aggStageCounters.$replaceRoot
+serverStatus.metrics.aggStageCounters.$replaceWith
+serverStatus.metrics.aggStageCounters.$sample
+serverStatus.metrics.aggStageCounters.$set
+serverStatus.metrics.aggStageCounters.$skip
+serverStatus.metrics.aggStageCounters.$sort
+serverStatus.metrics.aggStageCounters.$sortByCount
+serverStatus.metrics.aggStageCounters.$unionWith
+serverStatus.metrics.aggStageCounters.$unset
+serverStatus.metrics.aggStageCounters.$unwind
+serverStatus.metrics.commands.<UNKNOWN>
+serverStatus.metrics.commands._addShard.failed
+serverStatus.metrics.commands._addShard.total
+serverStatus.metrics.commands._cloneCollectionOptionsFromPrimaryShard.failed
+serverStatus.metrics.commands._cloneCollectionOptionsFromPrimaryShard.total
+serverStatus.metrics.commands._configsvrAddShard.failed
+serverStatus.metrics.commands._configsvrAddShard.total
+serverStatus.metrics.commands._configsvrAddShardToZone.failed
+serverStatus.metrics.commands._configsvrAddShardToZone.total
+serverStatus.metrics.commands._configsvrBalancerCollectionStatus.failed
+serverStatus.metrics.commands._configsvrBalancerCollectionStatus.total
+serverStatus.metrics.commands._configsvrBalancerStart.failed
+serverStatus.metrics.commands._configsvrBalancerStart.total
+serverStatus.metrics.commands._configsvrBalancerStatus.failed
+serverStatus.metrics.commands._configsvrBalancerStatus.total
+serverStatus.metrics.commands._configsvrBalancerStop.failed
+serverStatus.metrics.commands._configsvrBalancerStop.total
+serverStatus.metrics.commands._configsvrClearJumboFlag.failed
+serverStatus.metrics.commands._configsvrClearJumboFlag.total
+serverStatus.metrics.commands._configsvrCommitChunkMerge.failed
+serverStatus.metrics.commands._configsvrCommitChunkMerge.total
+serverStatus.metrics.commands._configsvrCommitChunkMigration.failed
+serverStatus.metrics.commands._configsvrCommitChunkMigration.total
+serverStatus.metrics.commands._configsvrCommitChunksMerge.failed
+serverStatus.metrics.commands._configsvrCommitChunksMerge.total
+serverStatus.metrics.commands._configsvrCommitChunkSplit.failed
+serverStatus.metrics.commands._configsvrCommitChunkSplit.total
+serverStatus.metrics.commands._configsvrCommitMovePrimary.failed
+serverStatus.metrics.commands._configsvrCommitMovePrimary.total
+serverStatus.metrics.commands._configsvrCreateCollection.failed
+serverStatus.metrics.commands._configsvrCreateCollection.total
+serverStatus.metrics.commands._configsvrCreateDatabase.failed
+serverStatus.metrics.commands._configsvrCreateDatabase.total
+serverStatus.metrics.commands._configsvrDropCollection.failed
+serverStatus.metrics.commands._configsvrDropCollection.total
+serverStatus.metrics.commands._configsvrDropDatabase.failed
+serverStatus.metrics.commands._configsvrDropDatabase.total
+serverStatus.metrics.commands._configsvrEnableSharding.failed
+serverStatus.metrics.commands._configsvrEnableSharding.total
+serverStatus.metrics.commands._configsvrEnsureChunkVersionIsGreaterThan.failed
+serverStatus.metrics.commands._configsvrEnsureChunkVersionIsGreaterThan.total
+serverStatus.metrics.commands._configsvrMoveChunk.failed
+serverStatus.metrics.commands._configsvrMoveChunk.total
+serverStatus.metrics.commands._configsvrMovePrimary.failed
+serverStatus.metrics.commands._configsvrMovePrimary.total
+serverStatus.metrics.commands._configsvrRefineCollectionShardKey.failed
+serverStatus.metrics.commands._configsvrRefineCollectionShardKey.total
+serverStatus.metrics.commands._configsvrRemoveShard.failed
+serverStatus.metrics.commands._configsvrRemoveShard.total
+serverStatus.metrics.commands._configsvrRemoveShardFromZone.failed
+serverStatus.metrics.commands._configsvrRemoveShardFromZone.total
+serverStatus.metrics.commands._configsvrRepairShardedCollectionChunksHistory.failed
+serverStatus.metrics.commands._configsvrRepairShardedCollectionChunksHistory.total
+serverStatus.metrics.commands._configsvrShardCollection.failed
+serverStatus.metrics.commands._configsvrShardCollection.total
+serverStatus.metrics.commands._configsvrUpdateZoneKeyRange.failed
+serverStatus.metrics.commands._configsvrUpdateZoneKeyRange.total
+serverStatus.metrics.commands._flushDatabaseCacheUpdates.failed
+serverStatus.metrics.commands._flushDatabaseCacheUpdates.total
+serverStatus.metrics.commands._flushRoutingTableCacheUpdates.failed
+serverStatus.metrics.commands._flushRoutingTableCacheUpdates.total
+serverStatus.metrics.commands._getNextSessionMods.failed
+serverStatus.metrics.commands._getNextSessionMods.total
+serverStatus.metrics.commands._getUserCacheGeneration.failed
+serverStatus.metrics.commands._getUserCacheGeneration.total
+serverStatus.metrics.commands._isSelf.failed
+serverStatus.metrics.commands._isSelf.total
+serverStatus.metrics.commands._killOperations.failed
+serverStatus.metrics.commands._killOperations.total
+serverStatus.metrics.commands._mergeAuthzCollections.failed
+serverStatus.metrics.commands._mergeAuthzCollections.total
+serverStatus.metrics.commands._migrateClone.failed
+serverStatus.metrics.commands._migrateClone.total
+serverStatus.metrics.commands._recvChunkAbort.failed
+serverStatus.metrics.commands._recvChunkAbort.total
+serverStatus.metrics.commands._recvChunkCommit.failed
+serverStatus.metrics.commands._recvChunkCommit.total
+serverStatus.metrics.commands._recvChunkStart.failed
+serverStatus.metrics.commands._recvChunkStart.total
+serverStatus.metrics.commands._recvChunkStatus.failed
+serverStatus.metrics.commands._recvChunkStatus.total
+serverStatus.metrics.commands._shardsvrCloneCatalogData.failed
+serverStatus.metrics.commands._shardsvrCloneCatalogData.total
+serverStatus.metrics.commands._shardsvrMovePrimary.failed
+serverStatus.metrics.commands._shardsvrMovePrimary.total
+serverStatus.metrics.commands._shardsvrSetAllowMigrations.failed
+serverStatus.metrics.commands._shardsvrSetAllowMigrations.total
+serverStatus.metrics.commands._shardsvrShardCollection.failed
+serverStatus.metrics.commands._shardsvrShardCollection.total
+serverStatus.metrics.commands._transferMods.failed
+serverStatus.metrics.commands._transferMods.total
+serverStatus.metrics.commands.abortTransaction.failed
+serverStatus.metrics.commands.abortTransaction.total
+serverStatus.metrics.commands.aggregate.allowDiskUseTrue
+serverStatus.metrics.commands.aggregate.failed
+serverStatus.metrics.commands.aggregate.total
+serverStatus.metrics.commands.appendOplogNote.failed
+serverStatus.metrics.commands.appendOplogNote.total
+serverStatus.metrics.commands.applyOps.failed
+serverStatus.metrics.commands.applyOps.total
+serverStatus.metrics.commands.authenticate.failed
+serverStatus.metrics.commands.authenticate.total
+serverStatus.metrics.commands.autoSplitVector.failed
+serverStatus.metrics.commands.autoSplitVector.total
+serverStatus.metrics.commands.availableQueryOptions.failed
+serverStatus.metrics.commands.availableQueryOptions.total
+serverStatus.metrics.commands.buildInfo.failed
+serverStatus.metrics.commands.buildInfo.total
+serverStatus.metrics.commands.checkShardingIndex.failed
+serverStatus.metrics.commands.checkShardingIndex.total
+serverStatus.metrics.commands.cleanupOrphaned.failed
+serverStatus.metrics.commands.cleanupOrphaned.total
+serverStatus.metrics.commands.cloneCollectionAsCapped.failed
+serverStatus.metrics.commands.cloneCollectionAsCapped.total
+serverStatus.metrics.commands.collMod.failed
+serverStatus.metrics.commands.collMod.total
+serverStatus.metrics.commands.collMod.validator.failed
+serverStatus.metrics.commands.collMod.validator.jsonSchema
+serverStatus.metrics.commands.collMod.validator.total
+serverStatus.metrics.commands.collStats.failed
+serverStatus.metrics.commands.collStats.total
+serverStatus.metrics.commands.commitTransaction.failed
+serverStatus.metrics.commands.commitTransaction.total
+serverStatus.metrics.commands.compact.failed
+serverStatus.metrics.commands.compact.total
+serverStatus.metrics.commands.connectionStatus.failed
+serverStatus.metrics.commands.connectionStatus.total
+serverStatus.metrics.commands.connPoolStats.failed
+serverStatus.metrics.commands.connPoolStats.total
+serverStatus.metrics.commands.connPoolSync.failed
+serverStatus.metrics.commands.connPoolSync.total
+serverStatus.metrics.commands.convertToCapped.failed
+serverStatus.metrics.commands.convertToCapped.total
+serverStatus.metrics.commands.coordinateCommitTransaction.failed
+serverStatus.metrics.commands.coordinateCommitTransaction.total
+serverStatus.metrics.commands.count.failed
+serverStatus.metrics.commands.count.total
+serverStatus.metrics.commands.create.failed
+serverStatus.metrics.commands.create.total
+serverStatus.metrics.commands.create.validator.failed
+serverStatus.metrics.commands.create.validator.jsonSchema
+serverStatus.metrics.commands.create.validator.total
+serverStatus.metrics.commands.createBackup.failed
+serverStatus.metrics.commands.createBackup.total
+serverStatus.metrics.commands.createIndexes.failed
+serverStatus.metrics.commands.createIndexes.total
+serverStatus.metrics.commands.createRole.failed
+serverStatus.metrics.commands.createRole.total
+serverStatus.metrics.commands.createUser.failed
+serverStatus.metrics.commands.createUser.total
+serverStatus.metrics.commands.currentOp.failed
+serverStatus.metrics.commands.currentOp.total
+serverStatus.metrics.commands.dataSize.failed
+serverStatus.metrics.commands.dataSize.total
+serverStatus.metrics.commands.dbCheck.failed
+serverStatus.metrics.commands.dbCheck.total
+serverStatus.metrics.commands.dbHash.failed
+serverStatus.metrics.commands.dbHash.total
+serverStatus.metrics.commands.dbStats.failed
+serverStatus.metrics.commands.dbStats.total
+serverStatus.metrics.commands.delete.failed
+serverStatus.metrics.commands.delete.total
+serverStatus.metrics.commands.distinct.failed
+serverStatus.metrics.commands.distinct.total
+serverStatus.metrics.commands.driverOIDTest.failed
+serverStatus.metrics.commands.driverOIDTest.total
+serverStatus.metrics.commands.drop.failed
+serverStatus.metrics.commands.drop.total
+serverStatus.metrics.commands.dropAllRolesFromDatabase.failed
+serverStatus.metrics.commands.dropAllRolesFromDatabase.total
+serverStatus.metrics.commands.dropAllUsersFromDatabase.failed
+serverStatus.metrics.commands.dropAllUsersFromDatabase.total
+serverStatus.metrics.commands.dropConnections.failed
+serverStatus.metrics.commands.dropConnections.total
+serverStatus.metrics.commands.dropDatabase.failed
+serverStatus.metrics.commands.dropDatabase.total
+serverStatus.metrics.commands.dropIndexes.failed
+serverStatus.metrics.commands.dropIndexes.total
+serverStatus.metrics.commands.dropRole.failed
+serverStatus.metrics.commands.dropRole.total
+serverStatus.metrics.commands.dropUser.failed
+serverStatus.metrics.commands.dropUser.total
+serverStatus.metrics.commands.endSessions.failed
+serverStatus.metrics.commands.endSessions.total
+serverStatus.metrics.commands.explain.failed
+serverStatus.metrics.commands.explain.total
+serverStatus.metrics.commands.features.failed
+serverStatus.metrics.commands.features.total
+serverStatus.metrics.commands.filemd5.failed
+serverStatus.metrics.commands.filemd5.total
+serverStatus.metrics.commands.find.failed
+serverStatus.metrics.commands.find.total
+serverStatus.metrics.commands.findAndModify.arrayFilters
+serverStatus.metrics.commands.findAndModify.failed
+serverStatus.metrics.commands.findAndModify.pipeline
+serverStatus.metrics.commands.findAndModify.total
+serverStatus.metrics.commands.flushRouterConfig.failed
+serverStatus.metrics.commands.flushRouterConfig.total
+serverStatus.metrics.commands.fsync.failed
+serverStatus.metrics.commands.fsync.total
+serverStatus.metrics.commands.fsyncUnlock.failed
+serverStatus.metrics.commands.fsyncUnlock.total
+serverStatus.metrics.commands.geoSearch.failed
+serverStatus.metrics.commands.geoSearch.total
+serverStatus.metrics.commands.getCmdLineOpts.failed
+serverStatus.metrics.commands.getCmdLineOpts.total
+serverStatus.metrics.commands.getDatabaseVersion.failed
+serverStatus.metrics.commands.getDatabaseVersion.total
+serverStatus.metrics.commands.getDefaultRWConcern.failed
+serverStatus.metrics.commands.getDefaultRWConcern.total
+serverStatus.metrics.commands.getDiagnosticData.failed
+serverStatus.metrics.commands.getDiagnosticData.total
+serverStatus.metrics.commands.getLastError.failed
+serverStatus.metrics.commands.getLastError.total
+serverStatus.metrics.commands.getLog.failed
+serverStatus.metrics.commands.getLog.total
+serverStatus.metrics.commands.getMore.failed
+serverStatus.metrics.commands.getMore.total
+serverStatus.metrics.commands.getnonce.failed
+serverStatus.metrics.commands.getnonce.total
+serverStatus.metrics.commands.getParameter.failed
+serverStatus.metrics.commands.getParameter.total
+serverStatus.metrics.commands.getShardMap.failed
+serverStatus.metrics.commands.getShardMap.total
+serverStatus.metrics.commands.getShardVersion.failed
+serverStatus.metrics.commands.getShardVersion.total
+serverStatus.metrics.commands.grantPrivilegesToRole.failed
+serverStatus.metrics.commands.grantPrivilegesToRole.total
+serverStatus.metrics.commands.grantRolesToRole.failed
+serverStatus.metrics.commands.grantRolesToRole.total
+serverStatus.metrics.commands.grantRolesToUser.failed
+serverStatus.metrics.commands.grantRolesToUser.total
+serverStatus.metrics.commands.hello.failed
+serverStatus.metrics.commands.hello.total
+serverStatus.metrics.commands.hostInfo.failed
+serverStatus.metrics.commands.hostInfo.total
+serverStatus.metrics.commands.insert.failed
+serverStatus.metrics.commands.insert.total
+serverStatus.metrics.commands.internalRenameIfOptionsAndIndexesMatch.failed
+serverStatus.metrics.commands.internalRenameIfOptionsAndIndexesMatch.total
+serverStatus.metrics.commands.invalidateUserCache.failed
+serverStatus.metrics.commands.invalidateUserCache.total
+serverStatus.metrics.commands.isMaster.failed
+serverStatus.metrics.commands.isMaster.total
+serverStatus.metrics.commands.killAllSessions.failed
+serverStatus.metrics.commands.killAllSessions.total
+serverStatus.metrics.commands.killAllSessionsByPattern.failed
+serverStatus.metrics.commands.killAllSessionsByPattern.total
+serverStatus.metrics.commands.killCursors.failed
+serverStatus.metrics.commands.killCursors.total
+serverStatus.metrics.commands.killOp.failed
+serverStatus.metrics.commands.killOp.total
+serverStatus.metrics.commands.killSessions.failed
+serverStatus.metrics.commands.killSessions.total
+serverStatus.metrics.commands.listCollections.failed
+serverStatus.metrics.commands.listCollections.total
+serverStatus.metrics.commands.listCommands.failed
+serverStatus.metrics.commands.listCommands.total
+serverStatus.metrics.commands.listDatabases.failed
+serverStatus.metrics.commands.listDatabases.total
+serverStatus.metrics.commands.listIndexes.failed
+serverStatus.metrics.commands.listIndexes.total
+serverStatus.metrics.commands.lockInfo.failed
+serverStatus.metrics.commands.lockInfo.total
+serverStatus.metrics.commands.logApplicationMessage.failed
+serverStatus.metrics.commands.logApplicationMessage.total
+serverStatus.metrics.commands.logout.failed
+serverStatus.metrics.commands.logout.total
+serverStatus.metrics.commands.logRotate.failed
+serverStatus.metrics.commands.logRotate.total
+serverStatus.metrics.commands.mapReduce.failed
+serverStatus.metrics.commands.mapreduce.shardedfinish.failed
+serverStatus.metrics.commands.mapreduce.shardedfinish.total
+serverStatus.metrics.commands.mapReduce.total
+serverStatus.metrics.commands.mergeChunks.failed
+serverStatus.metrics.commands.mergeChunks.total
+serverStatus.metrics.commands.moveChunk.failed
+serverStatus.metrics.commands.moveChunk.total
+serverStatus.metrics.commands.ping.failed
+serverStatus.metrics.commands.ping.total
+serverStatus.metrics.commands.planCacheClear.failed
+serverStatus.metrics.commands.planCacheClear.total
+serverStatus.metrics.commands.planCacheClearFilters.failed
+serverStatus.metrics.commands.planCacheClearFilters.total
+serverStatus.metrics.commands.planCacheListFilters.failed
+serverStatus.metrics.commands.planCacheListFilters.total
+serverStatus.metrics.commands.planCacheSetFilter.failed
+serverStatus.metrics.commands.planCacheSetFilter.total
+serverStatus.metrics.commands.prepareTransaction.failed
+serverStatus.metrics.commands.prepareTransaction.total
+serverStatus.metrics.commands.profile.failed
+serverStatus.metrics.commands.profile.total
+serverStatus.metrics.commands.refreshSessions.failed
+serverStatus.metrics.commands.refreshSessions.total
+serverStatus.metrics.commands.reIndex.failed
+serverStatus.metrics.commands.reIndex.total
+serverStatus.metrics.commands.renameCollection.failed
+serverStatus.metrics.commands.renameCollection.total
+serverStatus.metrics.commands.replSetAbortPrimaryCatchUp.failed
+serverStatus.metrics.commands.replSetAbortPrimaryCatchUp.total
+serverStatus.metrics.commands.replSetFreeze.failed
+serverStatus.metrics.commands.replSetFreeze.total
+serverStatus.metrics.commands.replSetGetConfig.failed
+serverStatus.metrics.commands.replSetGetConfig.total
+serverStatus.metrics.commands.replSetGetRBID.failed
+serverStatus.metrics.commands.replSetGetRBID.total
+serverStatus.metrics.commands.replSetGetStatus.failed
+serverStatus.metrics.commands.replSetGetStatus.total
+serverStatus.metrics.commands.replSetHeartbeat.failed
+serverStatus.metrics.commands.replSetHeartbeat.total
+serverStatus.metrics.commands.replSetInitiate.failed
+serverStatus.metrics.commands.replSetInitiate.total
+serverStatus.metrics.commands.replSetMaintenance.failed
+serverStatus.metrics.commands.replSetMaintenance.total
+serverStatus.metrics.commands.replSetReconfig.failed
+serverStatus.metrics.commands.replSetReconfig.total
+serverStatus.metrics.commands.replSetRequestVotes.failed
+serverStatus.metrics.commands.replSetRequestVotes.total
+serverStatus.metrics.commands.replSetResizeOplog.failed
+serverStatus.metrics.commands.replSetResizeOplog.total
+serverStatus.metrics.commands.replSetStepDown.failed
+serverStatus.metrics.commands.replSetStepDown.total
+serverStatus.metrics.commands.replSetStepDownWithForce.failed
+serverStatus.metrics.commands.replSetStepDownWithForce.total
+serverStatus.metrics.commands.replSetStepUp.failed
+serverStatus.metrics.commands.replSetStepUp.total
+serverStatus.metrics.commands.replSetSyncFrom.failed
+serverStatus.metrics.commands.replSetSyncFrom.total
+serverStatus.metrics.commands.replSetUpdatePosition.failed
+serverStatus.metrics.commands.replSetUpdatePosition.total
+serverStatus.metrics.commands.resetError.failed
+serverStatus.metrics.commands.resetError.total
+serverStatus.metrics.commands.revokePrivilegesFromRole.failed
+serverStatus.metrics.commands.revokePrivilegesFromRole.total
+serverStatus.metrics.commands.revokeRolesFromRole.failed
+serverStatus.metrics.commands.revokeRolesFromRole.total
+serverStatus.metrics.commands.revokeRolesFromUser.failed
+serverStatus.metrics.commands.revokeRolesFromUser.total
+serverStatus.metrics.commands.rolesInfo.failed
+serverStatus.metrics.commands.rolesInfo.total
+serverStatus.metrics.commands.saslContinue.failed
+serverStatus.metrics.commands.saslContinue.total
+serverStatus.metrics.commands.saslStart.failed
+serverStatus.metrics.commands.saslStart.total
+serverStatus.metrics.commands.serverStatus.failed
+serverStatus.metrics.commands.serverStatus.total
+serverStatus.metrics.commands.setDefaultRWConcern.failed
+serverStatus.metrics.commands.setDefaultRWConcern.total
+serverStatus.metrics.commands.setFeatureCompatibilityVersion.failed
+serverStatus.metrics.commands.setFeatureCompatibilityVersion.total
+serverStatus.metrics.commands.setIndexCommitQuorum.failed
+serverStatus.metrics.commands.setIndexCommitQuorum.total
+serverStatus.metrics.commands.setParameter.failed
+serverStatus.metrics.commands.setParameter.total
+serverStatus.metrics.commands.setProfilingFilterGlobally.failed
+serverStatus.metrics.commands.setProfilingFilterGlobally.total
+serverStatus.metrics.commands.setShardVersion.failed
+serverStatus.metrics.commands.setShardVersion.total
+serverStatus.metrics.commands.shardConnPoolStats.failed
+serverStatus.metrics.commands.shardConnPoolStats.total
+serverStatus.metrics.commands.shardingState.failed
+serverStatus.metrics.commands.shardingState.total
+serverStatus.metrics.commands.shutdown.failed
+serverStatus.metrics.commands.shutdown.total
+serverStatus.metrics.commands.splitChunk.failed
+serverStatus.metrics.commands.splitChunk.total
+serverStatus.metrics.commands.splitVector.failed
+serverStatus.metrics.commands.splitVector.total
+serverStatus.metrics.commands.startRecordingTraffic.failed
+serverStatus.metrics.commands.startRecordingTraffic.total
+serverStatus.metrics.commands.startSession.failed
+serverStatus.metrics.commands.startSession.total
+serverStatus.metrics.commands.stopRecordingTraffic.failed
+serverStatus.metrics.commands.stopRecordingTraffic.total
+serverStatus.metrics.commands.top.failed
+serverStatus.metrics.commands.top.total
+serverStatus.metrics.commands.unsetSharding.failed
+serverStatus.metrics.commands.unsetSharding.total
+serverStatus.metrics.commands.update.arrayFilters
+serverStatus.metrics.commands.update.failed
+serverStatus.metrics.commands.update.pipeline
+serverStatus.metrics.commands.update.total
+serverStatus.metrics.commands.updateRole.failed
+serverStatus.metrics.commands.updateRole.total
+serverStatus.metrics.commands.updateUser.failed
+serverStatus.metrics.commands.updateUser.total
+serverStatus.metrics.commands.usersInfo.failed
+serverStatus.metrics.commands.usersInfo.total
+serverStatus.metrics.commands.validate.failed
+serverStatus.metrics.commands.validate.total
+serverStatus.metrics.commands.voteCommitIndexBuild.failed
+serverStatus.metrics.commands.voteCommitIndexBuild.total
+serverStatus.metrics.commands.waitForFailPoint.failed
+serverStatus.metrics.commands.waitForFailPoint.total
+serverStatus.metrics.commands.whatsmyuri.failed
+serverStatus.metrics.commands.whatsmyuri.total
+serverStatus.metrics.cursor.open.noTimeout
+serverStatus.metrics.cursor.open.pinned
+serverStatus.metrics.cursor.open.total
+serverStatus.metrics.cursor.timedOut
+serverStatus.metrics.document.deleted
+serverStatus.metrics.document.inserted
+serverStatus.metrics.document.returned
+serverStatus.metrics.document.updated
+serverStatus.metrics.getLastError.default.unsatisfiable
+serverStatus.metrics.getLastError.default.wtimeouts
+serverStatus.metrics.getLastError.wtime.num
+serverStatus.metrics.getLastError.wtime.totalMillis
+serverStatus.metrics.getLastError.wtimeouts
+serverStatus.metrics.operation.scanAndOrder
+serverStatus.metrics.operation.writeConflicts
+serverStatus.metrics.operatorCounters.expressions.$_internalJsEmit
+serverStatus.metrics.operatorCounters.expressions.$abs
+serverStatus.metrics.operatorCounters.expressions.$acos
+serverStatus.metrics.operatorCounters.expressions.$acosh
+serverStatus.metrics.operatorCounters.expressions.$add
+serverStatus.metrics.operatorCounters.expressions.$allElementsTrue
+serverStatus.metrics.operatorCounters.expressions.$and
+serverStatus.metrics.operatorCounters.expressions.$anyElementTrue
+serverStatus.metrics.operatorCounters.expressions.$arrayElemAt
+serverStatus.metrics.operatorCounters.expressions.$arrayToObject
+serverStatus.metrics.operatorCounters.expressions.$asin
+serverStatus.metrics.operatorCounters.expressions.$asinh
+serverStatus.metrics.operatorCounters.expressions.$atan
+serverStatus.metrics.operatorCounters.expressions.$atan2
+serverStatus.metrics.operatorCounters.expressions.$atanh
+serverStatus.metrics.operatorCounters.expressions.$avg
+serverStatus.metrics.operatorCounters.expressions.$binarySize
+serverStatus.metrics.operatorCounters.expressions.$bsonSize
+serverStatus.metrics.operatorCounters.expressions.$ceil
+serverStatus.metrics.operatorCounters.expressions.$cmp
+serverStatus.metrics.operatorCounters.expressions.$concat
+serverStatus.metrics.operatorCounters.expressions.$concatArrays
+serverStatus.metrics.operatorCounters.expressions.$cond
+serverStatus.metrics.operatorCounters.expressions.$const
+serverStatus.metrics.operatorCounters.expressions.$convert
+serverStatus.metrics.operatorCounters.expressions.$cos
+serverStatus.metrics.operatorCounters.expressions.$cosh
+serverStatus.metrics.operatorCounters.expressions.$dateFromParts
+serverStatus.metrics.operatorCounters.expressions.$dateFromString
+serverStatus.metrics.operatorCounters.expressions.$dateToParts
+serverStatus.metrics.operatorCounters.expressions.$dateToString
+serverStatus.metrics.operatorCounters.expressions.$dayOfMonth
+serverStatus.metrics.operatorCounters.expressions.$dayOfWeek
+serverStatus.metrics.operatorCounters.expressions.$dayOfYear
+serverStatus.metrics.operatorCounters.expressions.$degreesToRadians
+serverStatus.metrics.operatorCounters.expressions.$divide
+serverStatus.metrics.operatorCounters.expressions.$eq
+serverStatus.metrics.operatorCounters.expressions.$exp
+serverStatus.metrics.operatorCounters.expressions.$filter
+serverStatus.metrics.operatorCounters.expressions.$first
+serverStatus.metrics.operatorCounters.expressions.$floor
+serverStatus.metrics.operatorCounters.expressions.$function
+serverStatus.metrics.operatorCounters.expressions.$gt
+serverStatus.metrics.operatorCounters.expressions.$gte
+serverStatus.metrics.operatorCounters.expressions.$hour
+serverStatus.metrics.operatorCounters.expressions.$ifNull
+serverStatus.metrics.operatorCounters.expressions.$in
+serverStatus.metrics.operatorCounters.expressions.$indexOfArray
+serverStatus.metrics.operatorCounters.expressions.$indexOfBytes
+serverStatus.metrics.operatorCounters.expressions.$indexOfCP
+serverStatus.metrics.operatorCounters.expressions.$isArray
+serverStatus.metrics.operatorCounters.expressions.$isNumber
+serverStatus.metrics.operatorCounters.expressions.$isoDayOfWeek
+serverStatus.metrics.operatorCounters.expressions.$isoWeek
+serverStatus.metrics.operatorCounters.expressions.$isoWeekYear
+serverStatus.metrics.operatorCounters.expressions.$last
+serverStatus.metrics.operatorCounters.expressions.$let
+serverStatus.metrics.operatorCounters.expressions.$literal
+serverStatus.metrics.operatorCounters.expressions.$ln
+serverStatus.metrics.operatorCounters.expressions.$log
+serverStatus.metrics.operatorCounters.expressions.$log10
+serverStatus.metrics.operatorCounters.expressions.$lt
+serverStatus.metrics.operatorCounters.expressions.$lte
+serverStatus.metrics.operatorCounters.expressions.$ltrim
+serverStatus.metrics.operatorCounters.expressions.$map
+serverStatus.metrics.operatorCounters.expressions.$max
+serverStatus.metrics.operatorCounters.expressions.$mergeObjects
+serverStatus.metrics.operatorCounters.expressions.$meta
+serverStatus.metrics.operatorCounters.expressions.$millisecond
+serverStatus.metrics.operatorCounters.expressions.$min
+serverStatus.metrics.operatorCounters.expressions.$minute
+serverStatus.metrics.operatorCounters.expressions.$mod
+serverStatus.metrics.operatorCounters.expressions.$month
+serverStatus.metrics.operatorCounters.expressions.$multiply
+serverStatus.metrics.operatorCounters.expressions.$ne
+serverStatus.metrics.operatorCounters.expressions.$not
+serverStatus.metrics.operatorCounters.expressions.$objectToArray
+serverStatus.metrics.operatorCounters.expressions.$or
+serverStatus.metrics.operatorCounters.expressions.$pow
+serverStatus.metrics.operatorCounters.expressions.$radiansToDegrees
+serverStatus.metrics.operatorCounters.expressions.$rand
+serverStatus.metrics.operatorCounters.expressions.$range
+serverStatus.metrics.operatorCounters.expressions.$reduce
+serverStatus.metrics.operatorCounters.expressions.$regexFind
+serverStatus.metrics.operatorCounters.expressions.$regexFindAll
+serverStatus.metrics.operatorCounters.expressions.$regexMatch
+serverStatus.metrics.operatorCounters.expressions.$replaceAll
+serverStatus.metrics.operatorCounters.expressions.$replaceOne
+serverStatus.metrics.operatorCounters.expressions.$reverseArray
+serverStatus.metrics.operatorCounters.expressions.$round
+serverStatus.metrics.operatorCounters.expressions.$rtrim
+serverStatus.metrics.operatorCounters.expressions.$second
+serverStatus.metrics.operatorCounters.expressions.$setDifference
+serverStatus.metrics.operatorCounters.expressions.$setEquals
+serverStatus.metrics.operatorCounters.expressions.$setIntersection
+serverStatus.metrics.operatorCounters.expressions.$setIsSubset
+serverStatus.metrics.operatorCounters.expressions.$setUnion
+serverStatus.metrics.operatorCounters.expressions.$sin
+serverStatus.metrics.operatorCounters.expressions.$sinh
+serverStatus.metrics.operatorCounters.expressions.$size
+serverStatus.metrics.operatorCounters.expressions.$slice
+serverStatus.metrics.operatorCounters.expressions.$split
+serverStatus.metrics.operatorCounters.expressions.$sqrt
+serverStatus.metrics.operatorCounters.expressions.$stdDevPop
+serverStatus.metrics.operatorCounters.expressions.$stdDevSamp
+serverStatus.metrics.operatorCounters.expressions.$strcasecmp
+serverStatus.metrics.operatorCounters.expressions.$strLenBytes
+serverStatus.metrics.operatorCounters.expressions.$strLenCP
+serverStatus.metrics.operatorCounters.expressions.$substr
+serverStatus.metrics.operatorCounters.expressions.$substrBytes
+serverStatus.metrics.operatorCounters.expressions.$substrCP
+serverStatus.metrics.operatorCounters.expressions.$subtract
+serverStatus.metrics.operatorCounters.expressions.$sum
+serverStatus.metrics.operatorCounters.expressions.$switch
+serverStatus.metrics.operatorCounters.expressions.$tan
+serverStatus.metrics.operatorCounters.expressions.$tanh
+serverStatus.metrics.operatorCounters.expressions.$toBool
+serverStatus.metrics.operatorCounters.expressions.$toDate
+serverStatus.metrics.operatorCounters.expressions.$toDecimal
+serverStatus.metrics.operatorCounters.expressions.$toDouble
+serverStatus.metrics.operatorCounters.expressions.$toHashedIndexKey
+serverStatus.metrics.operatorCounters.expressions.$toInt
+serverStatus.metrics.operatorCounters.expressions.$toLong
+serverStatus.metrics.operatorCounters.expressions.$toLower
+serverStatus.metrics.operatorCounters.expressions.$toObjectId
+serverStatus.metrics.operatorCounters.expressions.$toString
+serverStatus.metrics.operatorCounters.expressions.$toUpper
+serverStatus.metrics.operatorCounters.expressions.$trim
+serverStatus.metrics.operatorCounters.expressions.$trunc
+serverStatus.metrics.operatorCounters.expressions.$type
+serverStatus.metrics.operatorCounters.expressions.$week
+serverStatus.metrics.operatorCounters.expressions.$year
+serverStatus.metrics.operatorCounters.expressions.$zip
+serverStatus.metrics.operatorCounters.match.$all
+serverStatus.metrics.operatorCounters.match.$alwaysFalse
+serverStatus.metrics.operatorCounters.match.$alwaysTrue
+serverStatus.metrics.operatorCounters.match.$and
+serverStatus.metrics.operatorCounters.match.$bitsAllClear
+serverStatus.metrics.operatorCounters.match.$bitsAllSet
+serverStatus.metrics.operatorCounters.match.$bitsAnyClear
+serverStatus.metrics.operatorCounters.match.$bitsAnySet
+serverStatus.metrics.operatorCounters.match.$comment
+serverStatus.metrics.operatorCounters.match.$elemMatch
+serverStatus.metrics.operatorCounters.match.$eq
+serverStatus.metrics.operatorCounters.match.$exists
+serverStatus.metrics.operatorCounters.match.$expr
+serverStatus.metrics.operatorCounters.match.$geoIntersects
+serverStatus.metrics.operatorCounters.match.$geoWithin
+serverStatus.metrics.operatorCounters.match.$gt
+serverStatus.metrics.operatorCounters.match.$gte
+serverStatus.metrics.operatorCounters.match.$in
+serverStatus.metrics.operatorCounters.match.$jsonSchema
+serverStatus.metrics.operatorCounters.match.$lt
+serverStatus.metrics.operatorCounters.match.$lte
+serverStatus.metrics.operatorCounters.match.$mod
+serverStatus.metrics.operatorCounters.match.$ne
+serverStatus.metrics.operatorCounters.match.$near
+serverStatus.metrics.operatorCounters.match.$nearSphere
+serverStatus.metrics.operatorCounters.match.$nin
+serverStatus.metrics.operatorCounters.match.$nor
+serverStatus.metrics.operatorCounters.match.$not
+serverStatus.metrics.operatorCounters.match.$or
+serverStatus.metrics.operatorCounters.match.$regex
+serverStatus.metrics.operatorCounters.match.$sampleRate
+serverStatus.metrics.operatorCounters.match.$size
+serverStatus.metrics.operatorCounters.match.$text
+serverStatus.metrics.operatorCounters.match.$type
+serverStatus.metrics.operatorCounters.match.$where
+serverStatus.metrics.query.deleteManyCount
+serverStatus.metrics.query.multiPlanner.classicCount
+serverStatus.metrics.query.multiPlanner.classicMicros
+serverStatus.metrics.query.multiPlanner.classicWorks
+serverStatus.metrics.query.planCacheTotalSizeEstimateBytes
+serverStatus.metrics.query.updateDeleteManyDocumentsMaxCount
+serverStatus.metrics.query.updateDeleteManyDocumentsTotalCount
+serverStatus.metrics.query.updateDeleteManyDurationMaxMs
+serverStatus.metrics.query.updateDeleteManyDurationTotalMs
+serverStatus.metrics.query.updateManyCount
+serverStatus.metrics.query.updateOneOpStyleBroadcastWithExactIDCount
+serverStatus.metrics.queryExecutor.collectionScans.nonTailable
+serverStatus.metrics.queryExecutor.collectionScans.total
+serverStatus.metrics.queryExecutor.scanned
+serverStatus.metrics.queryExecutor.scannedObjects
+serverStatus.metrics.record.moves
+serverStatus.metrics.repl.apply.attemptsToBecomeSecondary
+serverStatus.metrics.repl.apply.batches.num
+serverStatus.metrics.repl.apply.batches.totalMillis
+serverStatus.metrics.repl.apply.batchSize
+serverStatus.metrics.repl.apply.ops
+serverStatus.metrics.repl.buffer.count
+serverStatus.metrics.repl.buffer.maxSizeBytes
+serverStatus.metrics.repl.buffer.sizeBytes
+serverStatus.metrics.repl.executor.pool.inProgressCount
+serverStatus.metrics.repl.executor.queues.networkInProgress
+serverStatus.metrics.repl.executor.queues.sleepers
+serverStatus.metrics.repl.executor.shuttingDown
+serverStatus.metrics.repl.executor.unsignaledEvents
+serverStatus.metrics.repl.initialSync.completed
+serverStatus.metrics.repl.initialSync.failedAttempts
+serverStatus.metrics.repl.initialSync.failures
+serverStatus.metrics.repl.network.bytes
+serverStatus.metrics.repl.network.getmores.num
+serverStatus.metrics.repl.network.getmores.numEmptyBatches
+serverStatus.metrics.repl.network.getmores.totalMillis
+serverStatus.metrics.repl.network.notPrimaryLegacyUnacknowledgedWrites
+serverStatus.metrics.repl.network.notPrimaryUnacknowledgedWrites
+serverStatus.metrics.repl.network.oplogGetMoresProcessed.num
+serverStatus.metrics.repl.network.oplogGetMoresProcessed.totalMillis
+serverStatus.metrics.repl.network.ops
+serverStatus.metrics.repl.network.readersCreated
+serverStatus.metrics.repl.network.replSetUpdatePosition.num
+serverStatus.metrics.repl.stateTransition.userOperationsKilled
+serverStatus.metrics.repl.stateTransition.userOperationsRunning
+serverStatus.metrics.repl.syncSource.numSelections
+serverStatus.metrics.repl.syncSource.numTimesChoseDifferent
+serverStatus.metrics.repl.syncSource.numTimesChoseSame
+serverStatus.metrics.repl.syncSource.numTimesCouldNotFind
+serverStatus.metrics.ttl.deletedDocuments
+serverStatus.metrics.ttl.passes
+serverStatus.mirroredReads.seen
+serverStatus.mirroredReads.sent
+serverStatus.network.bytesIn
+serverStatus.network.bytesOut
+serverStatus.network.compression.zstd.compressor.bytesIn
+serverStatus.network.compression.zstd.compressor.bytesOut
+serverStatus.network.compression.zstd.decompressor.bytesIn
+serverStatus.network.compression.zstd.decompressor.bytesOut
+serverStatus.network.numRequests
+serverStatus.network.numSlowDNSOperations
+serverStatus.network.numSlowSSLOperations
+serverStatus.network.physicalBytesIn
+serverStatus.network.physicalBytesOut
+serverStatus.network.serviceExecutorTaskStats.threadsRunning
+serverStatus.network.tcpFastOpen.accepted
+serverStatus.network.tcpFastOpen.clientSupported
+serverStatus.network.tcpFastOpen.kernelSetting
+serverStatus.network.tcpFastOpen.serverSupported
+serverStatus.ok
+serverStatus.opcounters.command
+serverStatus.opcounters.delete
+serverStatus.opcounters.deprecated.delete
+serverStatus.opcounters.deprecated.getmore
+serverStatus.opcounters.deprecated.insert
+serverStatus.opcounters.deprecated.killcursors
+serverStatus.opcounters.deprecated.query
+serverStatus.opcounters.deprecated.total
+serverStatus.opcounters.deprecated.update
+serverStatus.opcounters.getmore
+serverStatus.opcounters.insert
+serverStatus.opcounters.query
+serverStatus.opcounters.update
+serverStatus.opcountersRepl.command
+serverStatus.opcountersRepl.delete
+serverStatus.opcountersRepl.getmore
+serverStatus.opcountersRepl.insert
+serverStatus.opcountersRepl.query
+serverStatus.opcountersRepl.update
+serverStatus.opLatencies.commands.latency
+serverStatus.opLatencies.commands.ops
+serverStatus.opLatencies.reads.latency
+serverStatus.opLatencies.reads.ops
+serverStatus.opLatencies.transactions.latency
+serverStatus.opLatencies.transactions.ops
+serverStatus.opLatencies.writes.latency
+serverStatus.opLatencies.writes.ops
+serverStatus.oplog.earliestOptime/i
+serverStatus.oplog.earliestOptime/t
+serverStatus.oplog.latestOptime/i
+serverStatus.oplog.latestOptime/t
+serverStatus.oplogTruncation.totalTimeProcessingMicros
+serverStatus.oplogTruncation.totalTimeTruncatingMicros
+serverStatus.oplogTruncation.truncateCount
+serverStatus.opReadConcernCounters.available
+serverStatus.opReadConcernCounters.linearizable
+serverStatus.opReadConcernCounters.local
+serverStatus.opReadConcernCounters.majority
+serverStatus.opReadConcernCounters.none
+serverStatus.opReadConcernCounters.snapshot
+serverStatus.pid
+serverStatus.repl.ismaster
+serverStatus.repl.lastWrite.lastWriteDate
+serverStatus.repl.lastWrite.majorityOpTime.t
+serverStatus.repl.lastWrite.majorityOpTime.ts/i
+serverStatus.repl.lastWrite.majorityOpTime.ts/t
+serverStatus.repl.lastWrite.majorityWriteDate
+serverStatus.repl.lastWrite.opTime.t
+serverStatus.repl.lastWrite.opTime.ts/i
+serverStatus.repl.lastWrite.opTime.ts/t
+serverStatus.repl.rbid
+serverStatus.repl.secondary
+serverStatus.repl.setVersion
+serverStatus.repl.topologyVersion.counter
+serverStatus.scramCache.SCRAM-SHA-1.count
+serverStatus.scramCache.SCRAM-SHA-1.hits
+serverStatus.scramCache.SCRAM-SHA-1.misses
+serverStatus.scramCache.SCRAM-SHA-256.count
+serverStatus.scramCache.SCRAM-SHA-256.hits
+serverStatus.scramCache.SCRAM-SHA-256.misses
+serverStatus.security.authentication.mechanisms.MONGODB-X509.authenticate.received
+serverStatus.security.authentication.mechanisms.MONGODB-X509.authenticate.successful
+serverStatus.security.authentication.mechanisms.MONGODB-X509.speculativeAuthenticate.received
+serverStatus.security.authentication.mechanisms.MONGODB-X509.speculativeAuthenticate.successful
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-1.authenticate.received
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-1.authenticate.successful
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-1.speculativeAuthenticate.received
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-1.speculativeAuthenticate.successful
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-256.authenticate.received
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-256.authenticate.successful
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-256.speculativeAuthenticate.received
+serverStatus.security.authentication.mechanisms.SCRAM-SHA-256.speculativeAuthenticate.successful
+serverStatus.security.SSLServerCertificateExpirationDate
+serverStatus.security.SSLServerHasCertificateAuthority
+serverStatus.shardingStatistics.catalogCache.countFailedRefreshes
+serverStatus.shardingStatistics.catalogCache.countFullRefreshesStarted
+serverStatus.shardingStatistics.catalogCache.countIncrementalRefreshesStarted
+serverStatus.shardingStatistics.catalogCache.countStaleConfigErrors
+serverStatus.shardingStatistics.catalogCache.numActiveFullRefreshes
+serverStatus.shardingStatistics.catalogCache.numActiveIncrementalRefreshes
+serverStatus.shardingStatistics.catalogCache.numCollectionEntries
+serverStatus.shardingStatistics.catalogCache.numDatabaseEntries
+serverStatus.shardingStatistics.catalogCache.totalRefreshWaitTimeMicros
+serverStatus.shardingStatistics.countBytesDeletedByRangeDeleter
+serverStatus.shardingStatistics.countDocsClonedOnDonor
+serverStatus.shardingStatistics.countDocsClonedOnRecipient
+serverStatus.shardingStatistics.countDocsDeletedByRangeDeleter
+serverStatus.shardingStatistics.countDonorMoveChunkAbortConflictingIndexOperation
+serverStatus.shardingStatistics.countDonorMoveChunkLockTimeout
+serverStatus.shardingStatistics.countDonorMoveChunkStarted
+serverStatus.shardingStatistics.countRecipientMoveChunkStarted
+serverStatus.shardingStatistics.countStaleConfigErrors
+serverStatus.shardingStatistics.rangeDeleterTasks
+serverStatus.shardingStatistics.totalCriticalSectionCommitTimeMillis
+serverStatus.shardingStatistics.totalCriticalSectionTimeMillis
+serverStatus.shardingStatistics.totalDonorChunkCloneTimeMillis
+serverStatus.shardingStatistics.unfinishedMigrationFromPreviousPrimary
+serverStatus.start
+serverStatus.storageEngine.backupCursorOpen
+serverStatus.storageEngine.dropPendingIdents
+serverStatus.storageEngine.oldestRequiredTimestampForCrashRecovery/i
+serverStatus.storageEngine.oldestRequiredTimestampForCrashRecovery/t
+serverStatus.storageEngine.persistent
+serverStatus.storageEngine.readOnly
+serverStatus.storageEngine.supportsCommittedReads
+serverStatus.storageEngine.supportsPendingDrops
+serverStatus.storageEngine.supportsSnapshotReadConcern
+serverStatus.storageEngine.supportsTwoPhaseIndexBuild
+serverStatus.tcmalloc.generic.current_allocated_bytes
+serverStatus.tcmalloc.generic.heap_size
+serverStatus.tcmalloc.tcmalloc.aggressive_memory_decommit
+serverStatus.tcmalloc.tcmalloc.central_cache_free_bytes
+serverStatus.tcmalloc.tcmalloc.current_total_thread_cache_bytes
+serverStatus.tcmalloc.tcmalloc.max_total_thread_cache_bytes
+serverStatus.tcmalloc.tcmalloc.pageheap_commit_count
+serverStatus.tcmalloc.tcmalloc.pageheap_committed_bytes
+serverStatus.tcmalloc.tcmalloc.pageheap_decommit_count
+serverStatus.tcmalloc.tcmalloc.pageheap_free_bytes
+serverStatus.tcmalloc.tcmalloc.pageheap_reserve_count
+serverStatus.tcmalloc.tcmalloc.pageheap_scavenge_count
+serverStatus.tcmalloc.tcmalloc.pageheap_total_commit_bytes
+serverStatus.tcmalloc.tcmalloc.pageheap_total_decommit_bytes
+serverStatus.tcmalloc.tcmalloc.pageheap_total_reserve_bytes
+serverStatus.tcmalloc.tcmalloc.pageheap_unmapped_bytes
+serverStatus.tcmalloc.tcmalloc.release_rate
+serverStatus.tcmalloc.tcmalloc.spinlock_total_delay_ns
+serverStatus.tcmalloc.tcmalloc.thread_cache_free_bytes
+serverStatus.tcmalloc.tcmalloc.total_free_bytes
+serverStatus.tcmalloc.tcmalloc.transfer_cache_free_bytes
+serverStatus.trafficRecording.running
+serverStatus.transactions.currentActive
+serverStatus.transactions.currentInactive
+serverStatus.transactions.currentOpen
+serverStatus.transactions.currentPrepared
+serverStatus.transactions.retriedCommandsCount
+serverStatus.transactions.retriedStatementsCount
+serverStatus.transactions.totalAborted
+serverStatus.transactions.totalCommitted
+serverStatus.transactions.totalPrepared
+serverStatus.transactions.totalPreparedThenAborted
+serverStatus.transactions.totalPreparedThenCommitted
+serverStatus.transactions.totalStarted
+serverStatus.transactions.transactionsCollectionWriteCount
+serverStatus.transportSecurity.1.0
+serverStatus.transportSecurity.1.1
+serverStatus.transportSecurity.1.2
+serverStatus.transportSecurity.1.3
+serverStatus.transportSecurity.unknown
+serverStatus.twoPhaseCommitCoordinator.currentInSteps.deletingCoordinatorDoc
+serverStatus.twoPhaseCommitCoordinator.currentInSteps.waitingForDecisionAcks
+serverStatus.twoPhaseCommitCoordinator.currentInSteps.waitingForVotes
+serverStatus.twoPhaseCommitCoordinator.currentInSteps.writingDecision
+serverStatus.twoPhaseCommitCoordinator.currentInSteps.writingParticipantList
+serverStatus.twoPhaseCommitCoordinator.totalAbortedTwoPhaseCommit
+serverStatus.twoPhaseCommitCoordinator.totalCommittedTwoPhaseCommit
+serverStatus.twoPhaseCommitCoordinator.totalCreated
+serverStatus.twoPhaseCommitCoordinator.totalStartedTwoPhaseCommit
+serverStatus.uptime
+serverStatus.uptimeEstimate
+serverStatus.uptimeMillis
+serverStatus.wiredTiger.block-manager.blocks pre-loaded
+serverStatus.wiredTiger.block-manager.blocks read
+serverStatus.wiredTiger.block-manager.blocks written
+serverStatus.wiredTiger.block-manager.bytes read
+serverStatus.wiredTiger.block-manager.bytes read via memory map API
+serverStatus.wiredTiger.block-manager.bytes read via system call API
+serverStatus.wiredTiger.block-manager.bytes written
+serverStatus.wiredTiger.block-manager.bytes written for checkpoint
+serverStatus.wiredTiger.block-manager.bytes written via memory map API
+serverStatus.wiredTiger.block-manager.bytes written via system call API
+serverStatus.wiredTiger.block-manager.mapped blocks read
+serverStatus.wiredTiger.block-manager.mapped bytes read
+serverStatus.wiredTiger.block-manager.number of times the file was remapped because it changed size via fallocate or truncate
+serverStatus.wiredTiger.block-manager.number of times the region was remapped via write
+serverStatus.wiredTiger.cache.application threads page read from disk to cache count
+serverStatus.wiredTiger.cache.application threads page read from disk to cache time (usecs)
+serverStatus.wiredTiger.cache.application threads page write from cache to disk count
+serverStatus.wiredTiger.cache.application threads page write from cache to disk time (usecs)
+serverStatus.wiredTiger.cache.bytes allocated for updates
+serverStatus.wiredTiger.cache.bytes belonging to page images in the cache
+serverStatus.wiredTiger.cache.bytes belonging to the history store table in the cache
+serverStatus.wiredTiger.cache.bytes currently in the cache
+serverStatus.wiredTiger.cache.bytes dirty in the cache cumulative
+serverStatus.wiredTiger.cache.bytes not belonging to page images in the cache
+serverStatus.wiredTiger.cache.bytes read into cache
+serverStatus.wiredTiger.cache.bytes written from cache
+serverStatus.wiredTiger.cache.cache overflow score
+serverStatus.wiredTiger.cache.checkpoint blocked page eviction
+serverStatus.wiredTiger.cache.checkpoint of history store file blocked non-history store page eviction
+serverStatus.wiredTiger.cache.eviction calls to get a page
+serverStatus.wiredTiger.cache.eviction calls to get a page found queue empty
+serverStatus.wiredTiger.cache.eviction calls to get a page found queue empty after locking
+serverStatus.wiredTiger.cache.eviction currently operating in aggressive mode
+serverStatus.wiredTiger.cache.eviction empty score
+serverStatus.wiredTiger.cache.eviction gave up due to detecting an out of order on disk value behind the last update on the chain
+serverStatus.wiredTiger.cache.eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update
+serverStatus.wiredTiger.cache.eviction gave up due to detecting an out of order tombstone ahead of the selected on disk update after validating the update chain
+serverStatus.wiredTiger.cache.eviction gave up due to detecting out of order timestamps on the update chain after the selected on disk update
+serverStatus.wiredTiger.cache.eviction passes of a file
+serverStatus.wiredTiger.cache.eviction server candidate queue empty when topping up
+serverStatus.wiredTiger.cache.eviction server candidate queue not empty when topping up
+serverStatus.wiredTiger.cache.eviction server evicting pages
+serverStatus.wiredTiger.cache.eviction server slept, because we did not make progress with eviction
+serverStatus.wiredTiger.cache.eviction server unable to reach eviction goal
+serverStatus.wiredTiger.cache.eviction server waiting for a leaf page
+serverStatus.wiredTiger.cache.eviction state
+serverStatus.wiredTiger.cache.eviction walk most recent sleeps for checkpoint handle gathering
+serverStatus.wiredTiger.cache.eviction walk target pages histogram - 0-9
+serverStatus.wiredTiger.cache.eviction walk target pages histogram - 10-31
+serverStatus.wiredTiger.cache.eviction walk target pages histogram - 32-63
+serverStatus.wiredTiger.cache.eviction walk target pages histogram - 64-128
+serverStatus.wiredTiger.cache.eviction walk target pages histogram - 128 and higher
+serverStatus.wiredTiger.cache.eviction walk target pages reduced due to history store cache pressure
+serverStatus.wiredTiger.cache.eviction walk target strategy both clean and dirty pages
+serverStatus.wiredTiger.cache.eviction walk target strategy only clean pages
+serverStatus.wiredTiger.cache.eviction walk target strategy only dirty pages
+serverStatus.wiredTiger.cache.eviction walks abandoned
+serverStatus.wiredTiger.cache.eviction walks gave up because they restarted their walk twice
+serverStatus.wiredTiger.cache.eviction walks gave up because they saw too many pages and found no candidates
+serverStatus.wiredTiger.cache.eviction walks gave up because they saw too many pages and found too few candidates
+serverStatus.wiredTiger.cache.eviction walks reached end of tree
+serverStatus.wiredTiger.cache.eviction walks restarted
+serverStatus.wiredTiger.cache.eviction walks started from root of tree
+serverStatus.wiredTiger.cache.eviction walks started from saved location in tree
+serverStatus.wiredTiger.cache.eviction worker thread active
+serverStatus.wiredTiger.cache.eviction worker thread created
+serverStatus.wiredTiger.cache.eviction worker thread evicting pages
+serverStatus.wiredTiger.cache.eviction worker thread removed
+serverStatus.wiredTiger.cache.eviction worker thread stable number
+serverStatus.wiredTiger.cache.files with active eviction walks
+serverStatus.wiredTiger.cache.files with new eviction walks started
+serverStatus.wiredTiger.cache.force re-tuning of eviction workers once in a while
+serverStatus.wiredTiger.cache.forced eviction - history store pages failed to evict while session has history store cursor open
+serverStatus.wiredTiger.cache.forced eviction - history store pages selected while session has history store cursor open
+serverStatus.wiredTiger.cache.forced eviction - history store pages successfully evicted while session has history store cursor open
+serverStatus.wiredTiger.cache.forced eviction - pages evicted that were clean count
+serverStatus.wiredTiger.cache.forced eviction - pages evicted that were clean time (usecs)
+serverStatus.wiredTiger.cache.forced eviction - pages evicted that were dirty count
+serverStatus.wiredTiger.cache.forced eviction - pages evicted that were dirty time (usecs)
+serverStatus.wiredTiger.cache.forced eviction - pages selected because of a large number of updates to a single item
+serverStatus.wiredTiger.cache.forced eviction - pages selected because of too many deleted items count
+serverStatus.wiredTiger.cache.forced eviction - pages selected count
+serverStatus.wiredTiger.cache.forced eviction - pages selected unable to be evicted count
+serverStatus.wiredTiger.cache.forced eviction - pages selected unable to be evicted time
+serverStatus.wiredTiger.cache.hazard pointer blocked page eviction
+serverStatus.wiredTiger.cache.hazard pointer check calls
+serverStatus.wiredTiger.cache.hazard pointer check entries walked
+serverStatus.wiredTiger.cache.hazard pointer maximum array length
+serverStatus.wiredTiger.cache.history store score
+serverStatus.wiredTiger.cache.history store table insert calls
+serverStatus.wiredTiger.cache.history store table insert calls that returned restart
+serverStatus.wiredTiger.cache.history store table max on-disk size
+serverStatus.wiredTiger.cache.history store table on-disk size
+serverStatus.wiredTiger.cache.history store table out-of-order resolved updates that lose their durable timestamp
+serverStatus.wiredTiger.cache.history store table out-of-order updates that were fixed up by reinserting with the fixed timestamp
+serverStatus.wiredTiger.cache.history store table reads
+serverStatus.wiredTiger.cache.history store table reads missed
+serverStatus.wiredTiger.cache.history store table reads requiring squashed modifies
+serverStatus.wiredTiger.cache.history store table truncation by rollback to stable to remove an unstable update
+serverStatus.wiredTiger.cache.history store table truncation by rollback to stable to remove an update
+serverStatus.wiredTiger.cache.history store table truncation to remove an update
+serverStatus.wiredTiger.cache.history store table truncation to remove range of updates due to key being removed from the data page during reconciliation
+serverStatus.wiredTiger.cache.history store table truncation to remove range of updates due to out-of-order timestamp update on data page
+serverStatus.wiredTiger.cache.history store table writes requiring squashed modifies
+serverStatus.wiredTiger.cache.in-memory page passed criteria to be split
+serverStatus.wiredTiger.cache.in-memory page splits
+serverStatus.wiredTiger.cache.internal pages evicted
+serverStatus.wiredTiger.cache.internal pages queued for eviction
+serverStatus.wiredTiger.cache.internal pages seen by eviction walk
+serverStatus.wiredTiger.cache.internal pages seen by eviction walk that are already queued
+serverStatus.wiredTiger.cache.internal pages split during eviction
+serverStatus.wiredTiger.cache.leaf pages split during eviction
+serverStatus.wiredTiger.cache.maximum bytes configured
+serverStatus.wiredTiger.cache.maximum milliseconds spent at a single eviction
+serverStatus.wiredTiger.cache.maximum page size seen at eviction
+serverStatus.wiredTiger.cache.modified pages evicted
+serverStatus.wiredTiger.cache.modified pages evicted by application threads
+serverStatus.wiredTiger.cache.operations timed out waiting for space in cache
+serverStatus.wiredTiger.cache.overflow pages read into cache
+serverStatus.wiredTiger.cache.page split during eviction deepened the tree
+serverStatus.wiredTiger.cache.page written requiring history store records
+serverStatus.wiredTiger.cache.pages currently held in the cache
+serverStatus.wiredTiger.cache.pages evicted by application threads
+serverStatus.wiredTiger.cache.pages evicted in parallel with checkpoint
+serverStatus.wiredTiger.cache.pages queued for eviction
+serverStatus.wiredTiger.cache.pages queued for eviction post lru sorting
+serverStatus.wiredTiger.cache.pages queued for urgent eviction
+serverStatus.wiredTiger.cache.pages queued for urgent eviction during walk
+serverStatus.wiredTiger.cache.pages queued for urgent eviction from history store due to high dirty content
+serverStatus.wiredTiger.cache.pages read into cache
+serverStatus.wiredTiger.cache.pages read into cache after truncate
+serverStatus.wiredTiger.cache.pages read into cache after truncate in prepare state
+serverStatus.wiredTiger.cache.pages removed from the ordinary queue to be queued for urgent eviction
+serverStatus.wiredTiger.cache.pages requested from the cache
+serverStatus.wiredTiger.cache.pages seen by eviction walk
+serverStatus.wiredTiger.cache.pages seen by eviction walk that are already queued
+serverStatus.wiredTiger.cache.pages selected for eviction unable to be evicted
+serverStatus.wiredTiger.cache.pages selected for eviction unable to be evicted as the parent page has overflow items
+serverStatus.wiredTiger.cache.pages selected for eviction unable to be evicted because of active children on an internal page
+serverStatus.wiredTiger.cache.pages selected for eviction unable to be evicted because of failure in reconciliation
+serverStatus.wiredTiger.cache.pages selected for eviction unable to be evicted because of race between checkpoint and out of order timestamps handling
+serverStatus.wiredTiger.cache.pages walked for eviction
+serverStatus.wiredTiger.cache.pages written from cache
+serverStatus.wiredTiger.cache.pages written requiring in-memory restoration
+serverStatus.wiredTiger.cache.percentage overhead
+serverStatus.wiredTiger.cache.the number of times full update inserted to history store
+serverStatus.wiredTiger.cache.the number of times reverse modify inserted to history store
+serverStatus.wiredTiger.cache.total milliseconds spent inside reentrant history store evictions in a reconciliation
+serverStatus.wiredTiger.cache.tracked bytes belonging to internal pages in the cache
+serverStatus.wiredTiger.cache.tracked bytes belonging to leaf pages in the cache
+serverStatus.wiredTiger.cache.tracked dirty bytes in the cache
+serverStatus.wiredTiger.cache.tracked dirty pages in the cache
+serverStatus.wiredTiger.cache.unmodified pages evicted
+serverStatus.wiredTiger.capacity.background fsync file handles considered
+serverStatus.wiredTiger.capacity.background fsync file handles synced
+serverStatus.wiredTiger.capacity.background fsync time (msecs)
+serverStatus.wiredTiger.capacity.bytes read
+serverStatus.wiredTiger.capacity.bytes written for checkpoint
+serverStatus.wiredTiger.capacity.bytes written for eviction
+serverStatus.wiredTiger.capacity.bytes written for log
+serverStatus.wiredTiger.capacity.bytes written total
+serverStatus.wiredTiger.capacity.threshold to call fsync
+serverStatus.wiredTiger.capacity.time waiting due to total capacity (usecs)
+serverStatus.wiredTiger.capacity.time waiting during checkpoint (usecs)
+serverStatus.wiredTiger.capacity.time waiting during eviction (usecs)
+serverStatus.wiredTiger.capacity.time waiting during logging (usecs)
+serverStatus.wiredTiger.capacity.time waiting during read (usecs)
+serverStatus.wiredTiger.checkpoint-cleanup.pages added for eviction
+serverStatus.wiredTiger.checkpoint-cleanup.pages removed
+serverStatus.wiredTiger.checkpoint-cleanup.pages skipped during tree walk
+serverStatus.wiredTiger.checkpoint-cleanup.pages visited
+serverStatus.wiredTiger.concurrentTransactions.read.available
+serverStatus.wiredTiger.concurrentTransactions.read.out
+serverStatus.wiredTiger.concurrentTransactions.read.totalTickets
+serverStatus.wiredTiger.concurrentTransactions.write.available
+serverStatus.wiredTiger.concurrentTransactions.write.out
+serverStatus.wiredTiger.concurrentTransactions.write.totalTickets
+serverStatus.wiredTiger.connection.auto adjusting condition resets
+serverStatus.wiredTiger.connection.auto adjusting condition wait calls
+serverStatus.wiredTiger.connection.auto adjusting condition wait raced to update timeout and skipped updating
+serverStatus.wiredTiger.connection.detected system time went backwards
+serverStatus.wiredTiger.connection.files currently open
+serverStatus.wiredTiger.connection.hash bucket array size for data handles
+serverStatus.wiredTiger.connection.hash bucket array size general
+serverStatus.wiredTiger.connection.memory allocations
+serverStatus.wiredTiger.connection.memory frees
+serverStatus.wiredTiger.connection.memory re-allocations
+serverStatus.wiredTiger.connection.pthread mutex condition wait calls
+serverStatus.wiredTiger.connection.pthread mutex shared lock read-lock calls
+serverStatus.wiredTiger.connection.pthread mutex shared lock write-lock calls
+serverStatus.wiredTiger.connection.total fsync I/Os
+serverStatus.wiredTiger.connection.total read I/Os
+serverStatus.wiredTiger.connection.total write I/Os
+serverStatus.wiredTiger.cursor.cached cursor count
+serverStatus.wiredTiger.cursor.cursor bulk loaded cursor insert calls
+serverStatus.wiredTiger.cursor.cursor close calls that result in cache
+serverStatus.wiredTiger.cursor.cursor create calls
+serverStatus.wiredTiger.cursor.cursor insert calls
+serverStatus.wiredTiger.cursor.cursor insert key and value bytes
+serverStatus.wiredTiger.cursor.cursor modify calls
+serverStatus.wiredTiger.cursor.cursor modify key and value bytes affected
+serverStatus.wiredTiger.cursor.cursor modify value bytes modified
+serverStatus.wiredTiger.cursor.cursor next calls
+serverStatus.wiredTiger.cursor.cursor next calls that skip due to a globally visible history store tombstone
+serverStatus.wiredTiger.cursor.cursor next calls that skip greater than or equal to 100 entries
+serverStatus.wiredTiger.cursor.cursor next calls that skip less than 100 entries
+serverStatus.wiredTiger.cursor.cursor operation restarted
+serverStatus.wiredTiger.cursor.cursor prev calls
+serverStatus.wiredTiger.cursor.cursor prev calls that skip due to a globally visible history store tombstone
+serverStatus.wiredTiger.cursor.cursor prev calls that skip greater than or equal to 100 entries
+serverStatus.wiredTiger.cursor.cursor prev calls that skip less than 100 entries
+serverStatus.wiredTiger.cursor.cursor remove calls
+serverStatus.wiredTiger.cursor.cursor remove key bytes removed
+serverStatus.wiredTiger.cursor.cursor reserve calls
+serverStatus.wiredTiger.cursor.cursor reset calls
+serverStatus.wiredTiger.cursor.cursor search calls
+serverStatus.wiredTiger.cursor.cursor search history store calls
+serverStatus.wiredTiger.cursor.cursor search near calls
+serverStatus.wiredTiger.cursor.cursor sweep buckets
+serverStatus.wiredTiger.cursor.cursor sweep cursors closed
+serverStatus.wiredTiger.cursor.cursor sweep cursors examined
+serverStatus.wiredTiger.cursor.cursor sweeps
+serverStatus.wiredTiger.cursor.cursor truncate calls
+serverStatus.wiredTiger.cursor.cursor update calls
+serverStatus.wiredTiger.cursor.cursor update key and value bytes
+serverStatus.wiredTiger.cursor.cursor update value size change
+serverStatus.wiredTiger.cursor.cursors reused from cache
+serverStatus.wiredTiger.cursor.open cursor count
+serverStatus.wiredTiger.cursor.Total number of entries skipped by cursor next calls
+serverStatus.wiredTiger.cursor.Total number of entries skipped by cursor prev calls
+serverStatus.wiredTiger.cursor.Total number of entries skipped to position the history store cursor
+serverStatus.wiredTiger.cursor.Total number of times a search near has exited due to prefix config
+serverStatus.wiredTiger.data-handle.connection data handle size
+serverStatus.wiredTiger.data-handle.connection data handles currently active
+serverStatus.wiredTiger.data-handle.connection sweep candidate became referenced
+serverStatus.wiredTiger.data-handle.connection sweep dhandles closed
+serverStatus.wiredTiger.data-handle.connection sweep dhandles removed from hash list
+serverStatus.wiredTiger.data-handle.connection sweep time-of-death sets
+serverStatus.wiredTiger.data-handle.connection sweeps
+serverStatus.wiredTiger.data-handle.connection sweeps skipped due to checkpoint gathering handles
+serverStatus.wiredTiger.data-handle.session dhandles swept
+serverStatus.wiredTiger.data-handle.session sweep attempts
+serverStatus.wiredTiger.lock.checkpoint lock acquisitions
+serverStatus.wiredTiger.lock.checkpoint lock application thread wait time (usecs)
+serverStatus.wiredTiger.lock.checkpoint lock internal thread wait time (usecs)
+serverStatus.wiredTiger.lock.dhandle lock application thread time waiting (usecs)
+serverStatus.wiredTiger.lock.dhandle lock internal thread time waiting (usecs)
+serverStatus.wiredTiger.lock.dhandle read lock acquisitions
+serverStatus.wiredTiger.lock.dhandle write lock acquisitions
+serverStatus.wiredTiger.lock.durable timestamp queue lock application thread time waiting (usecs)
+serverStatus.wiredTiger.lock.durable timestamp queue lock internal thread time waiting (usecs)
+serverStatus.wiredTiger.lock.durable timestamp queue read lock acquisitions
+serverStatus.wiredTiger.lock.durable timestamp queue write lock acquisitions
+serverStatus.wiredTiger.lock.metadata lock acquisitions
+serverStatus.wiredTiger.lock.metadata lock application thread wait time (usecs)
+serverStatus.wiredTiger.lock.metadata lock internal thread wait time (usecs)
+serverStatus.wiredTiger.lock.read timestamp queue lock application thread time waiting (usecs)
+serverStatus.wiredTiger.lock.read timestamp queue lock internal thread time waiting (usecs)
+serverStatus.wiredTiger.lock.read timestamp queue read lock acquisitions
+serverStatus.wiredTiger.lock.read timestamp queue write lock acquisitions
+serverStatus.wiredTiger.lock.schema lock acquisitions
+serverStatus.wiredTiger.lock.schema lock application thread wait time (usecs)
+serverStatus.wiredTiger.lock.schema lock internal thread wait time (usecs)
+serverStatus.wiredTiger.lock.table lock application thread time waiting for the table lock (usecs)
+serverStatus.wiredTiger.lock.table lock internal thread time waiting for the table lock (usecs)
+serverStatus.wiredTiger.lock.table read lock acquisitions
+serverStatus.wiredTiger.lock.table write lock acquisitions
+serverStatus.wiredTiger.lock.txn global lock application thread time waiting (usecs)
+serverStatus.wiredTiger.lock.txn global lock internal thread time waiting (usecs)
+serverStatus.wiredTiger.lock.txn global read lock acquisitions
+serverStatus.wiredTiger.lock.txn global write lock acquisitions
+serverStatus.wiredTiger.log.busy returns attempting to switch slots
+serverStatus.wiredTiger.log.force archive time sleeping (usecs)
+serverStatus.wiredTiger.log.log bytes of payload data
+serverStatus.wiredTiger.log.log bytes written
+serverStatus.wiredTiger.log.log files manually zero-filled
+serverStatus.wiredTiger.log.log flush operations
+serverStatus.wiredTiger.log.log force write operations
+serverStatus.wiredTiger.log.log force write operations skipped
+serverStatus.wiredTiger.log.log records compressed
+serverStatus.wiredTiger.log.log records not compressed
+serverStatus.wiredTiger.log.log records too small to compress
+serverStatus.wiredTiger.log.log release advances write LSN
+serverStatus.wiredTiger.log.log scan operations
+serverStatus.wiredTiger.log.log scan records requiring two reads
+serverStatus.wiredTiger.log.log server thread advances write LSN
+serverStatus.wiredTiger.log.log server thread write LSN walk skipped
+serverStatus.wiredTiger.log.log sync operations
+serverStatus.wiredTiger.log.log sync time duration (usecs)
+serverStatus.wiredTiger.log.log sync_dir operations
+serverStatus.wiredTiger.log.log sync_dir time duration (usecs)
+serverStatus.wiredTiger.log.log write operations
+serverStatus.wiredTiger.log.logging bytes consolidated
+serverStatus.wiredTiger.log.maximum log file size
+serverStatus.wiredTiger.log.number of pre-allocated log files to create
+serverStatus.wiredTiger.log.pre-allocated log files not ready and missed
+serverStatus.wiredTiger.log.pre-allocated log files prepared
+serverStatus.wiredTiger.log.pre-allocated log files used
+serverStatus.wiredTiger.log.records processed by log scan
+serverStatus.wiredTiger.log.slot close lost race
+serverStatus.wiredTiger.log.slot close unbuffered waits
+serverStatus.wiredTiger.log.slot closures
+serverStatus.wiredTiger.log.slot join atomic update races
+serverStatus.wiredTiger.log.slot join calls atomic updates raced
+serverStatus.wiredTiger.log.slot join calls did not yield
+serverStatus.wiredTiger.log.slot join calls found active slot closed
+serverStatus.wiredTiger.log.slot join calls slept
+serverStatus.wiredTiger.log.slot join calls yielded
+serverStatus.wiredTiger.log.slot join found active slot closed
+serverStatus.wiredTiger.log.slot joins yield time (usecs)
+serverStatus.wiredTiger.log.slot transitions unable to find free slot
+serverStatus.wiredTiger.log.slot unbuffered writes
+serverStatus.wiredTiger.log.total in-memory size of compressed records
+serverStatus.wiredTiger.log.total log buffer size
+serverStatus.wiredTiger.log.total size of compressed records
+serverStatus.wiredTiger.log.written slots coalesced
+serverStatus.wiredTiger.log.yields waiting for previous log file close
+serverStatus.wiredTiger.oplog.visibility timestamp/i
+serverStatus.wiredTiger.oplog.visibility timestamp/t
+serverStatus.wiredTiger.perf.file system read latency histogram (bucket 1) - 10-49ms
+serverStatus.wiredTiger.perf.file system read latency histogram (bucket 2) - 50-99ms
+serverStatus.wiredTiger.perf.file system read latency histogram (bucket 3) - 100-249ms
+serverStatus.wiredTiger.perf.file system read latency histogram (bucket 4) - 250-499ms
+serverStatus.wiredTiger.perf.file system read latency histogram (bucket 5) - 500-999ms
+serverStatus.wiredTiger.perf.file system read latency histogram (bucket 6) - 1000ms+
+serverStatus.wiredTiger.perf.file system write latency histogram (bucket 1) - 10-49ms
+serverStatus.wiredTiger.perf.file system write latency histogram (bucket 2) - 50-99ms
+serverStatus.wiredTiger.perf.file system write latency histogram (bucket 3) - 100-249ms
+serverStatus.wiredTiger.perf.file system write latency histogram (bucket 4) - 250-499ms
+serverStatus.wiredTiger.perf.file system write latency histogram (bucket 5) - 500-999ms
+serverStatus.wiredTiger.perf.file system write latency histogram (bucket 6) - 1000ms+
+serverStatus.wiredTiger.perf.operation read latency histogram (bucket 1) - 100-249us
+serverStatus.wiredTiger.perf.operation read latency histogram (bucket 2) - 250-499us
+serverStatus.wiredTiger.perf.operation read latency histogram (bucket 3) - 500-999us
+serverStatus.wiredTiger.perf.operation read latency histogram (bucket 4) - 1000-9999us
+serverStatus.wiredTiger.perf.operation read latency histogram (bucket 5) - 10000us+
+serverStatus.wiredTiger.perf.operation write latency histogram (bucket 1) - 100-249us
+serverStatus.wiredTiger.perf.operation write latency histogram (bucket 2) - 250-499us
+serverStatus.wiredTiger.perf.operation write latency histogram (bucket 3) - 500-999us
+serverStatus.wiredTiger.perf.operation write latency histogram (bucket 4) - 1000-9999us
+serverStatus.wiredTiger.perf.operation write latency histogram (bucket 5) - 10000us+
+serverStatus.wiredTiger.reconciliation.approximate byte size of timestamps in pages written
+serverStatus.wiredTiger.reconciliation.approximate byte size of transaction IDs in pages written
+serverStatus.wiredTiger.reconciliation.fast-path pages deleted
+serverStatus.wiredTiger.reconciliation.internal-page overflow keys
+serverStatus.wiredTiger.reconciliation.leaf-page overflow keys
+serverStatus.wiredTiger.reconciliation.maximum milliseconds spent in a reconciliation call
+serverStatus.wiredTiger.reconciliation.maximum milliseconds spent in building a disk image in a reconciliation
+serverStatus.wiredTiger.reconciliation.maximum milliseconds spent in moving updates to the history store in a reconciliation
+serverStatus.wiredTiger.reconciliation.page reconciliation calls
+serverStatus.wiredTiger.reconciliation.page reconciliation calls for eviction
+serverStatus.wiredTiger.reconciliation.page reconciliation calls that resulted in values with prepared transaction metadata
+serverStatus.wiredTiger.reconciliation.page reconciliation calls that resulted in values with timestamps
+serverStatus.wiredTiger.reconciliation.page reconciliation calls that resulted in values with transaction ids
+serverStatus.wiredTiger.reconciliation.pages deleted
+serverStatus.wiredTiger.reconciliation.pages written including an aggregated newest start durable timestamp 
+serverStatus.wiredTiger.reconciliation.pages written including an aggregated newest stop durable timestamp 
+serverStatus.wiredTiger.reconciliation.pages written including an aggregated newest stop timestamp 
+serverStatus.wiredTiger.reconciliation.pages written including an aggregated newest stop transaction ID
+serverStatus.wiredTiger.reconciliation.pages written including an aggregated newest transaction ID 
+serverStatus.wiredTiger.reconciliation.pages written including an aggregated oldest start timestamp 
+serverStatus.wiredTiger.reconciliation.pages written including an aggregated prepare
+serverStatus.wiredTiger.reconciliation.pages written including at least one prepare state
+serverStatus.wiredTiger.reconciliation.pages written including at least one start durable timestamp
+serverStatus.wiredTiger.reconciliation.pages written including at least one start timestamp
+serverStatus.wiredTiger.reconciliation.pages written including at least one start transaction ID
+serverStatus.wiredTiger.reconciliation.pages written including at least one stop durable timestamp
+serverStatus.wiredTiger.reconciliation.pages written including at least one stop timestamp
+serverStatus.wiredTiger.reconciliation.pages written including at least one stop transaction ID
+serverStatus.wiredTiger.reconciliation.records written including a prepare state
+serverStatus.wiredTiger.reconciliation.records written including a start durable timestamp
+serverStatus.wiredTiger.reconciliation.records written including a start timestamp
+serverStatus.wiredTiger.reconciliation.records written including a start transaction ID
+serverStatus.wiredTiger.reconciliation.records written including a stop durable timestamp
+serverStatus.wiredTiger.reconciliation.records written including a stop timestamp
+serverStatus.wiredTiger.reconciliation.records written including a stop transaction ID
+serverStatus.wiredTiger.reconciliation.split bytes currently awaiting free
+serverStatus.wiredTiger.reconciliation.split objects currently awaiting free
+serverStatus.wiredTiger.session.attempts to remove a local object and the object is in use
+serverStatus.wiredTiger.session.flush_tier operation calls
+serverStatus.wiredTiger.session.local objects removed
+serverStatus.wiredTiger.session.open session count
+serverStatus.wiredTiger.session.session query timestamp calls
+serverStatus.wiredTiger.session.table alter failed calls
+serverStatus.wiredTiger.session.table alter successful calls
+serverStatus.wiredTiger.session.table alter triggering checkpoint calls
+serverStatus.wiredTiger.session.table alter unchanged and skipped
+serverStatus.wiredTiger.session.table compact failed calls
+serverStatus.wiredTiger.session.table compact failed calls due to cache pressure
+serverStatus.wiredTiger.session.table compact running
+serverStatus.wiredTiger.session.table compact skipped as process would not reduce file size
+serverStatus.wiredTiger.session.table compact successful calls
+serverStatus.wiredTiger.session.table compact timeout
+serverStatus.wiredTiger.session.table create failed calls
+serverStatus.wiredTiger.session.table create successful calls
+serverStatus.wiredTiger.session.table drop failed calls
+serverStatus.wiredTiger.session.table drop successful calls
+serverStatus.wiredTiger.session.table rename failed calls
+serverStatus.wiredTiger.session.table rename successful calls
+serverStatus.wiredTiger.session.table salvage failed calls
+serverStatus.wiredTiger.session.table salvage successful calls
+serverStatus.wiredTiger.session.table truncate failed calls
+serverStatus.wiredTiger.session.table truncate successful calls
+serverStatus.wiredTiger.session.table verify failed calls
+serverStatus.wiredTiger.session.table verify successful calls
+serverStatus.wiredTiger.session.tiered operations dequeued and processed
+serverStatus.wiredTiger.session.tiered operations scheduled
+serverStatus.wiredTiger.session.tiered storage local retention time (secs)
+serverStatus.wiredTiger.snapshot-window-settings.cache pressure percentage threshold
+serverStatus.wiredTiger.snapshot-window-settings.current available snapshots window size in seconds
+serverStatus.wiredTiger.snapshot-window-settings.current cache pressure percentage
+serverStatus.wiredTiger.snapshot-window-settings.max target available snapshots window size in seconds
+serverStatus.wiredTiger.snapshot-window-settings.target available snapshots window size in seconds
+serverStatus.wiredTiger.snapshot-window-settings.total number of SnapshotTooOld errors
+serverStatus.wiredTiger.thread-state.active filesystem fsync calls
+serverStatus.wiredTiger.thread-state.active filesystem read calls
+serverStatus.wiredTiger.thread-state.active filesystem write calls
+serverStatus.wiredTiger.thread-yield.application thread time evicting (usecs)
+serverStatus.wiredTiger.thread-yield.application thread time waiting for cache (usecs)
+serverStatus.wiredTiger.thread-yield.connection close blocked waiting for transaction state stabilization
+serverStatus.wiredTiger.thread-yield.connection close yielded for lsm manager shutdown
+serverStatus.wiredTiger.thread-yield.data handle lock yielded
+serverStatus.wiredTiger.thread-yield.get reference for page index and slot time sleeping (usecs)
+serverStatus.wiredTiger.thread-yield.page access yielded due to prepare state change
+serverStatus.wiredTiger.thread-yield.page acquire busy blocked
+serverStatus.wiredTiger.thread-yield.page acquire eviction blocked
+serverStatus.wiredTiger.thread-yield.page acquire locked blocked
+serverStatus.wiredTiger.thread-yield.page acquire read blocked
+serverStatus.wiredTiger.thread-yield.page acquire time sleeping (usecs)
+serverStatus.wiredTiger.thread-yield.page delete rollback time sleeping for state change (usecs)
+serverStatus.wiredTiger.thread-yield.page reconciliation yielded due to child modification
+serverStatus.wiredTiger.transaction.checkpoint has acquired a snapshot for its transaction
+serverStatus.wiredTiger.transaction.Number of prepared updates
+serverStatus.wiredTiger.transaction.Number of prepared updates committed
+serverStatus.wiredTiger.transaction.Number of prepared updates repeated on the same key
+serverStatus.wiredTiger.transaction.Number of prepared updates rolled back
+serverStatus.wiredTiger.transaction.oldest pinned transaction ID rolled back for eviction
+serverStatus.wiredTiger.transaction.prepared transactions
+serverStatus.wiredTiger.transaction.prepared transactions committed
+serverStatus.wiredTiger.transaction.prepared transactions currently active
+serverStatus.wiredTiger.transaction.prepared transactions rolled back
+serverStatus.wiredTiger.transaction.prepared transactions rolled back and do not remove the history store entry
+serverStatus.wiredTiger.transaction.prepared transactions rolled back and fix the history store entry with checkpoint reserved transaction id
+serverStatus.wiredTiger.transaction.query timestamp calls
+serverStatus.wiredTiger.transaction.race to read prepared update retry
+serverStatus.wiredTiger.transaction.rollback to stable calls
+serverStatus.wiredTiger.transaction.rollback to stable history store records with stop timestamps older than newer records
+serverStatus.wiredTiger.transaction.rollback to stable inconsistent checkpoint
+serverStatus.wiredTiger.transaction.rollback to stable keys removed
+serverStatus.wiredTiger.transaction.rollback to stable keys restored
+serverStatus.wiredTiger.transaction.rollback to stable pages visited
+serverStatus.wiredTiger.transaction.rollback to stable restored tombstones from history store
+serverStatus.wiredTiger.transaction.rollback to stable restored updates from history store
+serverStatus.wiredTiger.transaction.rollback to stable skipping delete rle
+serverStatus.wiredTiger.transaction.rollback to stable skipping stable rle
+serverStatus.wiredTiger.transaction.rollback to stable sweeping history store keys
+serverStatus.wiredTiger.transaction.rollback to stable tree walk skipping pages
+serverStatus.wiredTiger.transaction.rollback to stable updates aborted
+serverStatus.wiredTiger.transaction.rollback to stable updates removed from history store
+serverStatus.wiredTiger.transaction.sessions scanned in each walk of concurrent sessions
+serverStatus.wiredTiger.transaction.set timestamp calls
+serverStatus.wiredTiger.transaction.set timestamp durable calls
+serverStatus.wiredTiger.transaction.set timestamp durable updates
+serverStatus.wiredTiger.transaction.set timestamp oldest calls
+serverStatus.wiredTiger.transaction.set timestamp oldest updates
+serverStatus.wiredTiger.transaction.set timestamp stable calls
+serverStatus.wiredTiger.transaction.set timestamp stable updates
+serverStatus.wiredTiger.transaction.transaction begins
+serverStatus.wiredTiger.transaction.transaction checkpoint currently running
+serverStatus.wiredTiger.transaction.transaction checkpoint currently running for history store file
+serverStatus.wiredTiger.transaction.transaction checkpoint generation
+serverStatus.wiredTiger.transaction.transaction checkpoint history store file duration (usecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint max time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint min time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint most recent duration for gathering all handles (usecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint most recent duration for gathering applied handles (usecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint most recent duration for gathering skipped handles (usecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint most recent handles applied
+serverStatus.wiredTiger.transaction.transaction checkpoint most recent handles skipped
+serverStatus.wiredTiger.transaction.transaction checkpoint most recent handles walked
+serverStatus.wiredTiger.transaction.transaction checkpoint most recent time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint prepare currently running
+serverStatus.wiredTiger.transaction.transaction checkpoint prepare max time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint prepare min time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint prepare most recent time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint prepare total time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint scrub dirty target
+serverStatus.wiredTiger.transaction.transaction checkpoint scrub time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoint stop timing stress active
+serverStatus.wiredTiger.transaction.transaction checkpoint total time (msecs)
+serverStatus.wiredTiger.transaction.transaction checkpoints
+serverStatus.wiredTiger.transaction.transaction checkpoints due to obsolete pages
+serverStatus.wiredTiger.transaction.transaction checkpoints skipped because database was clean
+serverStatus.wiredTiger.transaction.transaction fsync calls for checkpoint after allocating the transaction ID
+serverStatus.wiredTiger.transaction.transaction fsync duration for checkpoint after allocating the transaction ID (usecs)
+serverStatus.wiredTiger.transaction.transaction range of IDs currently pinned
+serverStatus.wiredTiger.transaction.transaction range of IDs currently pinned by a checkpoint
+serverStatus.wiredTiger.transaction.transaction range of timestamps currently pinned
+serverStatus.wiredTiger.transaction.transaction range of timestamps pinned by a checkpoint
+serverStatus.wiredTiger.transaction.transaction range of timestamps pinned by the oldest active read timestamp
+serverStatus.wiredTiger.transaction.transaction range of timestamps pinned by the oldest timestamp
+serverStatus.wiredTiger.transaction.transaction read timestamp of the oldest active reader
+serverStatus.wiredTiger.transaction.transaction rollback to stable currently running
+serverStatus.wiredTiger.transaction.transaction walk of concurrent sessions
+serverStatus.wiredTiger.transaction.transactions committed
+serverStatus.wiredTiger.transaction.transactions rolled back
+serverStatus.wiredTiger.transaction.update conflicts
+start
+systemMetrics.cpu.btime
+systemMetrics.cpu.ctxt
+systemMetrics.cpu.guest_ms
+systemMetrics.cpu.guest_nice_ms
+systemMetrics.cpu.idle_ms
+systemMetrics.cpu.iowait_ms
+systemMetrics.cpu.irq_ms
+systemMetrics.cpu.nice_ms
+systemMetrics.cpu.num_cpus
+systemMetrics.cpu.processes
+systemMetrics.cpu.procs_blocked
+systemMetrics.cpu.procs_running
+systemMetrics.cpu.softirq_ms
+systemMetrics.cpu.steal_ms
+systemMetrics.cpu.system_ms
+systemMetrics.cpu.user_ms
+systemMetrics.disks.nvme0n1.io_in_progress
+systemMetrics.disks.nvme0n1.io_queued_ms
+systemMetrics.disks.nvme0n1.io_time_ms
+systemMetrics.disks.nvme0n1.read_sectors
+systemMetrics.disks.nvme0n1.read_time_ms
+systemMetrics.disks.nvme0n1.reads
+systemMetrics.disks.nvme0n1.reads_merged
+systemMetrics.disks.nvme0n1.write_sectors
+systemMetrics.disks.nvme0n1.write_time_ms
+systemMetrics.disks.nvme0n1.writes
+systemMetrics.disks.nvme0n1.writes_merged
+systemMetrics.disks.nvme1n1.io_in_progress
+systemMetrics.disks.nvme1n1.io_queued_ms
+systemMetrics.disks.nvme1n1.io_time_ms
+systemMetrics.disks.nvme1n1.read_sectors
+systemMetrics.disks.nvme1n1.read_time_ms
+systemMetrics.disks.nvme1n1.reads
+systemMetrics.disks.nvme1n1.reads_merged
+systemMetrics.disks.nvme1n1.write_sectors
+systemMetrics.disks.nvme1n1.write_time_ms
+systemMetrics.disks.nvme1n1.writes
+systemMetrics.disks.nvme1n1.writes_merged
+systemMetrics.end
+systemMetrics.memory.Active(anon)_kb
+systemMetrics.memory.Active(file)_kb
+systemMetrics.memory.Active_kb
+systemMetrics.memory.Buffers_kb
+systemMetrics.memory.Cached_kb
+systemMetrics.memory.Dirty_kb
+systemMetrics.memory.Inactive(anon)_kb
+systemMetrics.memory.Inactive(file)_kb
+systemMetrics.memory.Inactive_kb
+systemMetrics.memory.MemAvailable_kb
+systemMetrics.memory.MemFree_kb
+systemMetrics.memory.MemTotal_kb
+systemMetrics.memory.SwapCached_kb
+systemMetrics.memory.SwapFree_kb
+systemMetrics.memory.SwapTotal_kb
+systemMetrics.mounts./.available
+systemMetrics.mounts./.capacity
+systemMetrics.mounts./.free
+systemMetrics.mounts./dev.available
+systemMetrics.mounts./dev.capacity
+systemMetrics.mounts./dev.free
+systemMetrics.mounts./dev/shm.available
+systemMetrics.mounts./dev/shm.capacity
+systemMetrics.mounts./dev/shm.free
+systemMetrics.mounts./mongodata.available
+systemMetrics.mounts./mongodata.capacity
+systemMetrics.mounts./mongodata.free
+systemMetrics.mounts./run.available
+systemMetrics.mounts./run.capacity
+systemMetrics.mounts./run.free
+systemMetrics.mounts./run/user/0.available
+systemMetrics.mounts./run/user/0.capacity
+systemMetrics.mounts./run/user/0.free
+systemMetrics.mounts./sys/fs/cgroup.available
+systemMetrics.mounts./sys/fs/cgroup.capacity
+systemMetrics.mounts./sys/fs/cgroup.free
+systemMetrics.netstat.Ip:DefaultTTL
+systemMetrics.netstat.Ip:Forwarding
+systemMetrics.netstat.Ip:ForwDatagrams
+systemMetrics.netstat.Ip:FragCreates
+systemMetrics.netstat.Ip:FragFails
+systemMetrics.netstat.Ip:FragOKs
+systemMetrics.netstat.Ip:InAddrErrors
+systemMetrics.netstat.Ip:InDelivers
+systemMetrics.netstat.Ip:InDiscards
+systemMetrics.netstat.Ip:InHdrErrors
+systemMetrics.netstat.Ip:InReceives
+systemMetrics.netstat.Ip:InUnknownProtos
+systemMetrics.netstat.Ip:OutDiscards
+systemMetrics.netstat.Ip:OutNoRoutes
+systemMetrics.netstat.Ip:OutRequests
+systemMetrics.netstat.Ip:ReasmFails
+systemMetrics.netstat.Ip:ReasmOKs
+systemMetrics.netstat.Ip:ReasmReqds
+systemMetrics.netstat.Ip:ReasmTimeout
+systemMetrics.netstat.IpExt:InBcastOctets
+systemMetrics.netstat.IpExt:InBcastPkts
+systemMetrics.netstat.IpExt:InCEPkts
+systemMetrics.netstat.IpExt:InCsumErrors
+systemMetrics.netstat.IpExt:InECT0Pkts
+systemMetrics.netstat.IpExt:InECT1Pkts
+systemMetrics.netstat.IpExt:InMcastOctets
+systemMetrics.netstat.IpExt:InMcastPkts
+systemMetrics.netstat.IpExt:InNoECTPkts
+systemMetrics.netstat.IpExt:InNoRoutes
+systemMetrics.netstat.IpExt:InOctets
+systemMetrics.netstat.IpExt:InTruncatedPkts
+systemMetrics.netstat.IpExt:OutBcastOctets
+systemMetrics.netstat.IpExt:OutBcastPkts
+systemMetrics.netstat.IpExt:OutMcastOctets
+systemMetrics.netstat.IpExt:OutMcastPkts
+systemMetrics.netstat.IpExt:OutOctets
+systemMetrics.netstat.IpExt:ReasmOverlaps
+systemMetrics.netstat.Tcp:ActiveOpens
+systemMetrics.netstat.Tcp:AttemptFails
+systemMetrics.netstat.Tcp:CurrEstab
+systemMetrics.netstat.Tcp:EstabResets
+systemMetrics.netstat.Tcp:InCsumErrors
+systemMetrics.netstat.Tcp:InErrs
+systemMetrics.netstat.Tcp:InSegs
+systemMetrics.netstat.Tcp:OutRsts
+systemMetrics.netstat.Tcp:OutSegs
+systemMetrics.netstat.Tcp:PassiveOpens
+systemMetrics.netstat.Tcp:RetransSegs
+systemMetrics.netstat.Tcp:RtoAlgorithm
+systemMetrics.netstat.Tcp:RtoMax
+systemMetrics.netstat.Tcp:RtoMin
+systemMetrics.netstat.TcpExt:ArpFilter
+systemMetrics.netstat.TcpExt:BusyPollRxPackets
+systemMetrics.netstat.TcpExt:DelayedACKLocked
+systemMetrics.netstat.TcpExt:DelayedACKLost
+systemMetrics.netstat.TcpExt:DelayedACKs
+systemMetrics.netstat.TcpExt:EmbryonicRsts
+systemMetrics.netstat.TcpExt:IPReversePathFilter
+systemMetrics.netstat.TcpExt:ListenDrops
+systemMetrics.netstat.TcpExt:ListenOverflows
+systemMetrics.netstat.TcpExt:LockDroppedIcmps
+systemMetrics.netstat.TcpExt:OfoPruned
+systemMetrics.netstat.TcpExt:OutOfWindowIcmps
+systemMetrics.netstat.TcpExt:PAWSActive
+systemMetrics.netstat.TcpExt:PAWSEstab
+systemMetrics.netstat.TcpExt:PFMemallocDrop
+systemMetrics.netstat.TcpExt:PruneCalled
+systemMetrics.netstat.TcpExt:RcvPruned
+systemMetrics.netstat.TcpExt:SyncookiesFailed
+systemMetrics.netstat.TcpExt:SyncookiesRecv
+systemMetrics.netstat.TcpExt:SyncookiesSent
+systemMetrics.netstat.TcpExt:TCPAbortFailed
+systemMetrics.netstat.TcpExt:TCPAbortOnClose
+systemMetrics.netstat.TcpExt:TCPAbortOnData
+systemMetrics.netstat.TcpExt:TCPAbortOnLinger
+systemMetrics.netstat.TcpExt:TCPAbortOnMemory
+systemMetrics.netstat.TcpExt:TCPAbortOnTimeout
+systemMetrics.netstat.TcpExt:TCPACKSkippedChallenge
+systemMetrics.netstat.TcpExt:TCPACKSkippedFinWait2
+systemMetrics.netstat.TcpExt:TCPACKSkippedPAWS
+systemMetrics.netstat.TcpExt:TCPACKSkippedSeq
+systemMetrics.netstat.TcpExt:TCPACKSkippedSynRecv
+systemMetrics.netstat.TcpExt:TCPACKSkippedTimeWait
+systemMetrics.netstat.TcpExt:TCPAutoCorking
+systemMetrics.netstat.TcpExt:TCPBacklogDrop
+systemMetrics.netstat.TcpExt:TCPChallengeACK
+systemMetrics.netstat.TcpExt:TCPDeferAcceptDrop
+systemMetrics.netstat.TcpExt:TCPDSACKIgnoredNoUndo
+systemMetrics.netstat.TcpExt:TCPDSACKIgnoredOld
+systemMetrics.netstat.TcpExt:TCPDSACKOfoRecv
+systemMetrics.netstat.TcpExt:TCPDSACKOfoSent
+systemMetrics.netstat.TcpExt:TCPDSACKOldSent
+systemMetrics.netstat.TcpExt:TCPDSACKRecv
+systemMetrics.netstat.TcpExt:TCPDSACKUndo
+systemMetrics.netstat.TcpExt:TCPFACKReorder
+systemMetrics.netstat.TcpExt:TCPFastOpenActive
+systemMetrics.netstat.TcpExt:TCPFastOpenActiveFail
+systemMetrics.netstat.TcpExt:TCPFastOpenBlackhole
+systemMetrics.netstat.TcpExt:TCPFastOpenCookieReqd
+systemMetrics.netstat.TcpExt:TCPFastOpenListenOverflow
+systemMetrics.netstat.TcpExt:TCPFastOpenPassive
+systemMetrics.netstat.TcpExt:TCPFastOpenPassiveFail
+systemMetrics.netstat.TcpExt:TCPFastRetrans
+systemMetrics.netstat.TcpExt:TCPFromZeroWindowAdv
+systemMetrics.netstat.TcpExt:TCPFullUndo
+systemMetrics.netstat.TcpExt:TCPHPAcks
+systemMetrics.netstat.TcpExt:TCPHPHits
+systemMetrics.netstat.TcpExt:TCPHystartDelayCwnd
+systemMetrics.netstat.TcpExt:TCPHystartDelayDetect
+systemMetrics.netstat.TcpExt:TCPHystartTrainCwnd
+systemMetrics.netstat.TcpExt:TCPHystartTrainDetect
+systemMetrics.netstat.TcpExt:TCPKeepAlive
+systemMetrics.netstat.TcpExt:TCPLossFailures
+systemMetrics.netstat.TcpExt:TCPLossProbeRecovery
+systemMetrics.netstat.TcpExt:TCPLossProbes
+systemMetrics.netstat.TcpExt:TCPLossUndo
+systemMetrics.netstat.TcpExt:TCPLostRetransmit
+systemMetrics.netstat.TcpExt:TCPMD5Failure
+systemMetrics.netstat.TcpExt:TCPMD5NotFound
+systemMetrics.netstat.TcpExt:TCPMD5Unexpected
+systemMetrics.netstat.TcpExt:TCPMemoryPressures
+systemMetrics.netstat.TcpExt:TCPMemoryPressuresChrono
+systemMetrics.netstat.TcpExt:TCPMinTTLDrop
+systemMetrics.netstat.TcpExt:TCPMTUPFail
+systemMetrics.netstat.TcpExt:TCPMTUPSuccess
+systemMetrics.netstat.TcpExt:TCPOFODrop
+systemMetrics.netstat.TcpExt:TCPOFOMerge
+systemMetrics.netstat.TcpExt:TCPOFOQueue
+systemMetrics.netstat.TcpExt:TCPOrigDataSent
+systemMetrics.netstat.TcpExt:TCPPartialUndo
+systemMetrics.netstat.TcpExt:TCPPureAcks
+systemMetrics.netstat.TcpExt:TCPRcvCoalesce
+systemMetrics.netstat.TcpExt:TCPRcvCollapsed
+systemMetrics.netstat.TcpExt:TCPRenoFailures
+systemMetrics.netstat.TcpExt:TCPRenoRecovery
+systemMetrics.netstat.TcpExt:TCPRenoRecoveryFail
+systemMetrics.netstat.TcpExt:TCPRenoReorder
+systemMetrics.netstat.TcpExt:TCPReqQFullDoCookies
+systemMetrics.netstat.TcpExt:TCPReqQFullDrop
+systemMetrics.netstat.TcpExt:TCPRetransFail
+systemMetrics.netstat.TcpExt:TCPSACKDiscard
+systemMetrics.netstat.TcpExt:TCPSackFailures
+systemMetrics.netstat.TcpExt:TCPSackMerged
+systemMetrics.netstat.TcpExt:TCPSackRecovery
+systemMetrics.netstat.TcpExt:TCPSackRecoveryFail
+systemMetrics.netstat.TcpExt:TCPSACKReneging
+systemMetrics.netstat.TcpExt:TCPSACKReorder
+systemMetrics.netstat.TcpExt:TCPSackShifted
+systemMetrics.netstat.TcpExt:TCPSackShiftFallback
+systemMetrics.netstat.TcpExt:TCPSlowStartRetrans
+systemMetrics.netstat.TcpExt:TCPSpuriousRTOs
+systemMetrics.netstat.TcpExt:TCPSpuriousRtxHostQueues
+systemMetrics.netstat.TcpExt:TCPSYNChallenge
+systemMetrics.netstat.TcpExt:TCPSynRetrans
+systemMetrics.netstat.TcpExt:TCPTimeouts
+systemMetrics.netstat.TcpExt:TCPTimeWaitOverflow
+systemMetrics.netstat.TcpExt:TCPToZeroWindowAdv
+systemMetrics.netstat.TcpExt:TCPTSReorder
+systemMetrics.netstat.TcpExt:TCPWantZeroWindowAdv
+systemMetrics.netstat.TcpExt:TCPWinProbe
+systemMetrics.netstat.TcpExt:TCPWqueueTooBig
+systemMetrics.netstat.TcpExt:TW
+systemMetrics.netstat.TcpExt:TWKilled
+systemMetrics.netstat.TcpExt:TWRecycled
+systemMetrics.start
+systemMetrics.vmstat.nr_mlock
+systemMetrics.vmstat.numa_pages_migrated
+systemMetrics.vmstat.pgfault
+systemMetrics.vmstat.pgmajfault
+systemMetrics.vmstat.pswpin
+systemMetrics.vmstat.pswpout

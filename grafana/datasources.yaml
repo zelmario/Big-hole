@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: influxdb
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: percona
+      defaultBucket: ftdc
+      tlsSkipVerify: true
+    secureJsonData:
+      token: ftdc
