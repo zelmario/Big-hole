@@ -43,7 +43,7 @@ To see the default dashboard you can go to the link that the script shows when i
 ![Screenshoot](https://github.com/zelmario/Big-hole/blob/main/big_hole.png?raw=true)
 
 
-## Custom metrics
+## How to get more metrics
 There is a file named `metrics_to_get.txt` that contains the list of metrics to retrieve. If you want to gather more metrics, simply add the name of the desired metric to this file.
 You'll find a complete list of all available metrics in another file called `metrics.txt`. Just add the metric you want to retrieve to `metrics_to_get.txt`, and the script will collect it.
 
