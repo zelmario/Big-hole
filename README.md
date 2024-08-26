@@ -14,8 +14,7 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 1. Clone the repository
 2. Navigate to the project directory
 3. Install dependencies: `pip install -r requeriments.txt`
-4. Make the decoder executable: `chmod +x ftdc_decoder`
-5. Make the script executable: `chmod +x bighole.sh`
+4. Make the decoder and the script executables: `chmod +x ftdc_decoder bighole.sh`
 6. Run the script with the diagnostic data as argument: `./bighole.sh /home/any_directory/diagnostic.data/`
 
 ## Usage
