@@ -1,5 +1,10 @@
 # Big-hole
-View all MongoDB FTDC Metrics in Grafana
+View all MongoDB FTDC Metrics that you want in Grafana.
+
+I've been using the Keyhole tool from @simagix (Ken Chen) for a while, but with the new versions of MongoDB, sometimes I need to see more metrics to analyze specific issues.
+Based on the same idea, I've written this small script to gather additional metrics and be able to obtain all the metrics that I need.
+
+The script sends all the metrics data to a Dockerized InfluxDB instance. I chose InfluxDB because it's very simple and comes with its own dashboard, which is very useful for viewing the metrics and constructing queries to use in Grafana.
 
 ## Prerequisites
 - Python version 3.6 or later
@@ -22,9 +27,15 @@ To see the default dashboard you can go to the link that the script shows when i
 
 
 ## Custom metrics
-There is a file with the list of metrics to get `metrics_to_get.txt` if you want to get more metrics, you can add the name of the metric to that file.
-You have the list of all metrics in another file called `metrics.txt`, just add another metric to the file `metrics_to_get.txt` and the script will get it.
+There is a file named `metrics_to_get.txt` that contains the list of metrics to retrieve. If you want to gather more metrics, simply add the name of the desired metric to this file.
+You'll find a complete list of all available metrics in another file called `metrics.txt`. Just add the metric you want to retrieve to `metrics_to_get.txt`, and the script will collect it.
+
+You can use InfluxDB to view the metrics and construct the queries needed to display them in Grafana.
+```bash
+http://localhost:8086/
+user: zelmario
+pass: password
+```
 
 
 
-If you want to get more metrics
