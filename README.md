@@ -8,7 +8,7 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 
 ## Prerequisites
 - Python version 3.6 or later
-- Docker
+- Docker and Docker-compose
 
 ## Installation
 1. Clone the repository
