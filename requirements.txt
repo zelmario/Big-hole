@@ -1,4 +1,0 @@
-argparse
-ijson
-influxdb-client
-tqdm

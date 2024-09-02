@@ -36,7 +36,7 @@ func main() {
     }
 
     // Read the input file
-    fmt.Println("Reading MongoDB FTDC file starting...") // Print finish message    
+    //fmt.Println("Reading MongoDB FTDC file starting...") // Print finish message    
     data, err := ioutil.ReadFile(absInputPath)
     if err != nil {
         log.Fatalf("Failed to read input file: %v", err)
@@ -51,7 +51,7 @@ func main() {
     }
 
     // Convert the metrics to JSON
-    fmt.Println("Converting MongoDB metrics...") // Print
+    //fmt.Println("Converting MongoDB metrics...") // Print
     jsonData, err := json.MarshalIndent(metrics, "", "  ")
     if err != nil {
         log.Fatalf("Failed to marshal metrics to JSON: %v", err)
@@ -69,5 +69,5 @@ func main() {
         log.Fatalf("Failed to write output file: %v", err)
     }
 
-    fmt.Println("Successfully wrote metrics to JSON file")
+   // fmt.Println("Successfully wrote metrics to JSON file")
 }

@@ -1,3 +1,4 @@
+version: '3'
 services:
   influxdb:
     image: influxdb:latest
@@ -12,6 +13,7 @@ services:
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=ftdc
     volumes:
       - influxdb-data:/var/lib/influxdb
+
   grafana:
     image: grafana/grafana:latest
     ports:
@@ -19,12 +21,21 @@ services:
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
     links:
       - influxdb
     volumes:
       - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - ./grafana/main.yaml:/etc/grafana/provisioning/dashboards/main.yaml
       - ./grafana/dashboards/:/etc/grafana/provisioning/dashboards/
+
+  metrics-processor:
+    build: .
+    volumes:
+      - ./diagnostic.data:/diagnostic.data
+    depends_on:
+      - influxdb
+    entrypoint: ["/scripts/run_scripts.sh", "/diagnostic.data"]
+
 volumes:
   influxdb-data:
