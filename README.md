@@ -16,7 +16,7 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 4. Build the docker images `docker-compose build`
 
 ## Usage
-1. Create a **diagnostic.data** directory `mkdir -p ./diagnostic.data/`
+1. Create a **diagnostic.data** directory into the project directory `mkdir -p ./diagnostic.data/`
 2. Copy **FTDC** files that you want to analyze to under directory **diagnostic.data**:
    `cp yourdirectory/metrics.* ./diagnostic.data/`
 4. Run the script`./bighole.sh`
