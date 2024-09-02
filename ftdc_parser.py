@@ -83,7 +83,7 @@ batch = []
 
 with open(args.file_path, 'r') as file:
     objects = ijson.items(file, 'Data.item')
-    with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust max_workers based on your CPU cores
+    with ThreadPoolExecutor(max_workers=2) as executor:  # Adjust max_workers based on your CPU cores
         futures = []
         for metric_set in tqdm(objects, desc="Processing metrics"):
             batch.append(metric_set)
