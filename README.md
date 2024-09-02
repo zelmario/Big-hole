@@ -7,36 +7,39 @@ Based on the same idea, I've written this small script to gather additional metr
 The script sends all the metrics data to a Dockerized InfluxDB instance. I chose InfluxDB because it's very simple and comes with its own dashboard, which is very useful for viewing the metrics and constructing queries to use in Grafana.
 
 ## Prerequisites
-- Python version 3.6 or later
 - Docker and Docker-compose
 
 ## Installation
 1. Clone the repository
 2. Navigate to the project directory
-3. Install dependencies: `pip install -r requirements.txt`
-4. Make the decoder and the script executables: `chmod +x ftdc_decoder bighole.sh`
-6. Run the script with the diagnostic data folder as argument: `./bighole.sh /home/any_directory/diagnostic.data/`
+3. Create a diagnostic.data directory `mkdir -p ./diagnostic.data/`
+4. Copy FTDC files to under directory diagnostic.data: `cp $SOMEWHERE/metrics.* ./diagnostic.data/`
+5. Make the main script executable: `chmod +x ftdc_decoder bighole.sh`
+6. Build the docker images `docker-compose build`
+7. Run the script`./bighole.sh`
 
 ## Usage
-The script will decode all the diagnostic data files and launch two docker containers, InfluxDB and Grafana
+The script will decode all the diagnostic data files and launch three docker containers:
 
 ```bash
-zelmar@LAPTOP:~/Big-hole$ ./bighole.sh /home/zelmar/diagnostic.data/
+zelmar@LAPTOP-MD0FVN06:~/ftdc_decoder$ ./bighole.sh
+WARN[0000] /home/zelmar/ftdc_decoder/docker-compose.yml: `version` is obsolete
 [+] Running 4/4
- ✔ Network big-hole_default         Created                                                                                                                0.0s
- ✔ Volume "big-hole_influxdb-data"  Created                                                                                                                0.0s
- ✔ Container big-hole-influxdb-1    Started                                                                                                                0.7s
- ✔ Container big-hole-grafana-1     Started                                                                                                                1.0s
-Reading MongoDB FTDC file starting...
-Decoding MongoDB FTDC data...
-Converting MongoDB metrics...
-Successfully wrote metrics to JSON file
-Processing metrics: 79it [00:11,  6.63it/s]
-Chunk processed
-Processing completed.
-Access your dashboard at: http://localhost:3001/d/ddnw277huiv40ae/ftdc-dashboard?orgId=1&from=1714151615931&to=1724692415930
-```
+ ✔ Network ftdc_decoder_default                Created                                                                                                                                   0.0s
+ ✔ Container ftdc_decoder-influxdb-1           Started                                                                                                                                   0.7s
+ ✔ Container ftdc_decoder-metrics-processor-1  Started                                                                                                                                   1.0s
+ ✔ Container ftdc_decoder-grafana-1            Started                                                                                                                                   1.1s
+WARN[0000] /home/zelmar/ftdc_decoder/docker-compose.yml: `version` is obsolete
+metrics-processor-1  | This can take some time... ☕
+metrics-processor-1  |
+metrics-processor-1  | Decoding MongoDB FTDC data...
+metrics-processor-1  | Chunk processed
+Processing metrics: 221it [00:03, 55.46it/s]
+metrics-processor-1  | Chunk processed
+metrics-processor-1  | Access your dashboard at: http://localhost:3001/d/ddnw277huiv40ae/ftdc-dashboard?orgId=1&from=1716347462000&to=1716379922000
+metrics-processor-1  | Press Ctrl-C when you've finished to analyze the dashboard.
 
+```
 
 To see the default dashboard you can go to the link that the script shows when it finish the process:
 
@@ -55,6 +58,14 @@ pass: password
 ```
 
 ![Screenshoot](https://github.com/zelmario/Big-hole/blob/main/influxdb.png?raw=true)
+
+
+You can edit the dashboard by login in to grafana:
+```bash
+http://localhost:3001/
+user: admin
+pass: admin
+```
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
