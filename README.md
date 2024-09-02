@@ -10,8 +10,8 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 - Docker and Docker-compose
 
 ## Installation
-1. Clone the repository
-2. Navigate to the project directory
+1. Clone the repository `git clone https://github.com/zelmario/Big-hole.git`
+2. Navigate to the project directory `cd Big-hole`
 3. Make the main script executable: `chmod +x ftdc_decoder bighole.sh`
 4. Build the docker images `docker-compose build`
 
@@ -20,7 +20,7 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 2. Copy FTDC files to under directory diagnostic.data: `cp $SOMEWHERE/metrics.* ./diagnostic.data/`
 3. Run the script`./bighole.sh`
 
-The script will decode all the diagnostic data files and launch three docker containers:
+The script will decode all the diagnostic data files (may takes some time, depending on your computer and how many metric files you want to process) and launch three docker containers:
 
 ```bash
 zelmar@LAPTOP-MD0FVN06:~/ftdc_decoder$ ./bighole.sh
