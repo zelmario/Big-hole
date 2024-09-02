@@ -12,13 +12,14 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 ## Installation
 1. Clone the repository
 2. Navigate to the project directory
-3. Create a diagnostic.data directory `mkdir -p ./diagnostic.data/`
-4. Copy FTDC files to under directory diagnostic.data: `cp $SOMEWHERE/metrics.* ./diagnostic.data/`
-5. Make the main script executable: `chmod +x ftdc_decoder bighole.sh`
-6. Build the docker images `docker-compose build`
-7. Run the script`./bighole.sh`
+3. Make the main script executable: `chmod +x ftdc_decoder bighole.sh`
+4. Build the docker images `docker-compose build`
 
 ## Usage
+1. Create a diagnostic.data directory `mkdir -p ./diagnostic.data/`
+2. Copy FTDC files to under directory diagnostic.data: `cp $SOMEWHERE/metrics.* ./diagnostic.data/`
+3. Run the script`./bighole.sh`
+
 The script will decode all the diagnostic data files and launch three docker containers:
 
 ```bash
@@ -44,6 +45,10 @@ metrics-processor-1  | Press Ctrl-C when you've finished to analyze the dashboar
 To see the default dashboard you can go to the link that the script shows when it finish the process:
 
 ![Screenshoot](https://github.com/zelmario/Big-hole/blob/main/big_hole.png?raw=true)
+
+
+## Read Other FTDC Data:
+To read other FTDC data you need to stop the containers with `Ctrl-C`, delete the `diagnostic.data` directory files and copy the new ones.
 
 
 ## How to get more metrics
