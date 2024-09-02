@@ -12,12 +12,12 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 ## Installation
 1. Clone the repository `git clone https://github.com/zelmario/Big-hole.git`
 2. Navigate to the project directory `cd Big-hole`
-3. Make the main script executable: `chmod +x ftdc_decoder bighole.sh`
+3. Make the main script executable: `chmod +x bighole.sh`
 4. Build the docker images `docker-compose build`
 
 ## Usage
 1. Create a **diagnostic.data** directory `mkdir -p ./diagnostic.data/`
-2. Copy **FTDC** files to under directory **diagnostic.data**: `cp yourdirectory/metrics.* ./diagnostic.data/`
+2. Copy **FTDC** files that you want to analyze to under directory **diagnostic.data**: `cp yourdirectory/metrics.* ./diagnostic.data/`
 3. Run the script`./bighole.sh`
 
 ***Note: you need to do these steps every time you need to read new diagnostic data files***
@@ -65,13 +65,17 @@ pass: password
 
 ![Screenshoot](https://github.com/zelmario/Big-hole/blob/main/influxdb.png?raw=true)
 
-
-You can edit the dashboard by login in to grafana:
+If you want to edit the dashboard, you can log in to grafana:
 ```bash
 http://localhost:3001/
 user: admin
 pass: admin
 ```
+
+Then, you can save it to `grafana/dashboard/dashboard.json`
+
+***Have in mind that after any modification on the metrics_to_get.txt file or the dashboard, you need to rebuild the container with `docker-compose build`***
+
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
