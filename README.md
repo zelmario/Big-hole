@@ -20,7 +20,7 @@ The script sends all the metrics data to a Dockerized InfluxDB instance. I chose
 2. Copy **FTDC** files that you want to analyze to under directory **diagnostic.data**: `cp yourdirectory/metrics.* ./diagnostic.data/`
 3. Run the script`./bighole.sh`
 
-***Note: you need to do these steps every time you need to read new diagnostic data files***
+***Note: you need to do those steps every time you need to read new diagnostic data files***
 
 The script will decode all the diagnostic data files (may takes some time, depending on your computer and how many metric files you want to process) and launch three docker containers:
 
