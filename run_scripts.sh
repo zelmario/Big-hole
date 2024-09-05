@@ -55,7 +55,7 @@ process_file() {
 export -f process_file
 
 # Run the process_file function in parallel for each metric file
-find "$METRICS_DIR" -name 'metrics.*' -print0 | xargs -0 -n 1 -P 4 bash -c 'process_file "$0"'
+find "$METRICS_DIR" -name 'metrics.*' -print0 | xargs -0 -n 1 -P 1 bash -c 'process_file "$0"'
 
 # run python script to show the dashbopard url
 python3 /scripts/get_url.py 
