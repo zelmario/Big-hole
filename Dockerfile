@@ -1,3 +1,16 @@
+
+# build ftdc_decoder
+FROM golang:1.23-alpine AS builder
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy go.mod and go.sum files first to leverage Docker cache
+COPY ./ftdc_decoder .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ftdc_decoder .
+
+
+
 # Use a base image, for example, Ubuntu
 FROM ubuntu:20.04
 
@@ -5,7 +18,7 @@ FROM ubuntu:20.04
 WORKDIR /app
 
 # Copy the necessary files into the container
-COPY ftdc_decoder /app/ftdc_decoder
+COPY --from=builder /app/ftdc_decoder /app/
 COPY run_scripts.sh /scripts/run_scripts.sh
 COPY ftdc_parser.py /scripts/ftdc_parser.py
 COPY get_url.py /scripts/get_url.py

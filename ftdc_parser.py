@@ -31,8 +31,8 @@ client = InfluxDBClient(url=url, token=token, org=org)
 write_api = client.write_api()
 
 # Get metrics and process them
-def generate_timestamps(metric_set):
-    return metric_set['DataPointsMap']['serverStatus.localTime']
+def generate_timestamp(metric_set):
+    return metric_set.get('serverStatus.localTime',metric_set["end"])
 
 metrics_file = '/app/metrics_to_get.txt'
 
@@ -50,15 +50,13 @@ member_metrics_pattern = re.compile(r'^replSetGetStatus\.members\.\d+\.(pingMs|l
 mount_metrics_pattern = re.compile(r'^systemMetrics\.mounts\.(\/(?:[^\/]+\/?)*)\.(available|capacity|free)$')
 
 def process_metrics(metric_set):
-    timestamps = generate_timestamps(metric_set)
+    timestamp = generate_timestamp(metric_set)
     points_dict = {}
-    
-    for key, values in metric_set["DataPointsMap"].items():
+    for key, value in metric_set.items():
         if key in keys_to_check or disk_metrics_pattern.match(key) or member_metrics_pattern.match(key) or mount_metrics_pattern.match(key):
-            for ts, value in zip(timestamps, values):
-                if ts not in points_dict:
-                    points_dict[ts] = {}
-                points_dict[ts][key] = value
+            if timestamp not in points_dict:
+                points_dict[timestamp] = {}
+            points_dict[timestamp][key] = value
     
     points = []
     for ts, fields in points_dict.items():

@@ -1,0 +1,4 @@
+./vendor
+diagnostic.data/
+.idea
+.DS_Store
