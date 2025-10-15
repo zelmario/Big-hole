@@ -76,7 +76,7 @@ func main() {
 
 			_, b := binField.Binary()
 
-			// If there is a 4-byte prefix before zlib, skip it when needed.
+
 			payload := b
 			if len(b) >= 6 && b[4] == 0x78 && (b[5] == 0x9C || b[5] == 0xDA) {
 				payload = b[4:]
