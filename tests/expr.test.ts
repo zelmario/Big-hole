@@ -232,3 +232,51 @@ describe('role-scoped captures', () => {
     expect(charts.flatMap((p) => p.metrics).length).toBeGreaterThan(0);
   });
 });
+
+describe('mixed role prefixes', () => {
+  // A real sharded 8.0 capture carries BOTH `common.` and `shard.` at once: the clock lives
+  // under common, replication under shard. Applying one prefix to a whole expression loses
+  // any metric that spans two sections -- replica lag being the one that matters most.
+  const shardedCapture = new Set([
+    'common.start',
+    'common.serverStatus.localTime',
+    'common.serverStatus.connections.current',
+    'shard.replSetGetStatus.members.0.lastAppliedWallTime',
+    'shard.replSetGetStatus.members.1.lastAppliedWallTime',
+    'shard.serverStatus.queues.execution.read.available',
+  ]);
+
+  const prefixes = detectRolePrefixes(shardedCapture);
+
+  it('detects both prefixes', () => {
+    expect(prefixes).toEqual(['common', 'shard']);
+  });
+
+  it('resolves each operand under its own prefix', () => {
+    expect(
+      expandMetric(
+        'diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)',
+        shardedCapture,
+        prefixes,
+      ),
+    ).toEqual([
+      'diff(common.serverStatus.localTime, shard.replSetGetStatus.members.0.lastAppliedWallTime)',
+      'diff(common.serverStatus.localTime, shard.replSetGetStatus.members.1.lastAppliedWallTime)',
+    ]);
+  });
+
+  it('applies an alias and a role prefix together', () => {
+    // Tickets renamed in 8.0 AND scoped by role: both substitutions have to happen.
+    expect(
+      expandMetric(
+        'serverStatus.wiredTiger.concurrentTransactions.read.available',
+        shardedCapture,
+        prefixes,
+      ),
+    ).toEqual(['shard.serverStatus.queues.execution.read.available']);
+  });
+
+  it('does not invent a metric the capture lacks', () => {
+    expect(expandMetric('serverStatus.mem.resident', shardedCapture, prefixes)).toEqual([]);
+  });
+});

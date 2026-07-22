@@ -11,7 +11,7 @@ import { deflateSync, inflateSync } from 'fflate';
 
 import { exprPaths, parseExpr, type Unit } from '../data/expr.js';
 import { DEFAULT_TEMPLATES } from './defaultDashboard.js';
-import { aliasCandidates } from './aliases.js';
+import { METRIC_ALIASES } from './aliases.js';
 
 /**
  * Bump whenever the PanelSpec shape or the grid geometry changes.
@@ -118,16 +118,83 @@ function escapeRegExp(text: string): string {
  * `diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)` produce one
  * series per member rather than a cross product.
  */
+/** Prefix a single path with a role, if it starts with a known section. */
+function prefixPath(path: string, prefix: string): string {
+  if (prefix === '') return path;
+  return SECTIONS.some((section) => path.startsWith(`${section}.`)) ? `${prefix}.${path}` : path;
+}
+
+/** Concrete paths a glob resolves to. */
+function globMatches(pattern: string, available: ReadonlySet<string>): string[] {
+  const re = new RegExp(`^${escapeRegExp(pattern).replace(/\\\*/g, '([^.]+)')}$`);
+  return [...available].filter((path) => re.test(path)).sort();
+}
+
+/**
+ * Resolve every path in an expression, trying the given prefixes in order for each.
+ * Returns [] if any path fails to resolve.
+ */
+function resolveWith(
+  expression: string,
+  paths: readonly string[],
+  available: ReadonlySet<string>,
+  order: readonly string[],
+): string[] {
+  let expr = expression;
+  const globs: string[] = [];
+
+  const pin = (path: string, match: (full: string) => boolean): string | undefined => {
+    for (const candidate of [path, ...(METRIC_ALIASES[path] ?? [])]) {
+      for (const prefix of order) {
+        const full = prefixPath(candidate, prefix);
+        if (match(full)) return full;
+      }
+    }
+    return undefined;
+  };
+
+  for (const path of paths) {
+    if (path.includes('*')) {
+      globs.push(path);
+      continue;
+    }
+    const resolved = pin(path, (full) => available.has(full));
+    if (resolved === undefined) return [];
+    if (resolved !== path) expr = expr.split(path).join(resolved);
+  }
+
+  for (const glob of globs) {
+    const pinned = pin(glob, (full) => globMatches(full, available).length > 0);
+    if (pinned === undefined) return [];
+    if (pinned !== glob) expr = expr.split(glob).join(pinned);
+  }
+
+  return globs.length === 0 ? [expr] : expandOne(expr, available);
+}
+
 /**
  * Resolve a template metric against a real capture.
  *
- * Three axes of variation, applied in order, all driven by what the capture actually
- * contains rather than by a version number:
+ * Three axes of variation, all driven by what the capture contains rather than by a version
+ * number:
  *
- *   1. aliases  -- the metric was renamed between releases (tickets moved out of
- *                  wiredTiger.concurrentTransactions in 8.0)
- *   2. role     -- 8.0 scopes sections by role on a sharded cluster (`shard.serverStatus.…`)
+ *   1. aliases  -- renamed between releases (tickets left wiredTiger.concurrentTransactions
+ *                  for queues.execution in 8.0)
+ *   2. role     -- sections scoped by role on a sharded cluster (`shard.serverStatus.…`)
  *   3. globs    -- one series per disk, mount, or replica-set member
+ *
+ * Roles are resolved in two passes, because both behaviours are wanted and they conflict:
+ *
+ *   uniform -- every path under one prefix, tried for each prefix in turn. A node running
+ *              several roles (a config shard reports `shard.` and `configsvr.`) genuinely has
+ *              a different value per role, so a simple metric should show all of them.
+ *   mixed   -- each path resolved independently. A real sharded 8.0 capture puts the clock
+ *              under `common.` and replication under `shard.`, so an expression spanning two
+ *              sections resolves under no single prefix. Without this fallback, replica lag
+ *              disappears on exactly the captures it matters most for.
+ *
+ * Uniform wins when it works, so multi-role fan-out is preserved; mixing only kicks in for
+ * genuinely cross-section expressions.
  *
  * Returns an empty array when nothing resolves, so the panel is dropped rather than drawn
  * blank.
@@ -139,24 +206,22 @@ export function expandMetric(
 ): string[] {
   let paths: string[];
   try {
-    paths = exprPaths(parseExpr(expression));
+    paths = [...new Set(exprPaths(parseExpr(expression)))];
   } catch {
     return [];
   }
 
-  const results: string[] = [];
-  // A capture may carry several roles at once (a config shard reports both `shard.` and
-  // `configsvr.`), so one template can legitimately yield a series per role.
-  for (const prefix of prefixes) {
-    for (const candidate of aliasCandidates(expression, paths)) {
-      const expanded = expandOne(applyRolePrefix(candidate, prefix), available);
-      if (expanded.length > 0) {
-        results.push(...expanded);
-        break; // first alias that resolves wins for this role
-      }
-    }
+  // Always keep the bare form as a fallback: a capture may prefix some sections and not
+  // others.
+  const order = prefixes.includes('') ? [...prefixes] : [...prefixes, ''];
+
+  const uniform: string[] = [];
+  for (const prefix of order) {
+    uniform.push(...resolveWith(expression, paths, available, [prefix]));
   }
-  return [...new Set(results)];
+  if (uniform.length > 0) return [...new Set(uniform)];
+
+  return [...new Set(resolveWith(expression, paths, available, order))];
 }
 
 function expandOne(expression: string, available: ReadonlySet<string>): string[] {

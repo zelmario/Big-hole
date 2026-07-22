@@ -143,9 +143,31 @@ a version number (`expandMetric` in `src/dashboard/layout.ts`):
 | **role scoping** | a sharded-cluster member reports `shard.serverStatus.…`; older servers use `common.` | `detectRolePrefixes` |
 | **cardinality** | one series per disk, mount, or replica-set member | `*` globs in templates |
 
-Never key behaviour off a version string. A capture may carry several roles at once (a config
-shard reports both `shard.` and `configsvr.`), roles differ by topology rather than release,
-and Percona builds diverge from upstream. Detect from the data.
+Never key behaviour off a version string. Roles differ by **topology, not release** — a
+single-node 8.0 replica set has no prefix at all, while an 8.0 shard member reports
+`common.` and `shard.` simultaneously. Percona builds diverge from upstream too. Detect from
+the data.
+
+Roles resolve in two passes, because both behaviours are wanted and they conflict:
+
+- **uniform** — every path under one prefix, tried for each in turn. A node running several
+  roles genuinely has a different value per role, so a simple metric shows all of them.
+- **mixed** — each path resolved independently. A real sharded capture puts the clock under
+  `common.` and replication under `shard.`, so `diff(serverStatus.localTime,
+  replSetGetStatus.members.*.lastAppliedWallTime)` resolves under no single prefix. Without
+  this fallback, replica lag vanishes on exactly the captures it matters most for.
+
+Uniform wins when it works, so multi-role fan-out survives; mixing only applies to genuinely
+cross-section expressions.
+
+**Measured coverage** (`npm run catalogs`):
+
+| Capture | Paths | Roles | Panels |
+|---|---|---|---|
+| 4.4 / 5.0 / 6.0 | ~2.1–2.5k | none | 41/44 |
+| 7.0 | 2,950 | none | 43/44 |
+| 8.0 | 5,616 | none | 43/44 |
+| 8.0 sharded | 5,846 | `common`, `shard` | 43/44 |
 
 ### Observed ticket paths
 
