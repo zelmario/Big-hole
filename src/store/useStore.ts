@@ -12,6 +12,17 @@ import {
   type DashboardState,
   type PanelSpec,
 } from '../dashboard/layout.js';
+import {
+  deleteDashboard as removeSaved,
+  getDashboard,
+  getCurrentId,
+  isDirty,
+  listDashboards,
+  renameDashboard as renameSaved,
+  saveDashboard,
+  setCurrentId,
+  type SavedDashboard,
+} from '../dashboard/library.js';
 import { exprPaths, parseExpr } from '../data/expr.js';
 import { FtdcClient } from '../workers/client.js';
 import type { CaptureSummary, IngestProgressMessage } from '../workers/protocol.js';
@@ -48,6 +59,11 @@ interface State {
    */
   showBand: boolean;
 
+  /** Saved dashboards, most recently updated first. */
+  library: SavedDashboard[];
+  /** Which saved dashboard the working layout came from, if any. */
+  currentId: string | null;
+
   ingest(files: File[]): Promise<void>;
   addPanel(): void;
   removePanel(id: string): void;
@@ -65,6 +81,17 @@ interface State {
   setRange(range: [number, number] | null): void;
   setCursor(ms: number | null): void;
   setShowBand(on: boolean): void;
+
+  saveCurrent(name?: string): void;
+  saveAsNew(name: string): void;
+  openDashboard(id: string): void;
+  deleteDashboard(id: string): void;
+  renameDashboard(id: string, name: string): void;
+  newDashboard(): void;
+  restoreDefault(): void;
+  applyImported(name: string, state: DashboardState): void;
+  currentName(): string;
+  isDirty(): boolean;
   reset(): void;
 }
 
@@ -93,6 +120,8 @@ export const useStore = create<State>((set, get) => ({
   range: null,
   cursor: null,
   showBand: false,
+  library: [],
+  currentId: null,
 
   async ingest(files: File[]) {
     set({ status: 'ingesting', error: null, progress: null });
@@ -112,10 +141,16 @@ export const useStore = create<State>((set, get) => ({
       const catalog = await get().client.catalog(CAPTURE_ID);
       const available = new Set(catalog.map((c) => c.path));
 
-      // A permalink beats a saved layout, which beats the built-in default: an explicitly
-      // shared link is the strongest statement of intent.
+      // A permalink beats the last-open dashboard, which beats the autosaved working layout,
+      // which beats the built-in default. An explicitly shared link is the strongest
+      // statement of intent.
+      const library = listDashboards();
+      const currentId = getCurrentId();
       const shared = fromHash(window.location.hash);
-      const saved = shared ?? loadLayout();
+      const saved =
+        shared ??
+        (currentId !== null ? (getDashboard(currentId)?.state ?? null) : null) ??
+        loadLayout();
 
       let state: DashboardState;
       if (saved !== null) {
@@ -140,6 +175,8 @@ export const useStore = create<State>((set, get) => ({
         status: 'ready',
         summary,
         catalog,
+        library,
+        currentId: shared === null ? currentId : null,
         panels: state.panels,
         focused: state.panels[0]?.id ?? null,
         range: state.range,
@@ -296,6 +333,79 @@ export const useStore = create<State>((set, get) => ({
 
   setShowBand(on) {
     set({ showBand: on });
+  },
+
+  saveCurrent(name) {
+    const { currentId, panels, range } = get();
+    const state: DashboardState = { v: LAYOUT_VERSION, panels, range };
+    const title = name ?? get().currentName();
+    const entry = saveDashboard(title, state, currentId ?? undefined);
+    set({ library: listDashboards(), currentId: entry.id });
+  },
+
+  saveAsNew(name) {
+    const { panels, range } = get();
+    const entry = saveDashboard(name, { v: LAYOUT_VERSION, panels, range });
+    set({ library: listDashboards(), currentId: entry.id });
+  },
+
+  openDashboard(id) {
+    const entry = getDashboard(id);
+    if (entry === null) return;
+    // Drop metrics this capture lacks, exactly as on ingest: a dashboard built against
+    // another server version should degrade rather than draw empty panels.
+    const available = new Set(get().catalog.map((c) => c.path));
+    const panels = entry.state.panels
+      .map((p) =>
+        p.kind === 'section' ? p : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available)) },
+      )
+      .filter((p) => p.kind === 'section' || p.metrics.length > 0);
+
+    setCurrentId(id);
+    set({ panels, range: entry.state.range, focused: panels[0]?.id ?? null, currentId: id });
+    persist(panels, entry.state.range);
+  },
+
+  deleteDashboard(id) {
+    removeSaved(id);
+    set({ library: listDashboards(), currentId: get().currentId === id ? null : get().currentId });
+  },
+
+  renameDashboard(id, name) {
+    renameSaved(id, name);
+    set({ library: listDashboards() });
+  },
+
+  newDashboard() {
+    const panels: PanelSpec[] = [
+      { id: panelId(), kind: 'chart', title: 'New panel', metrics: [], x: 0, y: 0, w: 12, h: 8 },
+    ];
+    setCurrentId(null);
+    set({ panels, focused: panels[0]!.id, currentId: null, range: null });
+    persist(panels, null);
+  },
+
+  restoreDefault() {
+    const state = defaultDashboard(new Set(get().catalog.map((c) => c.path)));
+    setCurrentId(null);
+    set({ panels: state.panels, focused: state.panels[0]?.id ?? null, currentId: null, range: null });
+    persist(state.panels, null);
+  },
+
+  applyImported(name, state) {
+    const entry = saveDashboard(name, state);
+    set({ library: listDashboards(), currentId: entry.id });
+    get().openDashboard(entry.id);
+  },
+
+  currentName() {
+    const { currentId, library } = get();
+    return library.find((d) => d.id === currentId)?.name ?? 'Default dashboard';
+  },
+
+  isDirty() {
+    const { currentId, panels, range } = get();
+    return isDirty(currentId, { v: LAYOUT_VERSION, panels, range });
   },
 
   reset() {

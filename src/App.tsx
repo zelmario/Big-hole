@@ -3,9 +3,10 @@ import { useState, type ReactElement } from 'react';
 import { DropZone } from './ui/DropZone.js';
 import { ErrorBoundary } from './ui/ErrorBoundary.js';
 import { TimeRange } from './ui/TimeRange.js';
+import { DashboardMenu } from './ui/DashboardMenu.js';
 import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
-import { toPermalink, fromHash, clearLayout, defaultDashboard } from './dashboard/layout.js';
+import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
 
 function ms(d: number): string {
@@ -18,9 +19,7 @@ export function App(): ReactElement {
   const cursor = useStore((s) => s.cursor);
   const showBand = useStore((s) => s.showBand);
   const setShowBand = useStore((s) => s.setShowBand);
-  const catalog = useStore((s) => s.catalog);
   const addPanel = useStore((s) => s.addPanel);
-  const applyState = useStore((s) => s.applyState);
   const dashboard = useStore((s) => s.dashboard);
   const reset = useStore((s) => s.reset);
 
@@ -77,6 +76,7 @@ export function App(): ReactElement {
         {cursor !== null && <code className="cursor">{ms(cursor)}</code>}
         {status === 'ready' && (
           <>
+            <DashboardMenu />
             <TimeRange />
             <label className="muted small band-toggle" title="Shade min/max between samples">
               <input
@@ -88,16 +88,6 @@ export function App(): ReactElement {
             </label>
             <button onClick={addPanel}>+ panel</button>
             <button onClick={() => void share()}>share</button>
-            <button
-              className="link"
-              onClick={() => {
-                clearLayout();
-                window.history.replaceState(null, '', window.location.pathname);
-                applyState(defaultDashboard(new Set(catalog.map((c) => c.path))));
-              }}
-            >
-              reset layout
-            </button>
             <button className="link" onClick={reset}>load another</button>
           </>
         )}

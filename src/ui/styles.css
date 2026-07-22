@@ -127,3 +127,28 @@ header button { flex-shrink: 0; }
 .band-toggle { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 header { align-items: center; flex-wrap: wrap; }
 .panel-title { font-size: 12px; }
+
+/* ---- dashboard menu ---- */
+.dashmenu { position: relative; display: flex; align-items: center; gap: 8px; }
+.dash-current { background: #262c36; border: 1px solid var(--line); color: var(--fg);
+  padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-current:hover { background: #2f3641; }
+.dirty { color: var(--warn); margin-left: 6px; font-size: 16px; line-height: 0; }
+.dash-scrim { position: fixed; inset: 0; z-index: 55; }
+.dash-menu { position: absolute; top: 110%; left: 0; z-index: 60; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 320px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.55); }
+.dash-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+.dash-actions button { flex: 1; padding: 6px 8px; font-size: 12px; }
+.dash-actions button:disabled { opacity: .4; cursor: default; }
+.dash-list-head { padding: 8px 4px 4px; border-top: 1px solid var(--line); margin-top: 4px; }
+.dash-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.dash-row { display: flex; align-items: center; gap: 4px; border-radius: 4px; }
+.dash-row:hover { background: #232830; }
+.dash-row.on { outline: 1px solid var(--accent); }
+.dash-open { flex: 1; display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; background: none; border: 0; color: var(--fg); text-align: left;
+  padding: 7px 8px; cursor: pointer; font-size: 13px; min-width: 0; }
+.dash-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link.danger { color: var(--err); }
