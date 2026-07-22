@@ -259,7 +259,35 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setRange(range) {
-    set({ range });
+    if (range === null) {
+      set({ range: null });
+      return;
+    }
+
+    const summary = get().summary;
+    let [from, to] = range;
+    if (to < from) [from, to] = [to, from];
+
+    if (summary !== null) {
+      // Keep the window inside the capture, and never narrower than a handful of samples.
+      // Zooming repeatedly would otherwise land on a span shorter than the sample interval,
+      // which yields zero points and a blank panel with nothing to explain it.
+      const floor = Math.max(summary.cadenceMs * 4, 1000);
+      if (to - from < floor) {
+        const centre = (from + to) / 2;
+        from = centre - floor / 2;
+        to = centre + floor / 2;
+      }
+      from = Math.max(summary.startMs, from);
+      to = Math.min(summary.endMs, to);
+      if (to - from < floor) {
+        // Clamping against an end can re-narrow the window; push it back off that end.
+        if (from <= summary.startMs) to = Math.min(summary.endMs, from + floor);
+        else from = Math.max(summary.startMs, to - floor);
+      }
+    }
+
+    set({ range: [Math.round(from), Math.round(to)] });
   },
 
   setCursor(ms) {

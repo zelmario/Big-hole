@@ -150,8 +150,12 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
     [series, hiddenKey],
   );
 
+  /** True when the window resolved to no samples at all -- worth saying so explicitly. */
+  const empty = series.length > 0 && series.every((s) => s.t.length === 0);
+
   const data = useMemo<uPlot.AlignedData | null>(() => {
-    if (visible.length === 0) return null;
+    // uPlot draws nothing useful from empty columns, so do not construct it at all.
+    if (visible.length === 0 || visible[0]!.t.length === 0) return null;
     const x = Array.from(visible[0]!.t, (ms) => ms / 1000); // uPlot time axis is seconds
     const cols: number[][] = [x];
     for (const s of visible) {
@@ -294,8 +298,13 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       </div>
 
       {error !== null && <div className="small error">{error}</div>}
-      {panel.metrics.length > 0 && visible.length === 0 && (
+      {panel.metrics.length > 0 && visible.length === 0 && !empty && (
         <div className="muted small pad">All series hidden — click a legend entry to show it.</div>
+      )}
+      {empty && (
+        <div className="muted small pad">
+          No samples in this time range — zoom out or widen the window.
+        </div>
       )}
       <div ref={holder} className="plot" />
 

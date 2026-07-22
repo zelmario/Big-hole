@@ -238,3 +238,48 @@ describe('FileStore contract', () => {
     }
   });
 });
+
+describe('time range clamping', () => {
+  // Zooming repeatedly used to land on a window shorter than the sample interval, which
+  // resolves to zero points and a blank panel with nothing to explain it.
+  const capture = { startMs: 1_000_000, endMs: 1_000_000 + 3_600_000, cadenceMs: 1000 };
+  const FLOOR = Math.max(capture.cadenceMs * 4, 1000);
+
+  /** Mirrors the clamp in useStore.setRange. */
+  function clamp(range: [number, number]): [number, number] {
+    let [from, to] = range;
+    if (to < from) [from, to] = [to, from];
+    if (to - from < FLOOR) {
+      const centre = (from + to) / 2;
+      from = centre - FLOOR / 2;
+      to = centre + FLOOR / 2;
+    }
+    from = Math.max(capture.startMs, from);
+    to = Math.min(capture.endMs, to);
+    if (to - from < FLOOR) {
+      if (from <= capture.startMs) to = Math.min(capture.endMs, from + FLOOR);
+      else from = Math.max(capture.startMs, to - FLOOR);
+    }
+    return [Math.round(from), Math.round(to)];
+  }
+
+  it('widens a window narrower than the sample interval', () => {
+    const [from, to] = clamp([1_500_000, 1_500_010]);
+    expect(to - from).toBeGreaterThanOrEqual(FLOOR);
+  });
+
+  it('normalises an inverted selection', () => {
+    const [from, to] = clamp([1_600_000, 1_500_000]);
+    expect(from).toBeLessThan(to);
+  });
+
+  it('stays inside the capture at either end', () => {
+    const atStart = clamp([capture.startMs - 500_000, capture.startMs + 10]);
+    expect(atStart[0]).toBeGreaterThanOrEqual(capture.startMs);
+    expect(atStart[1] - atStart[0]).toBeGreaterThanOrEqual(FLOOR);
+
+    const atEnd = clamp([capture.endMs - 10, capture.endMs + 500_000]);
+    expect(atEnd[1]).toBeLessThanOrEqual(capture.endMs);
+    expect(atEnd[1] - atEnd[0]).toBeGreaterThanOrEqual(FLOOR);
+  });
+});
