@@ -1,0 +1,36 @@
+import { readFileSync, statSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { decodeFTDC, readMetadata } from '/home/zelmar/bighole2/src/ftdc/index.js';
+import { NodeFileStore } from '/home/zelmar/bighole2/src/data/fileStore.js';
+import { CaptureWriter } from '/home/zelmar/bighole2/src/data/writer.js';
+import { CaptureReader } from '/home/zelmar/bighole2/src/data/reader.js';
+
+const f = 'sample-data/busy-replset/metrics.2026-07-22T13-52-17Z-00000';
+const dir = await mkdtemp(join(tmpdir(), 'm-'));
+const store = new NodeFileStore(dir);
+const bytes = new Uint8Array(readFileSync(f));
+const meta = readMetadata(bytes);
+const w = await CaptureWriter.create(store, { captureId: 'c', sourceFile: f });
+for (const ch of decodeFTDC(bytes)) await w.addChunk(ch);
+const man = await w.finish();
+
+const sz = (p: string) => statSync(join(dir, 'c', p)).size;
+console.log('hostname:', meta?.hostname, '| version:', meta?.version);
+console.log('samples:', man.sampleCount, '| paths:', man.paths.length, '| schemas:', man.schemas.length, '| chunks:', man.chunks.offset.length);
+console.log('cadenceMs:', man.cadenceMs, '| gaps:', man.gaps.length, '| restarts:', man.restarts.length);
+console.log('');
+console.log('ON DISK   columns.bin  ', (sz('columns.bin')/1e6).toFixed(2), 'MB');
+console.log('ON DISK   time.bin     ', (sz('time.bin')/1e6).toFixed(3), 'MB');
+console.log('ON DISK   manifest.json', (sz('manifest.json')/1e6).toFixed(3), 'MB');
+console.log('');
+const before = process.memoryUsage().heapUsed;
+const r = await CaptureReader.open(store, 'c');
+const after = process.memoryUsage().heapUsed;
+console.log('RESIDENT  reader open   ', ((after-before)/1e6).toFixed(2), 'MB  (manifest + clock)');
+const t0 = performance.now();
+for (let i = 0; i < 40; i++) await r.getSeries(man.paths[i*30]!, { maxPoints: 1200 });
+console.log('READ      40 series @1200pt:', (performance.now()-t0).toFixed(1), 'ms');
+await r.close();
+await rm(dir, { recursive: true, force: true });

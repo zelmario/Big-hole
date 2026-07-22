@@ -139,14 +139,30 @@ decode (worker pool) ──► columnar writer ──► OPFS: <captureId>/colum
 resident = catalog index + only the series currently plotted, downsampled to current zoom
 ```
 
-- **Constant-column elision** at write time: a column that never changes is stored as one
-  scalar plus its presence range. Typically removes 40–60% of columns.
-- The manifest holds path → `{type, byteOffset, length, isConstant, min, max}`, plus the
-  timestamp column, chunk boundaries, and detected gaps.
+- **Chunk-major, not path-major.** Ingest streams: decode a chunk, write it, drop it, so
+  memory stays bounded by one chunk (~6 MB) regardless of capture size. Reading one metric
+  costs one positioned read per chunk, which on a local file is microseconds.
+- **Constant-column elision** at write time: a column that never moves within a chunk costs
+  8 bytes instead of `sampleCount × 8`.
+- **A dotted path is not unique** — BSON allows duplicate keys and real captures contain them
+  (`systemMetrics.mounts./run/user.*` twice on a host with two mounts at one mountpoint). The
+  decoder emits both columns faithfully; the writer suffixes collisions (`path`, `path#1`).
 - Re-opening a previously ingested capture is instant. Ingest is a visible phase that
   produces a durable artifact.
 - OPFS is local disk, private to the origin, and never touches the network — the privacy
   promise is fully intact.
+
+**Measured (M1.5, `npx vite-node tools/measure/measure.ts`):**
+
+| | |
+|---|---|
+| elision | **6.7×** busy, **13.1×** idle (31.7 MB dense → 4.8 MB stored) |
+| resident on open | **1.0 MB** — manifest + sample clock only |
+| series read | **0.62 ms** each at 1200 points |
+
+Resident cost scales with capture *duration*, not width: the clock is 8 bytes/sample, so a
+week at 1 Hz is ~4.8 MB plus a ~350 KB manifest. Three replica-set members ≈ **16 MB**,
+against the 500 MB budget. Everything else is on disk and read on demand.
 
 ## Downsampling
 

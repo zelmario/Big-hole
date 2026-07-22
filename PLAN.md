@@ -108,9 +108,25 @@ memory ceiling. In a Worker, `createSyncAccessHandle()` gives synchronous reads 
                    the current zoom level
 ```
 
-Resident footprint becomes a function of **what's on screen**, not of capture size. Forty
-plotted series at full resolution over a week is ~190 MB — and you would downsample on read
-anyway, so realistically it's tens of MB. Zooming in re-reads from OPFS in single-digit ms.
+Resident footprint becomes a function of **what's on screen**, not of capture size. Zooming
+in re-reads from OPFS in single-digit ms.
+
+**Measured at M1.5, and better than this section originally estimated:**
+
+| | |
+|---|---|
+| constant-column elision | 6.7× (busy) to 13.1× (idle) |
+| resident on open | **1.0 MB** — manifest + sample clock |
+| one series at 1200 points | 0.62 ms |
+
+Resident cost scales with capture *duration*, not width — the clock is 8 bytes per sample.
+A week at 1 Hz is ~4.8 MB of clock plus a ~350 KB manifest, so **three replica-set members
+land around 16 MB**, not the hundreds this section feared. On disk a 3-node week comes to
+roughly 2.8–5.4 GB depending on how idle the server was, which OPFS handles without
+complaint.
+
+Note that idle captures compress *better* (13.1× vs 6.7×), and idle is the common case in
+support work — the customer sends a whole retention window for a ten-minute incident.
 
 Two consequences worth accepting up front:
 
@@ -162,7 +178,7 @@ Changes from the brief marked ✚ (new) and ▲ (modified).
 | **M0** | Scaffold. Vite + React + TS strict, Zustand, worker ping/pong. DropZone accepting a directory ▲ **and `.tar.gz`**. ▲ Worker **pool**. | Drop a folder or a tarball, see the discovered FTDC + log files listed, see "pong". |
 | ✚ **M0.5** ✅ | **Oracle harness — DONE 2026-07-22.** Go tool using `ftdc.ReadMetrics` → JSONL (not `csv.go`, which is lossy — see `docs/ftdc-format.md` §7). Reproducible fixture generator. Vitest full-matrix diff. | ✅ 3 fixtures, 5/6 coverage cases, suite red on "decoder not implemented". |
 | **M1** ✅ | ▲ **Decoder — DONE 2026-07-22.** Exact hi/lo undelta (no BigInt), per-column narrowing restore, Timestamp→2 columns, cross-column zero-run state. | ✅ Full-matrix equality on all 3 fixtures: **7,806,365 value comparisons**, exact. 197–289M values/s. |
-| ✚ **M1.5** | **Storage layer.** OPFS columnar writer + manifest + constant-column elision. Async `getSeries(path, range, maxPoints)`. Gap/restart detection at ingest. | A 3-node, multi-GB capture ingests and the tab stays under ~500 MB resident. |
+| ✚ **M1.5** ✅ | **Storage layer — DONE 2026-07-22.** Chunk-major columnar writer, manifest, constant-column elision, path-collision suffixing. Async `getSeries`. Gap/restart detection at ingest. Min/max envelope downsampling. | ✅ 6.7–13.1× elision; **1.0 MB resident** on open; 0.62 ms per series. Full round-trip equality on all fixtures. |
 | **M2** | ▲ Single-capture viewer. uPlot panel, searchable metric catalog, brush zoom, synced hover. ▲ **min/max envelope** downsampling. ▲ Gap bands rendered. | Any metric explorable smoothly across the full range; a 2-second dropout is visible at full zoom-out. |
 | **M3** | Editable dashboard. react-grid-layout, add/remove/resize, layout serialization, localStorage, ▲ size-capped permalink. | Dashboard survives reload and shares via URL. |
 | **M4** | Multi-capture. Global synced cursor across captures. Overlay/compare mode. ✚ Cross-host derived metrics — replication lag between members, the thing only multi-capture can compute. | Three replica-set members on one dashboard, one cursor, lag chart derived across them. |

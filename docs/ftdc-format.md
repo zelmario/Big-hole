@@ -363,6 +363,26 @@ Consecutive chunks can carry different reference documents — a version upgrade
 engine change, a replica-set member added or removed, a feature toggled. Column *count* and
 column *order* both change.
 
+### ⚠ A dotted path is not a unique identifier
+
+BSON permits duplicate keys, and real captures contain them. Observed on a WSL host with two
+mounts at the same mountpoint:
+
+```
+2x  systemMetrics.mounts./run/user.capacity
+2x  systemMetrics.mounts./run/user.available
+2x  systemMetrics.mounts./run/user.free
+```
+
+Three duplicated paths out of 2,203 — rare, but enough to corrupt any consumer that treats
+the key list as a set. `metricsCount` counts *columns*, so the duplicates each occupy their
+own column and carry their own data.
+
+The decoder must stay faithful and emit both columns; deduplicating there would break
+equality with the reference. Disambiguation belongs one layer up, in whatever addresses
+series by name — ftdc-lens suffixes collisions within a chunk (`path`, `path#1`). Note that a
+suffixed path is only as stable as document order, exactly like the array-index paths below.
+
 Rules:
 - Merge across chunks **by dotted path**, never by column index.
 - A path absent from a chunk produces `NaN` for that chunk's sample range. Do not shift, do
