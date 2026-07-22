@@ -11,3 +11,7 @@ tools/oracle/*.jsonl
 .DS_Store
 .idea/
 .vscode/
+
+# Playwright browser binaries live in ~/.cache; nothing to ignore here, but the
+# container-written Vite cache sometimes ends up root-owned.
+node_modules/.vite/
