@@ -526,3 +526,22 @@ Gauges include: `.current`, `.available`, `.active`, `.out`, `.totalTickets`, `.
 
 Verify with `npm run units -- <capture>`, which prints every dashboard series with its unit and
 a formatted median and peak against real data.
+
+### Stale collectors produce real rate spikes
+
+A counter can go flat for minutes and then jump by the whole interval in one sample. Observed
+on a production 8.0 capture: `systemMetrics.cpu.idle_ms` sat unchanged for ~231 s and then
+advanced 2,309,002 ms in a single second, giving an apparent 230,900% CPU.
+
+This is not a decode error — the Go reference produces byte-identical values — and not a unit
+error. mongod collects `systemMetrics` on a separate path from the sample clock, so when that
+collector stalls the values repeat while `start` keeps ticking at 1 Hz, then catch up.
+
+Do **not** "fix" it by smoothing the rate. The staleness is itself diagnostic: a
+system-metrics collector blocked for four minutes on a host at 92% disk utilisation is
+evidence of IO starvation, and flattening it would erase the finding. A future insights rule
+should surface it explicitly ("collector stalled for N s") rather than hide it.
+
+Note that the default chart view is unaffected: downsampling plots bucket means, so a single
+outlier sample in a 760-sample bucket barely moves the line. The spike is only visible with
+the min/max range band enabled — which is exactly the tradeoff that band exists to expose.
