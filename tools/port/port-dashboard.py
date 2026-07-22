@@ -22,6 +22,9 @@ HAND = {
     'Replica members lag': (
         [f'diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)'], 'ms'),
     'Replica members ping': (['replSetGetStatus.members.*.pingMs'], 'ms'),
+    # Upstream hardcoded members 0/1/2; glob so any set size works.
+    'Replica members health': (['replSetGetStatus.members.*.health'], 'count'),
+    'Replica members state': (['replSetGetStatus.members.*.state'], 'count'),
     'CPU Usage': ([f'scale(rate(systemMetrics.cpu.{k}_ms), 0.1)'
                    for k in ('user', 'system', 'iowait', 'nice', 'softirq', 'steal', 'idle')], 'percent'),
     'Disk I/O': (['rate(systemMetrics.disks.*.io_time_ms)',

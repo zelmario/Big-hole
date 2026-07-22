@@ -16,7 +16,12 @@ import {
   parseExpr,
   unitOf,
 } from '../src/data/expr.js';
-import { expandMetric } from '../src/dashboard/layout.js';
+import {
+  applyRolePrefix,
+  defaultDashboard,
+  detectRolePrefixes,
+  expandMetric,
+} from '../src/dashboard/layout.js';
 
 const t = Float64Array.from([0, 1000, 2000, 3000]); // 1 Hz
 
@@ -155,5 +160,75 @@ describe('glob expansion', () => {
 
   it('passes through a non-wildcard expression that resolves', () => {
     expect(expandMetric('serverStatus.localTime', available)).toEqual(['serverStatus.localTime']);
+  });
+});
+
+describe('role-scoped captures', () => {
+  // MongoDB 8.0 scopes FTDC by role on a sharded cluster: a shard member reports
+  // `shard.serverStatus.…` rather than `serverStatus.…`. A dashboard written against bare
+  // paths matches nothing, which presents as "the dashboard didn't load".
+  const sharded = new Set([
+    'shard.start',
+    'shard.serverStatus.connections.current',
+    'shard.serverStatus.opcounters.query',
+    'shard.replSetGetStatus.members.0.state',
+    'shard.systemMetrics.cpu.user_ms',
+  ]);
+
+  const plain = new Set([
+    'start',
+    'serverStatus.connections.current',
+    'systemMetrics.cpu.user_ms',
+  ]);
+
+  const configShard = new Set([
+    'shard.serverStatus.connections.current',
+    'configsvr.serverStatus.connections.current',
+  ]);
+
+  it('detects a role prefix from the data', () => {
+    expect(detectRolePrefixes(sharded)).toEqual(['shard']);
+    expect(detectRolePrefixes(plain)).toEqual(['']);
+    expect(detectRolePrefixes(configShard)).toEqual(['configsvr', 'shard']);
+  });
+
+  it('does not mistake a nested section for a role', () => {
+    // `local.oplog.rs.stats.…` must not make `oplog` look like a role prefix.
+    expect(detectRolePrefixes(new Set(['local.oplog.rs.stats.storageStats.storageSize']))).toEqual(['']);
+  });
+
+  it('rewrites every path in an expression under a prefix', () => {
+    expect(applyRolePrefix('rate(serverStatus.opcounters.query)', 'shard')).toBe(
+      'rate(shard.serverStatus.opcounters.query)',
+    );
+    expect(
+      applyRolePrefix('diff(serverStatus.localTime, replSetGetStatus.members.0.x)', 'shard'),
+    ).toBe('diff(shard.serverStatus.localTime, shard.replSetGetStatus.members.0.x)');
+    expect(applyRolePrefix('serverStatus.mem.resident', '')).toBe('serverStatus.mem.resident');
+  });
+
+  it('resolves dashboard metrics on a role-scoped capture', () => {
+    const prefixes = detectRolePrefixes(sharded);
+    expect(expandMetric('rate(serverStatus.opcounters.query)', sharded, prefixes)).toEqual([
+      'rate(shard.serverStatus.opcounters.query)',
+    ]);
+    expect(expandMetric('serverStatus.connections.current', sharded, prefixes)).toEqual([
+      'shard.serverStatus.connections.current',
+    ]);
+  });
+
+  it('yields one series per role when a node reports several', () => {
+    const prefixes = detectRolePrefixes(configShard);
+    expect(expandMetric('serverStatus.connections.current', configShard, prefixes)).toEqual([
+      'configsvr.serverStatus.connections.current',
+      'shard.serverStatus.connections.current',
+    ]);
+  });
+
+  it('builds a populated dashboard for a role-scoped capture', () => {
+    const state = defaultDashboard(sharded);
+    const charts = state.panels.filter((p) => p.kind === 'chart');
+    expect(charts.length).toBeGreaterThan(0);
+    expect(charts.flatMap((p) => p.metrics).length).toBeGreaterThan(0);
   });
 });

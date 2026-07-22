@@ -14,8 +14,30 @@ import {
   type Gap,
 } from './types.js';
 
-/** Paths tried, in order, when locating the sample clock. See docs/ftdc-format.md §5. */
+/** Bare paths tried, in order, when locating the sample clock. See docs/ftdc-format.md §5. */
 const CLOCK_PATHS = ['start', 'serverStatus.localTime'] as const;
+
+/**
+ * Find the column carrying sample time.
+ *
+ * MongoDB 8.0 scopes FTDC by role on a sharded cluster, so the clock may arrive as
+ * `shard.start` rather than `start`. Try the bare names first, then the same names under a
+ * single leading role segment.
+ */
+function findClock(keys: readonly string[]): number {
+  for (const candidate of CLOCK_PATHS) {
+    const exact = keys.indexOf(candidate);
+    if (exact >= 0) return exact;
+  }
+  for (const candidate of CLOCK_PATHS) {
+    const suffix = `.${candidate}`;
+    const idx = keys.findIndex(
+      (k) => k.endsWith(suffix) && !k.slice(0, k.length - suffix.length).includes('.'),
+    );
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
 
 /** Path used to detect restarts; it goes backwards when the server has restarted. */
 const UPTIME_PATH = 'serverStatus.uptimeMillis';
@@ -144,14 +166,7 @@ export class CaptureWriter {
 
     // Sample clock. Fail loudly rather than synthesising a time axis: a wrong clock silently
     // misaligns every correlation the product exists to make.
-    let clockCol = -1;
-    for (const candidate of CLOCK_PATHS) {
-      const idx = keys.indexOf(candidate);
-      if (idx >= 0) {
-        clockCol = idx;
-        break;
-      }
-    }
+    const clockCol = findClock(keys);
     if (clockCol < 0) {
       throw new Error(
         `capture ${this.opts.captureId}: chunk at ${chunk.startMs} has no sample clock ` +
@@ -212,7 +227,10 @@ export class CaptureWriter {
     this.growTimes(this.sampleCount + sampleCount);
     this.times.set(columns[clockCol]!, this.sampleCount);
 
-    const uptimeCol = keys.indexOf(UPTIME_PATH);
+    // Role-scoped too, so match the suffix rather than the exact path.
+    const uptimeCol = keys.indexOf(UPTIME_PATH) >= 0
+      ? keys.indexOf(UPTIME_PATH)
+      : keys.findIndex((k) => k.endsWith(`.${UPTIME_PATH}`));
     if (uptimeCol >= 0) {
       const col = columns[uptimeCol]!;
       for (let s = 0; s < sampleCount; s++) {

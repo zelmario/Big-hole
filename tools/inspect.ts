@@ -19,7 +19,7 @@ import { decodeFTDC, readMetadata } from '../src/ftdc/index.js';
 import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader } from '../src/data/reader.js';
-import { defaultDashboard } from '../src/dashboard/layout.js';
+import { defaultDashboard, detectRolePrefixes } from '../src/dashboard/layout.js';
 import { DEFAULT_TEMPLATES } from '../src/dashboard/defaultDashboard.js';
 
 const target = process.argv[2];
@@ -139,10 +139,13 @@ if (skipped.length > 0) {
 }
 
 // How much of the ported dashboard this capture can actually draw.
-const dash = defaultDashboard(new Set(manifest.paths));
+const paths = new Set(manifest.paths);
+const roles = detectRolePrefixes(paths);
+const dash = defaultDashboard(paths);
 const charts = dash.panels.filter((p) => p.kind === 'chart');
 const templates = DEFAULT_TEMPLATES.filter((p) => p.kind === 'chart');
 console.log(`\n${'-'.repeat(64)}`);
+console.log(`roles         ${roles.map((r) => r === '' ? '(none)' : r).join(', ') || '(none)'}`);
 console.log(`dashboard     ${charts.length}/${templates.length} panels resolve, ` +
   `${charts.reduce((n, p) => n + p.metrics.length, 0)} series`);
 const missing = templates.filter((t) => !charts.some((c) => c.title === t.title));

@@ -11,6 +11,7 @@ import { deflateSync, inflateSync } from 'fflate';
 
 import { exprPaths, parseExpr, type Unit } from '../data/expr.js';
 import { DEFAULT_TEMPLATES } from './defaultDashboard.js';
+import { aliasCandidates } from './aliases.js';
 
 /**
  * Bump whenever the PanelSpec shape or the grid geometry changes.
@@ -52,6 +53,57 @@ export function panelId(): string {
   return `p${counter}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/** Top-level sections a metric path can start with, once any role prefix is removed. */
+const SECTIONS = ['serverStatus', 'replSetGetStatus', 'systemMetrics', 'local'] as const;
+
+const SECTION_START = new RegExp(
+  `(^|[(,]\\s*)(${SECTIONS.join('|')})\\.`,
+  'g',
+);
+
+/**
+ * Detect role prefixes used by this capture.
+ *
+ * MongoDB 8.0 scopes FTDC by role on a sharded cluster, so a shard member reports
+ * `shard.serverStatus.…` rather than `serverStatus.…`, and a node running an embedded router
+ * or config server adds `router.` / `configsvr.` alongside. Older servers nest some sections
+ * under `common.`. A dashboard written against bare `serverStatus.…` paths matches nothing on
+ * such a capture -- which looks exactly like "the dashboard didn't load".
+ *
+ * Detected from the data rather than hardcoded, so a role name we have not seen still works.
+ * The empty prefix is included when a capture also has un-prefixed sections.
+ */
+export function detectRolePrefixes(available: ReadonlySet<string>): string[] {
+  const prefixes = new Set<string>();
+
+  for (const path of available) {
+    for (const section of SECTIONS) {
+      if (path.startsWith(`${section}.`)) {
+        prefixes.add('');
+        break;
+      }
+      const marker = `.${section}.`;
+      const at = path.indexOf(marker);
+      // Only a single leading segment counts as a role, so `local.oplog.rs.stats.…` is not
+      // mistaken for a prefix on `oplog`.
+      if (at > 0 && !path.slice(0, at).includes('.')) {
+        prefixes.add(path.slice(0, at));
+        break;
+      }
+    }
+  }
+
+  return [...prefixes].sort();
+}
+
+/** Rewrite an expression's metric paths to sit under a role prefix. */
+export function applyRolePrefix(expression: string, prefix: string): string {
+  if (prefix === '') return expression;
+  return expression.replace(SECTION_START, (_m, lead: string, section: string) =>
+    `${lead}${prefix}.${section}.`,
+  );
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -66,7 +118,48 @@ function escapeRegExp(text: string): string {
  * `diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)` produce one
  * series per member rather than a cross product.
  */
-export function expandMetric(expression: string, available: ReadonlySet<string>): string[] {
+/**
+ * Resolve a template metric against a real capture.
+ *
+ * Three axes of variation, applied in order, all driven by what the capture actually
+ * contains rather than by a version number:
+ *
+ *   1. aliases  -- the metric was renamed between releases (tickets moved out of
+ *                  wiredTiger.concurrentTransactions in 8.0)
+ *   2. role     -- 8.0 scopes sections by role on a sharded cluster (`shard.serverStatus.…`)
+ *   3. globs    -- one series per disk, mount, or replica-set member
+ *
+ * Returns an empty array when nothing resolves, so the panel is dropped rather than drawn
+ * blank.
+ */
+export function expandMetric(
+  expression: string,
+  available: ReadonlySet<string>,
+  prefixes: readonly string[] = [''],
+): string[] {
+  let paths: string[];
+  try {
+    paths = exprPaths(parseExpr(expression));
+  } catch {
+    return [];
+  }
+
+  const results: string[] = [];
+  // A capture may carry several roles at once (a config shard reports both `shard.` and
+  // `configsvr.`), so one template can legitimately yield a series per role.
+  for (const prefix of prefixes) {
+    for (const candidate of aliasCandidates(expression, paths)) {
+      const expanded = expandOne(applyRolePrefix(candidate, prefix), available);
+      if (expanded.length > 0) {
+        results.push(...expanded);
+        break; // first alias that resolves wins for this role
+      }
+    }
+  }
+  return [...new Set(results)];
+}
+
+function expandOne(expression: string, available: ReadonlySet<string>): string[] {
   const complete = (expr: string): boolean => {
     try {
       return exprPaths(parseExpr(expr)).every((p) => available.has(p));
@@ -107,13 +200,14 @@ export function expandMetric(expression: string, available: ReadonlySet<string>)
  */
 export function defaultDashboard(available: ReadonlySet<string>): DashboardState {
   const panels: PanelSpec[] = [];
+  const prefixes = detectRolePrefixes(available);
 
   for (const template of DEFAULT_TEMPLATES) {
     if (template.kind === 'section') {
       panels.push({ ...template, id: panelId(), metrics: [] });
       continue;
     }
-    const metrics = template.metrics.flatMap((m) => expandMetric(m, available));
+    const metrics = template.metrics.flatMap((m) => expandMetric(m, available, prefixes));
     if (metrics.length === 0) continue;
     panels.push({ ...template, id: panelId(), metrics });
   }

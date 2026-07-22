@@ -127,6 +127,51 @@ A Rust/Go WASM decoder stays on the table (M7) but is explicitly *not* the start
 you would be optimising before having a verified-correct baseline, and you need the oracle
 harness either way. Keep `src/ftdc/`'s interface WASM-swappable.
 
+## Cross-version compatibility
+
+**This must work on every MongoDB version a customer might send.** That is a hard
+requirement, and it cannot be met by fixing shapes one bug report at a time -- every failure
+mode here is *silent*. A renamed metric produces an empty panel, not an error, so nothing
+tells you the tool has stopped answering the question it exists to answer.
+
+Three axes of variation, all resolved from what a capture actually contains rather than from
+a version number (`expandMetric` in `src/dashboard/layout.ts`):
+
+| Axis | Example | Mechanism |
+|---|---|---|
+| **rename** | tickets left `wiredTiger.concurrentTransactions` for `queues.execution` in 8.0 | `src/dashboard/aliases.ts` |
+| **role scoping** | a sharded-cluster member reports `shard.serverStatus.…`; older servers use `common.` | `detectRolePrefixes` |
+| **cardinality** | one series per disk, mount, or replica-set member | `*` globs in templates |
+
+Never key behaviour off a version string. A capture may carry several roles at once (a config
+shard reports both `shard.` and `configsvr.`), roles differ by topology rather than release,
+and Percona builds diverge from upstream. Detect from the data.
+
+### Observed ticket paths
+
+| Version | Path |
+|---|---|
+| 4.4 – 7.0 | `serverStatus.wiredTiger.concurrentTransactions.read.available` |
+| 8.0 | `serverStatus.queues.execution.read.available` (the old section is gone) |
+
+### The guardrail
+
+```bash
+npm run fixtures:versions   # captures 4.4/5.0/6.0/7.0/8.0 via Docker
+npm run fixtures:sharded    # sharded cluster -- the only way to reproduce role scoping
+npm run catalogs            # per-version diff + alias candidates
+npm test                    # tests/versions.test.ts asserts essentials resolve everywhere
+```
+
+`tests/versions.test.ts` holds a list of metrics an investigation cannot proceed without --
+tickets, cache, queues, connections, opcounters, memory, CPU. Each must resolve on every
+captured version. When one breaks, the failure names the version and the metric and points at
+`npm run catalogs` for candidates. The suite skips when fixtures are absent so a checkout
+without Docker still runs green, but **CI should generate them**.
+
+A plain replica set does not reproduce role scoping — the prefix comes from the topology, not
+the release — which is why the sharded fixture is separate and necessary.
+
 ## Storage
 
 A 3-node replica set over a week is roughly 600 MB on disk and **~36 GB decoded at full

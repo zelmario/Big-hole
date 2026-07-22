@@ -14,7 +14,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "inspect": "vite-node tools/inspect.ts"
+    "inspect": "vite-node tools/inspect.ts",
+    "catalogs": "vite-node tools/catalogs.ts",
+    "fixtures:versions": "bash tools/fixtures/versions.sh",
+    "fixtures:sharded": "bash tools/fixtures/sharded.sh"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

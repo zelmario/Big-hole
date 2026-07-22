@@ -43,7 +43,7 @@ export const DEFAULT_TEMPLATES: readonly PanelTemplate[] = [
   { kind: "chart", title: "Operations", metrics: ["rate(serverStatus.opcounters.update)", "rate(serverStatus.opcounters.query)", "rate(serverStatus.opcounters.insert)", "rate(serverStatus.opcounters.getmore)", "rate(serverStatus.opcounters.delete)", "rate(serverStatus.opcounters.command)"], unit: "per-sec", x: 8, y: 25, w: 7, h: 7 },
   { kind: "chart", title: "Network requests", metrics: ["rate(serverStatus.network.numRequests)"], unit: "per-sec", x: 15, y: 27, w: 9, h: 5 },
   { kind: "chart", title: "Current Queue writers / readers", metrics: ["serverStatus.globalLock.currentQueue.writers", "serverStatus.globalLock.currentQueue.readers"], unit: "count", x: 0, y: 32, w: 8, h: 6 },
-  { kind: "chart", title: "Replica members health", metrics: ["replSetGetStatus.members.0.health", "replSetGetStatus.members.1.health", "replSetGetStatus.members.2.health"], unit: "count", x: 8, y: 32, w: 7, h: 6 },
+  { kind: "chart", title: "Replica members health", metrics: ["replSetGetStatus.members.*.health"], unit: "count", x: 8, y: 32, w: 7, h: 6 },
   { kind: "chart", title: "Replica members lag", metrics: ["diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)"], unit: "ms", x: 15, y: 32, w: 9, h: 6 },
   { kind: "chart", title: "Operations latencies op", metrics: ["rate(serverStatus.opLatencies.reads.ops)", "rate(serverStatus.opLatencies.writes.ops)", "rate(serverStatus.opLatencies.commands.ops)"], unit: "us", x: 0, y: 38, w: 8, h: 5 },
   { kind: "chart", title: "Server Uptime", metrics: ["serverStatus.uptime"], unit: "count", x: 8, y: 38, w: 7, h: 5 },
