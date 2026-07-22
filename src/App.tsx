@@ -78,13 +78,6 @@ export function App(): ReactElement {
         {cursor !== null && <code className="cursor">{ms(cursor)}</code>}
         {status === 'ready' && (
           <>
-            <button
-              className="tr-btn"
-              title={showCatalog ? 'Hide metric catalog' : 'Show metric catalog'}
-              onClick={toggleCatalog}
-            >
-              {showCatalog ? '⯇ metrics' : '⯈ metrics'}
-            </button>
             <DashboardMenu />
             <TimeRange />
             <label className="muted small band-toggle" title="Shade min/max between samples">
@@ -106,7 +99,16 @@ export function App(): ReactElement {
 
       {status === 'ready' ? (
         <main>
-          {showCatalog && <MetricCatalog />}
+          <div className={showCatalog ? 'sidebar' : 'sidebar collapsed'}>
+            <button
+              className="catalog-toggle"
+              title={showCatalog ? 'Hide metric catalog' : 'Show metric catalog'}
+              onClick={toggleCatalog}
+            >
+              {showCatalog ? '⯇ metrics' : '⯈'}
+            </button>
+            {showCatalog && <MetricCatalog />}
+          </div>
           <section className="charts">
             <ErrorBoundary>
               <Grid />

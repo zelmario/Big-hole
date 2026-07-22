@@ -169,3 +169,19 @@ header { align-items: center; flex-wrap: wrap; }
 
 /* ---- collapsible catalog ---- */
 .catalog { flex: 0 0 380px; }
+
+/* ---- left rail: catalog + its toggle ---- */
+.sidebar { display: flex; flex-direction: column; min-height: 0;
+  border-right: 1px solid var(--line); }
+.sidebar.collapsed { flex: 0 0 auto; }
+.catalog-toggle { margin: 8px 8px 0; background: #262c36; border: 1px solid var(--line);
+  color: var(--fg); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  white-space: nowrap; align-self: flex-start; }
+.catalog-toggle:hover { background: #2f3641; }
+.catalog { border-right: 0; }
+
+/* The bundled handle art is a dark glyph on a light theme; invert it and make it findable. */
+.react-grid-item > .react-resizable-handle { opacity: 0; transition: opacity .12s; }
+.react-grid-item:hover > .react-resizable-handle { opacity: .85; filter: invert(1); }
+.react-grid-item.react-draggable-dragging { z-index: 30; }
+.react-grid-item.resizing { z-index: 30; opacity: .9; }

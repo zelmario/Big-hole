@@ -143,6 +143,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const setCursor = useStore((s) => s.setCursor);
   const toggleSeries = useStore((s) => s.toggleSeries);
   const showAllSeries = useStore((s) => s.showAllSeries);
+  const focusPanel = useStore((s) => s.focusPanel);
   const removePanel = useStore((s) => s.removePanel);
   const renamePanel = useStore((s) => s.renamePanel);
 
@@ -324,7 +325,12 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const isFocused = focused === panel.id;
 
   return (
-    <div className={isFocused ? 'panel focused' : 'panel'}>
+    <div
+      className={isFocused ? 'panel focused' : 'panel'}
+      // Focus lives here rather than on the grid item: react-draggable owns that element's
+      // mouse handlers and injects its own via cloneElement.
+      onPointerDownCapture={() => focusPanel(panel.id)}
+    >
       <div className="panel-head drag-handle">
         <input
           className="panel-title"

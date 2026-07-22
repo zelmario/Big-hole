@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { GridLayout, useContainerWidth, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
+// Required, and NOT shipped by react-grid-layout: its own stylesheet defines only the generic
+// `.react-grid-item > .react-resizable-handle` rule. The positioning that puts the handle at
+// the bottom-right corner (`.react-resizable-handle-se`) and `.react-resizable{position:
+// relative}` live here. Without it the handle renders at the wrong place with no cursor, so
+// resizing is unreachable.
+import 'react-resizable/css/styles.css';
 
 import { TimeSeriesPanel } from '../panels/TimeSeriesPanel.js';
 import { useStore } from '../store/useStore.js';
@@ -25,7 +31,6 @@ const DRAG_CONFIG = { handle: '.drag-handle' };
  */
 export function Grid(): ReactElement {
   const panels = useStore((s) => s.panels);
-  const focusPanel = useStore((s) => s.focusPanel);
   const applyGeometry = useStore((s) => s.applyGeometry);
 
   const { width, containerRef } = useContainerWidth();
@@ -94,7 +99,7 @@ export function Grid(): ReactElement {
           onResizeStop={onStop}
         >
           {panels.map((panel) => (
-            <div key={panel.id} onMouseDown={() => focusPanel(panel.id)}>
+            <div key={panel.id}>
               <TimeSeriesPanel panel={panel} />
             </div>
           ))}
