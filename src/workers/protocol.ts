@@ -1,0 +1,89 @@
+/**
+ * Main thread <-> worker message contract.
+ *
+ * The worker owns the storage layer outright. That is not a style preference: OPFS
+ * `createSyncAccessHandle` is only available inside a Worker, so both ingest and reads have
+ * to live there. The main thread never touches a FileStore.
+ *
+ * Series come back as transferable Float64Arrays -- the buffers are moved, not copied.
+ */
+
+import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
+import type { CaptureManifest, Gap } from '../data/types.js';
+
+export interface IngestRequest {
+  readonly kind: 'ingest';
+  readonly captureId: string;
+  readonly files: File[];
+}
+
+export interface CatalogRequest {
+  readonly kind: 'catalog';
+  readonly captureId: string;
+}
+
+export interface SeriesRequest {
+  readonly kind: 'series';
+  readonly captureId: string;
+  readonly paths: string[];
+  readonly query: SeriesQuery;
+}
+
+export type Request = IngestRequest | CatalogRequest | SeriesRequest;
+
+export interface IngestProgressMessage {
+  readonly kind: 'progress';
+  readonly id: number;
+  readonly file: string;
+  readonly filesDone: number;
+  readonly filesTotal: number;
+  readonly samples: number;
+  readonly bytesWritten: number;
+}
+
+export interface CaptureSummary {
+  readonly captureId: string;
+  readonly hostname?: string;
+  readonly mongoVersion?: string;
+  readonly sampleCount: number;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly cadenceMs: number;
+  readonly pathCount: number;
+  readonly gaps: Gap[];
+  readonly restarts: number[];
+  readonly skipped: string[];
+}
+
+/** One series, flattened for structured cloning. */
+export interface SeriesPayload {
+  readonly path: string;
+  readonly t: Float64Array;
+  readonly min: Float64Array;
+  readonly max: Float64Array;
+  readonly mean: Float64Array;
+  readonly raw: boolean;
+}
+
+export type Response =
+  | IngestProgressMessage
+  | { readonly kind: 'ingested'; readonly id: number; readonly summary: CaptureSummary }
+  | { readonly kind: 'catalog'; readonly id: number; readonly entries: CatalogEntry[] }
+  | { readonly kind: 'series'; readonly id: number; readonly series: SeriesPayload[] }
+  | { readonly kind: 'error'; readonly id: number; readonly message: string };
+
+export function summarise(manifest: CaptureManifest, skipped: string[]): CaptureSummary {
+  return {
+    captureId: manifest.captureId,
+    ...(manifest.hostname !== undefined ? { hostname: manifest.hostname } : {}),
+    ...(manifest.mongoVersion !== undefined ? { mongoVersion: manifest.mongoVersion } : {}),
+    sampleCount: manifest.sampleCount,
+    startMs: manifest.startMs,
+    endMs: manifest.endMs,
+    cadenceMs: manifest.cadenceMs,
+    pathCount: manifest.paths.length,
+    gaps: manifest.gaps,
+    restarts: manifest.restarts,
+    skipped,
+  };
+}

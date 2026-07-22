@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { decodeFTDC, readMetadata } from '../src/ftdc/index.js';
-import { NodeFileStore } from '../src/data/fileStore.js';
+import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader } from '../src/data/reader.js';
 import { envelope } from '../src/data/downsample.js';
