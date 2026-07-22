@@ -143,3 +143,29 @@ describe('default dashboard', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe('layout compatibility', () => {
+  it('rejects a layout from an older shape instead of rendering it', () => {
+    // The v1 -> v2 bug: panels gained `kind` and the grid went 12 -> 24 columns, but a v1
+    // layout still parsed. The saved dashboard then suppressed the new default silently.
+    const v1 = {
+      v: 1,
+      panels: [{ id: 'p1', title: 'Old', metrics: ['a.b'], x: 0, y: 0, w: 6, h: 8 }],
+      range: null,
+    };
+    expect(decodeState(encodeState(v1 as unknown as DashboardState))).toBeNull();
+  });
+
+  it('rejects a v2 layout whose panels are missing required fields', () => {
+    const broken = {
+      v: LAYOUT_VERSION,
+      panels: [{ id: 'p1', title: 'No kind', metrics: [], x: 0, y: 0, w: 6, h: 8 }],
+      range: null,
+    };
+    expect(decodeState(encodeState(broken as unknown as DashboardState))).toBeNull();
+  });
+
+  it('accepts a well-formed current layout', () => {
+    expect(decodeState(encodeState(sample))).toEqual(sample);
+  });
+});

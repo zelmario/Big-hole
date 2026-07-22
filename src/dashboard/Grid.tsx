@@ -31,6 +31,14 @@ export function Grid(): ReactElement {
     [panels],
   );
 
+  if (panels.length === 0) {
+    return (
+      <p className="muted pad">
+        No panels. Use “+ panel”, or “reset layout” to restore the default dashboard.
+      </p>
+    );
+  }
+
   return (
     <div ref={containerRef} className="grid-host">
       {width > 0 && (

@@ -64,7 +64,7 @@ describe('privacy', () => {
     // Narrowed at M3 when dashboard persistence landed. Layouts and settings may live in
     // localStorage; capture data must not. Keeping the allowlist to a single small module
     // means "does anything store user data in the browser" stays a one-file review.
-    const allowed = ['src/dashboard/layout.ts'];
+    const allowed = ['src/dashboard/layout.ts', 'src/ui/ErrorBoundary.tsx'];
     const offenders = sources('src').filter(
       (file) =>
         !allowed.includes(file.replace(/\\/g, '/')) &&

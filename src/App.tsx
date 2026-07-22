@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react';
 
 import { DropZone } from './ui/DropZone.js';
+import { ErrorBoundary } from './ui/ErrorBoundary.js';
 import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
 import { toPermalink, fromHash, clearLayout, defaultDashboard } from './dashboard/layout.js';
@@ -103,7 +104,9 @@ export function App(): ReactElement {
         <main>
           <MetricCatalog />
           <section className="charts">
-            <Grid />
+            <ErrorBoundary>
+              <Grid />
+            </ErrorBoundary>
           </section>
         </main>
       ) : (

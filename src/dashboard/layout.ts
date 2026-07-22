@@ -12,7 +12,15 @@ import { deflateSync, inflateSync } from 'fflate';
 import { exprPaths, parseExpr, type Unit } from '../data/expr.js';
 import { DEFAULT_TEMPLATES } from './defaultDashboard.js';
 
-export const LAYOUT_VERSION = 1;
+/**
+ * Bump whenever the PanelSpec shape or the grid geometry changes.
+ *
+ * v1 -> v2: panels gained `kind`, and the grid went from 12 to 24 columns to match the ported
+ * Grafana layout. A v1 layout still *parses*, so without this bump a saved dashboard silently
+ * suppressed the new default and rendered old panels at half width. Persisted layouts are a
+ * compatibility surface: shape changes need a version bump, not just a type change.
+ */
+export const LAYOUT_VERSION = 2;
 
 export interface PanelSpec {
   readonly id: string;
@@ -162,12 +170,28 @@ export function encodeState(state: DashboardState): string {
   return toBase64Url(deflateSync(new TextEncoder().encode(JSON.stringify(state))));
 }
 
+/** A layout is only usable if every panel has the fields the renderer relies on. */
+function isValidState(state: unknown): state is DashboardState {
+  if (typeof state !== 'object' || state === null) return false;
+  const s = state as DashboardState;
+  if (s.v !== LAYOUT_VERSION || !Array.isArray(s.panels)) return false;
+  return s.panels.every(
+    (p) =>
+      typeof p?.id === 'string' &&
+      (p.kind === 'chart' || p.kind === 'section') &&
+      Array.isArray(p.metrics) &&
+      typeof p.x === 'number' &&
+      typeof p.y === 'number' &&
+      typeof p.w === 'number' &&
+      typeof p.h === 'number',
+  );
+}
+
 export function decodeState(token: string): DashboardState | null {
   try {
     const json = new TextDecoder().decode(inflateSync(fromBase64Url(token)));
-    const parsed = JSON.parse(json) as DashboardState;
-    if (parsed.v !== LAYOUT_VERSION || !Array.isArray(parsed.panels)) return null;
-    return parsed;
+    const parsed: unknown = JSON.parse(json);
+    return isValidState(parsed) ? parsed : null;
   } catch {
     // A truncated or hand-edited link should fall back to the default dashboard, not crash.
     return null;
@@ -221,8 +245,12 @@ export function loadLayout(): DashboardState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === null) return null;
-    const parsed = JSON.parse(raw) as DashboardState;
-    return parsed.v === LAYOUT_VERSION && Array.isArray(parsed.panels) ? parsed : null;
+    const parsed: unknown = JSON.parse(raw);
+    if (isValidState(parsed)) return parsed;
+    // Stale or incompatible: drop it so the current default dashboard is used instead of
+    // silently rendering something from an older shape.
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
   } catch {
     return null;
   }
