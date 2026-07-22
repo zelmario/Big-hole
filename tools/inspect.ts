@@ -19,6 +19,8 @@ import { decodeFTDC, readMetadata } from '../src/ftdc/index.js';
 import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader } from '../src/data/reader.js';
+import { defaultDashboard } from '../src/dashboard/layout.js';
+import { DEFAULT_TEMPLATES } from '../src/dashboard/defaultDashboard.js';
 
 const target = process.argv[2];
 if (target === undefined) {
@@ -134,6 +136,18 @@ if (manifest.restarts.length > 0) {
 if (skipped.length > 0) {
   console.log(`\nSKIPPED (${skipped.length})`);
   for (const s of skipped) console.log(`  ${s}`);
+}
+
+// How much of the ported dashboard this capture can actually draw.
+const dash = defaultDashboard(new Set(manifest.paths));
+const charts = dash.panels.filter((p) => p.kind === 'chart');
+const templates = DEFAULT_TEMPLATES.filter((p) => p.kind === 'chart');
+console.log(`\n${'-'.repeat(64)}`);
+console.log(`dashboard     ${charts.length}/${templates.length} panels resolve, ` +
+  `${charts.reduce((n, p) => n + p.metrics.length, 0)} series`);
+const missing = templates.filter((t) => !charts.some((c) => c.title === t.title));
+if (missing.length > 0) {
+  console.log(`  empty: ${missing.map((m) => m.title).join(', ')}`);
 }
 
 // Read-path timing on the real catalog, not a synthetic one.

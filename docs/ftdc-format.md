@@ -383,6 +383,27 @@ equality with the reference. Disambiguation belongs one layer up, in whatever ad
 series by name — ftdc-lens suffixes collisions within a chunk (`path`, `path#1`). Note that a
 suffixed path is only as stable as document order, exactly like the array-index paths below.
 
+### ⚠ Metric names contain characters that break naive parsers
+
+Anything that accepts a metric path as *text* — a query language, a config file, a URL — has
+to cope with all of this. Counts are from one 2,573-path capture:
+
+| Hazard | Count | Example |
+|---|---|---|
+| embedded parentheses | 80 | `systemMetrics.memory.Active(anon)_kb` |
+| **trailing** space | 11 | `serverStatus.wiredTiger.reconciliation.pages written including an aggregated newest start durable timestamp ` |
+| embedded spaces | many | `serverStatus.wiredTiger.cache.bytes currently in the cache` |
+| slashes | many | `systemMetrics.mounts./run/user.free` |
+
+Two of these are actively dangerous:
+
+- **Parentheses.** A path may end with `)` — `...checkpoint prepare max time (msecs)` — so
+  `name(...)` cannot be assumed to be a function call. Resolve by checking the prefix against
+  a known function list and treating anything else as part of the path.
+- **Trailing whitespace is significant.** A reflexive `.trim()` makes those 11 metrics
+  permanently unresolvable, and the symptom is "no such metric" rather than a parse error.
+  **Leading** whitespace was never observed on any path, so stripping only the front is safe.
+
 Rules:
 - Merge across chunks **by dotted path**, never by column index.
 - A path absent from a chunk produces `NaN` for that chunk's sample range. Do not shift, do

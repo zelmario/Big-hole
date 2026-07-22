@@ -72,3 +72,13 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0; }
   background: #0f1115; border: 1px solid var(--accent); color: var(--fg);
   padding: 8px 16px; border-radius: 6px; font-size: 13px; z-index: 50; }
 header button { flex-shrink: 0; }
+
+/* ---- ported dashboard: sections, legend values ---- */
+.section { display: flex; align-items: center; height: 100%; padding: 0 4px;
+  border-bottom: 1px solid var(--line); }
+.section h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+.chip-value { margin-left: 6px; color: var(--fg); font-weight: 600; }
+.chips { max-height: 64px; overflow-y: auto; }
+.panel-head { margin-bottom: 4px; }
+.catalog { width: 380px; }

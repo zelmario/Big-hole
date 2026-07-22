@@ -12,6 +12,7 @@
 import type { MetricType } from '../ftdc/types.js';
 import type { FileStore, ReadableFile } from './fileStore.js';
 import { envelope } from './downsample.js';
+import { ExprError, evaluate, exprPaths, parseExpr, unitOf, type Unit } from './expr.js';
 import type { CaptureManifest, Gap, Series } from './types.js';
 
 export interface SeriesQuery {
@@ -125,25 +126,18 @@ export class CaptureReader {
   }
 
   /**
-   * Read one metric over a time range.
+   * Read one raw metric's values over a global sample range.
    *
    * Samples the metric is absent for -- because its chunk's schema did not contain it -- come
    * back as NaN rather than being dropped or forward-filled. Merging is by path, never by
    * column index, so a schema change mid-capture does not shift a series onto another metric.
    */
-  async getSeries(path: string, query: SeriesQuery = {}): Promise<Series> {
+  private async readRaw(path: string, s0: number, s1: number): Promise<Float64Array> {
     const pathId = this.pathIds.get(path);
-    if (pathId === undefined) throw new Error(`unknown metric path: ${path}`);
+    if (pathId === undefined) throw new ExprError(`unknown metric path: ${path}`);
 
     const m = this.manifest;
-    const from = query.from ?? m.startMs;
-    const to = query.to ?? m.endMs;
-
-    const s0 = this.lowerBound(from);
-    const s1 = this.lowerBound(to + 1);
     const n = Math.max(0, s1 - s0);
-
-    const t = this.times.subarray(s0, s1);
     const values = new Float64Array(n).fill(NaN);
 
     const nChunks = m.chunks.offset.length;
@@ -192,6 +186,51 @@ export class CaptureReader {
       }
     }
 
-    return envelope(path, t, values, query.maxPoints ?? 0);
+    return values;
+  }
+
+  /**
+   * Evaluate an expression over a time range.
+   *
+   * `expression` is either a bare metric path or a derived expression such as
+   * `rate(serverStatus.opcounters.query)` -- see src/data/expr.ts. Most of FTDC is cumulative
+   * counters, so raw values are frequently not what anyone wants to look at.
+   *
+   * Derivation happens at FULL resolution and downsampling comes after. Computing a rate from
+   * already-bucketed means would smear exactly the short spikes the min/max envelope exists to
+   * preserve.
+   */
+  async getSeries(expression: string, query: SeriesQuery = {}): Promise<Series> {
+    const expr = parseExpr(expression);
+    const m = this.manifest;
+
+    const s0 = this.lowerBound(query.from ?? m.startMs);
+    const s1 = this.lowerBound((query.to ?? m.endMs) + 1);
+    const t = this.times.subarray(s0, s1);
+
+    const raw = new Map<string, Float64Array>();
+    for (const path of new Set(exprPaths(expr))) {
+      raw.set(path, await this.readRaw(path, s0, s1));
+    }
+
+    return envelope(expression, t, evaluate(expr, t, raw), query.maxPoints ?? 0);
+  }
+
+  /** Unit implied by an expression, used to format axes and legend values. */
+  unitFor(expression: string): Unit {
+    try {
+      return unitOf(parseExpr(expression));
+    } catch {
+      return 'count';
+    }
+  }
+
+  /** True when every metric an expression needs is present in this capture. */
+  has(expression: string): boolean {
+    try {
+      return exprPaths(parseExpr(expression)).every((p) => this.pathIds.has(p));
+    } catch {
+      return false;
+    }
   }
 }

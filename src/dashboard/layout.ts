@@ -9,12 +9,19 @@
 
 import { deflateSync, inflateSync } from 'fflate';
 
+import { exprPaths, parseExpr, type Unit } from '../data/expr.js';
+import { DEFAULT_TEMPLATES } from './defaultDashboard.js';
+
 export const LAYOUT_VERSION = 1;
 
 export interface PanelSpec {
   readonly id: string;
+  /** `section` renders a row heading rather than a chart, mirroring Grafana's row panels. */
+  readonly kind: 'chart' | 'section';
   readonly title: string;
+  /** Expressions, not just paths -- see src/data/expr.ts. */
   readonly metrics: string[];
+  readonly unit?: Unit;
   readonly x: number;
   readonly y: number;
   readonly w: number;
@@ -28,7 +35,8 @@ export interface DashboardState {
   readonly range: [number, number] | null;
 }
 
-export const GRID_COLUMNS = 12;
+/** 24 columns to match Grafana's grid 1:1, so the ported layout lands unchanged. */
+export const GRID_COLUMNS = 24;
 
 let counter = 0;
 export function panelId(): string {
@@ -36,84 +44,91 @@ export function panelId(): string {
   return `p${counter}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
- * The predefined dashboard.
+ * Expand `*` in an expression against the metric paths this capture actually has.
  *
- * Curated rather than generic: these are the panels that answer "is this server in trouble"
- * fastest, in roughly the order an engineer checks them. Anything missing from a given
- * capture is dropped at load time, so an older server or a different storage engine still
- * gets a working dashboard instead of a wall of empty charts.
+ * Grafana fanned several panels out with a regex -- every disk, every mount, every replica
+ * member. There is no equivalent in a static panel definition, so templates carry a `*` that
+ * matches one path segment and is expanded at load time. All wildcards in one expression share
+ * the same substitution, which is what makes
+ * `diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)` produce one
+ * series per member rather than a cross product.
  */
-const DEFAULT_PANELS: ReadonlyArray<Omit<PanelSpec, 'id'>> = [
-  {
-    title: 'Concurrency tickets available',
-    metrics: [
-      'serverStatus.wiredTiger.concurrentTransactions.read.available',
-      'serverStatus.wiredTiger.concurrentTransactions.write.available',
-    ],
-    x: 0, y: 0, w: 6, h: 8,
-  },
-  {
-    title: 'Queued operations',
-    metrics: [
-      'serverStatus.globalLock.currentQueue.readers',
-      'serverStatus.globalLock.currentQueue.writers',
-      'serverStatus.globalLock.activeClients.readers',
-      'serverStatus.globalLock.activeClients.writers',
-    ],
-    x: 6, y: 0, w: 6, h: 8,
-  },
-  {
-    title: 'WiredTiger cache',
-    metrics: [
-      'serverStatus.wiredTiger.cache.bytes currently in the cache',
-      'serverStatus.wiredTiger.cache.tracked dirty bytes in the cache',
-      'serverStatus.wiredTiger.cache.maximum bytes configured',
-    ],
-    x: 0, y: 8, w: 6, h: 8,
-  },
-  {
-    title: 'Operations',
-    metrics: [
-      'serverStatus.opcounters.query',
-      'serverStatus.opcounters.insert',
-      'serverStatus.opcounters.update',
-      'serverStatus.opcounters.delete',
-      'serverStatus.opcounters.getmore',
-      'serverStatus.opcounters.command',
-    ],
-    x: 6, y: 8, w: 6, h: 8,
-  },
-  {
-    title: 'Connections',
-    metrics: ['serverStatus.connections.current', 'serverStatus.connections.available'],
-    x: 0, y: 16, w: 6, h: 8,
-  },
-  {
-    title: 'Memory',
-    metrics: ['serverStatus.mem.resident', 'serverStatus.mem.virtual'],
-    x: 6, y: 16, w: 6, h: 8,
-  },
-];
+export function expandMetric(expression: string, available: ReadonlySet<string>): string[] {
+  const complete = (expr: string): boolean => {
+    try {
+      return exprPaths(parseExpr(expr)).every((p) => available.has(p));
+    } catch {
+      return false;
+    }
+  };
 
-/** Build the default dashboard, keeping only metrics this capture actually has. */
+  if (!expression.includes('*')) return complete(expression) ? [expression] : [];
+
+  let wild: string | undefined;
+  try {
+    wild = exprPaths(parseExpr(expression)).find((p) => p.includes('*'));
+  } catch {
+    return [];
+  }
+  if (wild === undefined) return [];
+
+  const pattern = new RegExp(`^${escapeRegExp(wild).replace('\\*', '([^.]+)')}$`);
+  const values = new Set<string>();
+  for (const path of available) {
+    const match = pattern.exec(path);
+    if (match?.[1] !== undefined) values.add(match[1]);
+  }
+
+  return [...values]
+    .sort()
+    .map((v) => expression.split('*').join(v))
+    .filter(complete);
+}
+
+/**
+ * Build the default dashboard for a capture.
+ *
+ * Panels whose metrics this capture lacks are dropped rather than shown empty, so an older
+ * server, a different storage engine, or a standalone with no replSetGetStatus still gets a
+ * working dashboard.
+ */
 export function defaultDashboard(available: ReadonlySet<string>): DashboardState {
-  const panels = DEFAULT_PANELS.map((p) => ({
-    ...p,
-    id: panelId(),
-    metrics: p.metrics.filter((m) => available.has(m)),
-  })).filter((p) => p.metrics.length > 0);
+  const panels: PanelSpec[] = [];
 
-  // Nothing recognised -- an unfamiliar server shape. Show something rather than nothing.
-  if (panels.length === 0) {
+  for (const template of DEFAULT_TEMPLATES) {
+    if (template.kind === 'section') {
+      panels.push({ ...template, id: panelId(), metrics: [] });
+      continue;
+    }
+    const metrics = template.metrics.flatMap((m) => expandMetric(m, available));
+    if (metrics.length === 0) continue;
+    panels.push({ ...template, id: panelId(), metrics });
+  }
+
+  // Drop a section heading that ended up with nothing beneath it.
+  const kept = panels.filter((p, i) => {
+    if (p.kind !== 'section') return true;
+    const next = panels.slice(i + 1).find((q) => q.kind === 'section');
+    const until = next === undefined ? panels.length : panels.indexOf(next);
+    return panels.slice(i + 1, until).some((q) => q.kind === 'chart');
+  });
+
+  if (kept.filter((p) => p.kind === 'chart').length === 0) {
     return {
       v: LAYOUT_VERSION,
-      panels: [{ id: panelId(), title: 'Metrics', metrics: [], x: 0, y: 0, w: 12, h: 9 }],
+      panels: [
+        { id: panelId(), kind: 'chart', title: 'Metrics', metrics: [], x: 0, y: 0, w: 24, h: 9 },
+      ],
       range: null,
     };
   }
 
-  return { v: LAYOUT_VERSION, panels: compact(panels), range: null };
+  return { v: LAYOUT_VERSION, panels: kept, range: null };
 }
 
 /** Re-flow panels so there are no vertical holes after a removal. */

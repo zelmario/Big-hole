@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { exprPaths, parseExpr } from '../src/data/expr.js';
 import {
   LAYOUT_VERSION,
   MAX_PERMALINK_CHARS,
@@ -24,6 +25,7 @@ const sample: DashboardState = {
   panels: [
     {
       id: 'p1',
+      kind: 'chart' as const,
       title: 'Concurrency tickets available',
       metrics: [
         'serverStatus.wiredTiger.concurrentTransactions.read.available',
@@ -34,7 +36,7 @@ const sample: DashboardState = {
       w: 6,
       h: 8,
     },
-    { id: 'p2', title: 'Queues', metrics: ['serverStatus.globalLock.currentQueue.readers'], x: 6, y: 0, w: 6, h: 8 },
+    { id: 'p2', kind: 'chart' as const, title: 'Queues', metrics: ['serverStatus.globalLock.currentQueue.readers'], x: 6, y: 0, w: 6, h: 8 },
   ],
   range: [1784728337300, 1784728437300],
 };
@@ -84,6 +86,7 @@ describe('layout serialization', () => {
       v: LAYOUT_VERSION,
       panels: Array.from({ length: 400 }, (_, i) => ({
         id: `p${i}`,
+        kind: 'chart' as const,
         title: `Panel number ${i} with a deliberately long title`,
         // Random-ish paths so they do not simply compress away.
         metrics: Array.from({ length: 12 }, (_, j) => `serverStatus.metric.${i}.${j}.${Math.random()}`),
@@ -108,17 +111,22 @@ describe('default dashboard', () => {
     ]);
     const state = defaultDashboard(available);
 
-    const used = state.panels.flatMap((p) => p.metrics);
+    const charts = state.panels.filter((p) => p.kind === 'chart');
+    const used = charts.flatMap((p) => p.metrics);
     expect(used.length).toBeGreaterThan(0);
-    for (const m of used) expect(available.has(m)).toBe(true);
-    // Panels left with nothing to draw are dropped rather than shown empty.
-    for (const p of state.panels) expect(p.metrics.length).toBeGreaterThan(0);
+    // Panel metrics are expressions now, so check the raw paths each one depends on.
+    for (const m of used) {
+      for (const path of exprPaths(parseExpr(m))) expect(available.has(path)).toBe(true);
+    }
+    // Chart panels left with nothing to draw are dropped rather than shown empty. Section
+    // headings carry no metrics by design.
+    for (const p of charts) expect(p.metrics.length).toBeGreaterThan(0);
   });
 
   it('still yields a usable dashboard for an unrecognised server shape', () => {
     const state = defaultDashboard(new Set(['something.completely.different']));
     expect(state.panels).toHaveLength(1);
-    expect(state.panels[0]!.w).toBe(12);
+    expect(state.panels[0]!.w).toBe(24);
   });
 
   it('gives every panel a unique id', () => {

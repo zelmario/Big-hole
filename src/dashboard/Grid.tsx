@@ -21,7 +21,13 @@ export function Grid(): ReactElement {
   const { width, containerRef } = useContainerWidth();
 
   const layout = useMemo<Layout>(
-    () => panels.map((p) => ({ i: p.id, x: p.x, y: p.y, w: p.w, h: p.h, minW: 2, minH: 5 })),
+    () =>
+      panels.map((p) =>
+        p.kind === 'section'
+          ? // Row headings span the grid and are not resizable, matching Grafana's rows.
+            { i: p.id, x: 0, y: p.y, w: GRID_COLUMNS, h: 1, isResizable: false }
+          : { i: p.id, x: p.x, y: p.y, w: p.w, h: p.h, minW: 2, minH: 4 },
+      ),
     [panels],
   );
 

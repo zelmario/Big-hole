@@ -12,6 +12,7 @@ import {
   type DashboardState,
   type PanelSpec,
 } from '../dashboard/layout.js';
+import { exprPaths, parseExpr } from '../data/expr.js';
 import { FtdcClient } from '../workers/client.js';
 import type { CaptureSummary, IngestProgressMessage } from '../workers/protocol.js';
 
@@ -54,6 +55,15 @@ interface State {
   setRange(range: [number, number] | null): void;
   setCursor(ms: number | null): void;
   reset(): void;
+}
+
+/** True when every raw path an expression needs exists in this capture. */
+function hasMetric(expression: string, available: ReadonlySet<string>): boolean {
+  try {
+    return exprPaths(parseExpr(expression)).every((p) => available.has(p));
+  } catch {
+    return false;
+  }
 }
 
 function persist(panels: PanelSpec[], range: [number, number] | null): void {
@@ -100,8 +110,12 @@ export const useStore = create<State>((set, get) => ({
         // Drop metrics this capture does not have; a layout built against another server
         // version should degrade, not produce empty charts.
         const panels = saved.panels
-          .map((p) => ({ ...p, metrics: p.metrics.filter((m) => available.has(m)) }))
-          .filter((p) => p.metrics.length > 0 || saved.panels.length === 1);
+          .map((p) =>
+            p.kind === 'section'
+              ? p
+              : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available)) },
+          )
+          .filter((p) => p.kind === 'section' || p.metrics.length > 0);
         state =
           panels.length > 0
             ? { v: LAYOUT_VERSION, panels, range: saved.range }
@@ -133,11 +147,12 @@ export const useStore = create<State>((set, get) => ({
     const maxY = panels.reduce((m, p) => Math.max(m, p.y + p.h), 0);
     const created: PanelSpec = {
       id: panelId(),
+      kind: 'chart',
       title: 'New panel',
       metrics: [],
       x: 0,
       y: maxY,
-      w: 6,
+      w: 12,
       h: 8,
     };
     const next = [...panels, created];
