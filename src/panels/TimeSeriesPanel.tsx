@@ -9,18 +9,12 @@ import { parseExpr, unitOf, type Unit } from '../data/expr.js';
 import type { SeriesPayload } from '../workers/protocol.js';
 import type { Gap } from '../data/types.js';
 
-const PALETTE = ['#4f9cf9', '#f2994a', '#27ae60', '#eb5757', '#bb6bd9', '#2d9cdb', '#f2c94c'];
+/** Grafana's classic series palette, so a ported dashboard reads the same. */
+const PALETTE = [
+  '#73bf69', '#f2cc0c', '#8ab8ff', '#ff9830', '#f2495c', '#b877d9',
+  '#ff780a', '#5794f2', '#fade2a', '#7ee0d1', '#e02f44', '#c0d8ff',
+];
 
-/** Shorten an expression for a legend without losing which function wraps it. */
-function short(expression: string): string {
-  return expression
-    .replace(/serverStatus\./g, '')
-    .replace(/systemMetrics\./g, 'sys.')
-    .replace(/replSetGetStatus\./g, 'rs.')
-    .replace(/local\.oplog\.rs\.stats\./g, 'oplog.');
-}
-
-/** Unit for a panel: explicit if the template set one, otherwise inferred per expression. */
 function panelUnit(panel: PanelSpec): Unit {
   if (panel.unit !== undefined) return panel.unit;
   const first = panel.metrics[0];
@@ -36,8 +30,7 @@ function panelUnit(panel: PanelSpec): Unit {
  * Shade the ranges where the capture has no samples.
  *
  * Missing FTDC means mongod was down, stalled, or the host froze -- one of the strongest
- * signals in a capture, and invisible unless you draw it. Without this the series simply
- * jumps and reads as a normal transition.
+ * signals in a capture, and invisible unless you draw it.
  */
 function gapPlugin(gaps: () => readonly Gap[]): uPlot.Plugin {
   return {
@@ -64,7 +57,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const [series, setSeries] = useState<SeriesPayload[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [size, setSize] = useState<{ w: number; h: number }>({ w: 600, h: 200 });
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 600, h: 160 });
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const client = useStore((s) => s.client);
@@ -72,9 +65,11 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const range = useStore((s) => s.range);
   const summary = useStore((s) => s.summary);
   const focused = useStore((s) => s.focused);
+  const showBand = useStore((s) => s.showBand);
   const setRange = useStore((s) => s.setRange);
   const setCursor = useStore((s) => s.setCursor);
-  const removeMetric = useStore((s) => s.removeMetric);
+  const toggleSeries = useStore((s) => s.toggleSeries);
+  const showAllSeries = useStore((s) => s.showAllSeries);
   const removePanel = useStore((s) => s.removePanel);
   const renamePanel = useStore((s) => s.renamePanel);
 
@@ -83,10 +78,10 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
 
   const unit = panelUnit(panel);
   const isSection = panel.kind === 'section';
-  const metricsKey = panel.metrics.join('');
+  const hidden = panel.hidden ?? [];
+  const metricsKey = panel.metrics.join('');
+  const hiddenKey = hidden.join('');
 
-  // The grid resizes panels freely, so the plot follows its container rather than a fixed
-  // height.
   useEffect(() => {
     const el = holder.current;
     if (el === null || isSection) return;
@@ -131,37 +126,53 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, status, metricsKey, range, size.w, isSection]);
 
+  // Hidden series are dropped before the plot is built rather than styled away, so the y-axis
+  // rescales to what is actually shown -- which is the point of hiding a large series.
+  const visible = useMemo(
+    () => series.filter((s) => !hidden.includes(s.path)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [series, hiddenKey],
+  );
+
   const data = useMemo<uPlot.AlignedData | null>(() => {
-    if (series.length === 0) return null;
-    const x = Array.from(series[0]!.t, (ms) => ms / 1000); // uPlot time axis is seconds
+    if (visible.length === 0) return null;
+    const x = Array.from(visible[0]!.t, (ms) => ms / 1000); // uPlot time axis is seconds
     const cols: number[][] = [x];
-    for (const s of series) {
+    for (const s of visible) {
       cols.push(Array.from(s.mean));
-      cols.push(Array.from(s.min));
-      cols.push(Array.from(s.max));
+      if (showBand) {
+        cols.push(Array.from(s.min));
+        cols.push(Array.from(s.max));
+      }
     }
     return cols as unknown as uPlot.AlignedData;
-  }, [series]);
+  }, [visible, showBand]);
+
+  /** Colour by position in the panel's full metric list, so hiding one does not recolour the rest. */
+  const colourOf = (path: string): string =>
+    PALETTE[Math.max(0, panel.metrics.indexOf(path)) % PALETTE.length]!;
 
   useEffect(() => {
     if (holder.current === null || data === null || size.w === 0) return;
 
+    const stride = showBand ? 3 : 1;
+
     const opts: uPlot.Options = {
       width: size.w,
-      height: Math.max(80, size.h),
-      legend: { show: false }, // replaced by the chip row, which shows values at the cursor
+      height: Math.max(60, size.h),
+      legend: { show: false }, // the chip row below the plot is the legend
       cursor: {
         drag: { x: true, y: false, setScale: false },
-        // One cursor key across every panel, so hovering any chart moves the crosshair on all
-        // of them. This is most of why multi-panel analysis feels coherent.
         sync: { key: 'ftdc' },
+        points: { size: 5 },
       },
       scales: { x: { time: true } },
       axes: [
-        {},
+        { stroke: '#8b94a3', grid: { stroke: '#2a2f38', width: 1 }, ticks: { stroke: '#2a2f38' } },
         {
-          // FTDC carries no units, so an unformatted axis reads 3221225472 where the engineer
-          // wants 3.0 GiB. The scale is picked once per tick array, not per value.
+          stroke: '#8b94a3',
+          grid: { stroke: '#2a2f38', width: 1 },
+          ticks: { stroke: '#2a2f38' },
           values: (_u: uPlot, ticks: number[]) => axisFormatter(unit)(ticks),
           size: 62,
         },
@@ -169,21 +180,33 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       plugins: [gapPlugin(() => gapsRef.current)],
       series: [
         { label: 'time' },
-        ...series.flatMap((s, i) => {
-          const colour = PALETTE[i % PALETTE.length]!;
-          return [
-            { label: short(s.path), stroke: colour, width: 1.25, spanGaps: false },
-            { label: `${short(s.path)} min`, stroke: 'transparent', spanGaps: false },
-            { label: `${short(s.path)} max`, stroke: 'transparent', spanGaps: false },
-          ] as uPlot.Series[];
+        ...visible.flatMap((s) => {
+          const colour = colourOf(s.path);
+          const line: uPlot.Series = {
+            label: s.path,
+            stroke: colour,
+            width: 1,
+            spanGaps: false,
+            points: { show: false },
+          };
+          return showBand
+            ? [
+                line,
+                { label: `${s.path} min`, stroke: 'transparent', spanGaps: false },
+                { label: `${s.path} max`, stroke: 'transparent', spanGaps: false },
+              ]
+            : [line];
         }),
       ],
-      // The band between min and max is what guarantees a one-sample spike survives
-      // downsampling instead of being averaged away.
-      bands: series.map((_, i) => ({
-        series: [3 * i + 3, 3 * i + 2] as [number, number],
-        fill: `${PALETTE[i % PALETTE.length]!}2b`,
-      })),
+      // Very light: at higher alpha the envelope reads as a drop shadow behind the line
+      // rather than as a range. Off by default; it is what keeps a one-sample spike visible
+      // after downsampling, so it stays available.
+      bands: showBand
+        ? visible.map((s, i) => ({
+            series: [stride * i + 3, stride * i + 2] as [number, number],
+            fill: `${colourOf(s.path)}14`,
+          }))
+        : [],
       hooks: {
         setCursor: [
           (u: uPlot) => {
@@ -198,8 +221,6 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
             const from = u.posToVal(u.select.left, 'x') * 1000;
             const to = u.posToVal(u.select.left + u.select.width, 'x') * 1000;
             u.setSelect({ left: 0, width: 0, top: 0, height: 0 }, false);
-            // Zooming re-queries at higher resolution rather than rescaling the points already
-            // on screen -- and it sets the shared range, so every panel follows.
             setRange([Math.round(from), Math.round(to)]);
           },
         ],
@@ -213,7 +234,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [data, series, size.w, size.h, unit, setCursor, setRange]);
+  }, [data, visible, size.w, size.h, unit, showBand, setCursor, setRange]);
 
   if (isSection) {
     return (
@@ -236,6 +257,16 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
         />
         {loading && <span className="muted small">…</span>}
         <span className="spacer" />
+        {hidden.length > 0 && (
+          <button
+            className="link small"
+            title="Show all series"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => showAllSeries(panel.id)}
+          >
+            {hidden.length} hidden
+          </button>
+        )}
         <button
           className="link small"
           title="Remove panel"
@@ -246,25 +277,31 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
         </button>
       </div>
 
-      <div className="chips" onMouseDown={(e) => e.stopPropagation()}>
-        {panel.metrics.map((m, i) => {
+      {error !== null && <div className="small error">{error}</div>}
+      {panel.metrics.length > 0 && visible.length === 0 && (
+        <div className="muted small pad">All series hidden — click a legend entry to show it.</div>
+      )}
+      <div ref={holder} className="plot" />
+
+      {/* Legend below the plot, as in Grafana. Clicking toggles visibility; it does not
+          remove the metric -- removal is done from the catalogue. */}
+      <div className="legend" onMouseDown={(e) => e.stopPropagation()}>
+        {panel.metrics.map((m) => {
           const s = series.find((x) => x.path === m);
-          // Value under the cursor, falling back to the most recent sample when the pointer is
-          // elsewhere -- a legend that blanks out when you look away is useless.
+          const off = hidden.includes(m);
           const idx = hoverIdx ?? (s ? s.mean.length - 1 : -1);
-          const value = s !== undefined && idx >= 0 ? s.mean[idx] : undefined;
+          const value = s !== undefined && idx >= 0 && idx < s.mean.length ? s.mean[idx] : undefined;
           return (
             <button
               key={m}
-              className="chip"
-              style={{ borderLeftColor: PALETTE[i % PALETTE.length] }}
-              title={`${m} — click to remove`}
-              onClick={() => removeMetric(panel.id, m)}
+              className={off ? 'legend-item off' : 'legend-item'}
+              title={off ? `${m} — click to show` : `${m} — click to hide`}
+              onClick={() => toggleSeries(panel.id, m)}
             >
-              <span className="dot" style={{ background: PALETTE[i % PALETTE.length] }} />
-              {short(m)}
-              {value !== undefined && (
-                <span className="chip-value">{formatValue(value, unit)}</span>
+              <span className="legend-dash" style={{ background: off ? '#5a6472' : colourOf(m) }} />
+              <span className="legend-label">{m}</span>
+              {value !== undefined && !off && (
+                <span className="legend-value">{formatValue(value, unit)}</span>
               )}
             </button>
           );
@@ -275,9 +312,6 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
           </span>
         )}
       </div>
-
-      {error !== null && <div className="small error">{error}</div>}
-      <div ref={holder} className="plot" />
     </div>
   );
 }

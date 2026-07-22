@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 
 import { DropZone } from './ui/DropZone.js';
 import { ErrorBoundary } from './ui/ErrorBoundary.js';
+import { TimeRange } from './ui/TimeRange.js';
 import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
 import { toPermalink, fromHash, clearLayout, defaultDashboard } from './dashboard/layout.js';
@@ -15,9 +16,9 @@ export function App(): ReactElement {
   const status = useStore((s) => s.status);
   const summary = useStore((s) => s.summary);
   const cursor = useStore((s) => s.cursor);
-  const range = useStore((s) => s.range);
+  const showBand = useStore((s) => s.showBand);
+  const setShowBand = useStore((s) => s.setShowBand);
   const catalog = useStore((s) => s.catalog);
-  const setRange = useStore((s) => s.setRange);
   const addPanel = useStore((s) => s.addPanel);
   const applyState = useStore((s) => s.applyState);
   const dashboard = useStore((s) => s.dashboard);
@@ -76,11 +77,15 @@ export function App(): ReactElement {
         {cursor !== null && <code className="cursor">{ms(cursor)}</code>}
         {status === 'ready' && (
           <>
-            {range !== null && (
-              <button className="link" onClick={() => setRange(null)}>
-                reset zoom
-              </button>
-            )}
+            <TimeRange />
+            <label className="muted small band-toggle" title="Shade min/max between samples">
+              <input
+                type="checkbox"
+                checked={showBand}
+                onChange={(e) => setShowBand(e.target.checked)}
+              />
+              range
+            </label>
             <button onClick={addPanel}>+ panel</button>
             <button onClick={() => void share()}>share</button>
             <button

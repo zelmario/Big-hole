@@ -17,11 +17,12 @@ import { METRIC_ALIASES } from './aliases.js';
  * Bump whenever the PanelSpec shape or the grid geometry changes.
  *
  * v1 -> v2: panels gained `kind`, and the grid went from 12 to 24 columns to match the ported
- * Grafana layout. A v1 layout still *parses*, so without this bump a saved dashboard silently
+ * Grafana layout.
+ * v2 -> v3: panels gained `hidden`, the per-series visibility toggled from the legend. A v1 layout still *parses*, so without this bump a saved dashboard silently
  * suppressed the new default and rendered old panels at half width. Persisted layouts are a
  * compatibility surface: shape changes need a version bump, not just a type change.
  */
-export const LAYOUT_VERSION = 2;
+export const LAYOUT_VERSION = 3;
 
 export interface PanelSpec {
   readonly id: string;
@@ -30,6 +31,11 @@ export interface PanelSpec {
   readonly title: string;
   /** Expressions, not just paths -- see src/data/expr.ts. */
   readonly metrics: string[];
+  /**
+   * Series hidden from the plot but kept in the legend, toggled by clicking it -- Grafana's
+   * behaviour. Distinct from removing a metric, which is done from the catalogue.
+   */
+  readonly hidden?: string[];
   readonly unit?: Unit;
   readonly x: number;
   readonly y: number;

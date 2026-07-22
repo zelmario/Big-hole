@@ -169,3 +169,25 @@ describe('layout compatibility', () => {
     expect(decodeState(encodeState(sample))).toEqual(sample);
   });
 });
+
+describe('per-series visibility', () => {
+  it('rejects a v2 layout now that panels carry `hidden`', () => {
+    // Same lesson as v1 -> v2: a shape change needs a version bump or a stale saved layout
+    // silently overrides the new default.
+    const v2 = {
+      v: 2,
+      panels: [{ id: 'p1', kind: 'chart', title: 'Old', metrics: ['a.b'], x: 0, y: 0, w: 6, h: 8 }],
+      range: null,
+    };
+    expect(decodeState(encodeState(v2 as unknown as DashboardState))).toBeNull();
+  });
+
+  it('round-trips hidden series', () => {
+    const withHidden: DashboardState = {
+      ...sample,
+      panels: sample.panels.map((p, i) => (i === 0 ? { ...p, hidden: [p.metrics[0]!] } : p)),
+    };
+    const back = decodeState(encodeState(withHidden));
+    expect(back?.panels[0]?.hidden).toEqual([sample.panels[0]!.metrics[0]]);
+  });
+});

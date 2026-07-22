@@ -41,6 +41,12 @@ interface State {
   range: [number, number] | null;
   /** Shared time cursor in epoch ms, or null when the pointer is off-chart. */
   cursor: number | null;
+  /**
+   * Draw the min/max envelope behind each line. Off by default: at any visible alpha it reads
+   * as a drop shadow rather than as a range. It is what keeps a one-sample spike from being
+   * averaged away by downsampling, so it stays available.
+   */
+  showBand: boolean;
 
   ingest(files: File[]): Promise<void>;
   addPanel(): void;
@@ -48,12 +54,17 @@ interface State {
   renamePanel(id: string, title: string): void;
   focusPanel(id: string): void;
   toggleMetric(path: string): void;
+  /** Show/hide one series without removing it from the panel. */
+  toggleSeries(id: string, metric: string): void;
+  /** Show every series in a panel again. */
+  showAllSeries(id: string): void;
   removeMetric(id: string, path: string): void;
   applyGeometry(next: ReadonlyArray<{ i: string; x: number; y: number; w: number; h: number }>): void;
   applyState(state: DashboardState): void;
   dashboard(): DashboardState;
   setRange(range: [number, number] | null): void;
   setCursor(ms: number | null): void;
+  setShowBand(on: boolean): void;
   reset(): void;
 }
 
@@ -81,6 +92,7 @@ export const useStore = create<State>((set, get) => ({
   focused: null,
   range: null,
   cursor: null,
+  showBand: false,
 
   async ingest(files: File[]) {
     set({ status: 'ingesting', error: null, progress: null });
@@ -194,6 +206,27 @@ export const useStore = create<State>((set, get) => ({
     persist(next, get().range);
   },
 
+  toggleSeries(id: string, metric: string) {
+    const next = get().panels.map((p) => {
+      if (p.id !== id) return p;
+      const hidden = p.hidden ?? [];
+      return {
+        ...p,
+        hidden: hidden.includes(metric)
+          ? hidden.filter((m) => m !== metric)
+          : [...hidden, metric],
+      };
+    });
+    set({ panels: next });
+    persist(next, get().range);
+  },
+
+  showAllSeries(id: string) {
+    const next = get().panels.map((p) => (p.id === id ? { ...p, hidden: [] } : p));
+    set({ panels: next });
+    persist(next, get().range);
+  },
+
   removeMetric(id: string, path: string) {
     const next = get().panels.map((p) =>
       p.id === id ? { ...p, metrics: p.metrics.filter((m) => m !== path) } : p,
@@ -231,6 +264,10 @@ export const useStore = create<State>((set, get) => ({
 
   setCursor(ms) {
     set({ cursor: ms });
+  },
+
+  setShowBand(on) {
+    set({ showBand: on });
   },
 
   reset() {
