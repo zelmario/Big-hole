@@ -39,6 +39,8 @@ export class CaptureReader {
   /** chunk index -> constant bitmap. Small (~313 B per chunk) and reused across queries. */
   private readonly bitmapCache = new Map<number, Uint8Array>();
   private readonly pathIds = new Map<string, number>();
+  /** (chunk, column) -> slot index, so the popcount scan runs once per column per chunk. */
+  private readonly slotCache = new Map<number, number>();
 
   private constructor(
     readonly manifest: CaptureManifest,
@@ -140,6 +142,18 @@ export class CaptureReader {
     const n = Math.max(0, s1 - s0);
     const values = new Float64Array(n).fill(NaN);
 
+    // Plan every chunk read first, then issue them together. A 42-hour capture is ~500
+    // chunks, and awaiting each read in turn made a single series cost ~40 ms -- the reads
+    // are independent, so serialising them was pure latency.
+    interface Job {
+      readonly offset: number;
+      readonly length: number;
+      readonly isConst: boolean;
+      readonly lo: number;
+      readonly hi: number;
+    }
+    const jobs: Job[] = [];
+
     const nChunks = m.chunks.offset.length;
     for (let c = 0; c < nChunks; c++) {
       const first = m.chunks.firstSample[c]!;
@@ -156,37 +170,61 @@ export class CaptureReader {
       const bm = await this.bitmap(c);
       const isConst = (bm[col >> 3]! & (1 << (col & 7))) !== 0;
 
-      // Slot index = how many like-kind columns precede this one.
-      let slot = 0;
-      for (let i = 0; i < col; i++) {
-        const bit = (bm[i >> 3]! & (1 << (i & 7))) !== 0;
-        if (bit === isConst) slot++;
-      }
+      let slot = this.slotOf(c, col, isConst, bm);
 
       const base = m.chunks.offset[c]! + bitmapBytes;
       const constCount = m.chunks.constCount[c]!;
-
-      // Overlap of this chunk with the requested range.
       const lo = Math.max(first, s0);
       const hi = Math.min(last, s1);
 
       if (isConst) {
-        const raw = await this.columns.read(base + slot * 8, 8);
-        const v = new DataView(raw.buffer, raw.byteOffset, 8).getFloat64(0, true);
-        values.fill(v, lo - s0, hi - s0);
+        jobs.push({ offset: base + slot * 8, length: 8, isConst: true, lo, hi });
       } else {
         const colStart = base + constCount * 8 + slot * count * 8;
-        const offInChunk = lo - first;
-        const want = hi - lo;
-        const raw = await this.columns.read(colStart + offInChunk * 8, want * 8);
-        const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-        for (let i = 0; i < want; i++) {
-          values[lo - s0 + i] = view.getFloat64(i * 8, true);
-        }
+        jobs.push({
+          offset: colStart + (lo - first) * 8,
+          length: (hi - lo) * 8,
+          isConst: false,
+          lo,
+          hi,
+        });
+      }
+    }
+
+    const buffers = await Promise.all(jobs.map((j) => this.columns.read(j.offset, j.length)));
+
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i]!;
+      const raw = buffers[i]!;
+      const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+      if (job.isConst) {
+        values.fill(view.getFloat64(0, true), job.lo - s0, job.hi - s0);
+      } else {
+        const want = job.hi - job.lo;
+        for (let k = 0; k < want; k++) values[job.lo - s0 + k] = view.getFloat64(k * 8, true);
       }
     }
 
     return values;
+  }
+
+  /**
+   * Index of a column among the like-kind (constant or varying) columns before it.
+   *
+   * Cached per (chunk, column): the popcount scan is cheap but runs once per chunk per
+   * series, and a dashboard re-reads the same columns on every zoom.
+   */
+  private slotOf(chunk: number, col: number, isConst: boolean, bm: Uint8Array): number {
+    const key = chunk * 100_000 + col;
+    const hit = this.slotCache.get(key);
+    if (hit !== undefined) return hit;
+
+    let slot = 0;
+    for (let i = 0; i < col; i++) {
+      if (((bm[i >> 3]! & (1 << (i & 7))) !== 0) === isConst) slot++;
+    }
+    this.slotCache.set(key, slot);
+    return slot;
   }
 
   /**

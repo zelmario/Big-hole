@@ -132,20 +132,31 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
 
       case 'series': {
         const r = await reader(request.captureId);
-        const series: SeriesPayload[] = [];
-        const transfer: Transferable[] = [];
+        // A panel asks for all of its metrics at once and the reads are independent, so
+        // resolve them together rather than one after another.
+        const resolved = await Promise.all(
+          request.paths.map(async (path) => {
+            const s = await r.getSeries(path, request.query);
+            // Copy before transferring: raw results alias the reader's cached clock, and
+            // transferring that buffer would detach it for every later query.
+            return {
+              path,
+              t: Float64Array.from(s.t),
+              min: Float64Array.from(s.min),
+              max: Float64Array.from(s.max),
+              mean: Float64Array.from(s.mean),
+              raw: s.raw,
+            };
+          }),
+        );
 
-        for (const path of request.paths) {
-          const s = await r.getSeries(path, request.query);
-          // Copy before transferring: raw results alias the reader's cached clock, and
-          // transferring that buffer would detach it for every later query.
-          const t = Float64Array.from(s.t);
-          const min = Float64Array.from(s.min);
-          const max = Float64Array.from(s.max);
-          const mean = Float64Array.from(s.mean);
-          series.push({ path, t, min, max, mean, raw: s.raw });
-          transfer.push(t.buffer, min.buffer, max.buffer, mean.buffer);
-        }
+        const series: SeriesPayload[] = resolved;
+        const transfer: Transferable[] = resolved.flatMap((s) => [
+          s.t.buffer,
+          s.min.buffer,
+          s.max.buffer,
+          s.mean.buffer,
+        ]);
 
         post({ kind: 'series', id, series }, transfer);
         break;

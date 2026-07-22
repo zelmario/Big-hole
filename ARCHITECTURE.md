@@ -219,17 +219,28 @@ resident = catalog index + only the series currently plotted, downsampled to cur
 - OPFS is local disk, private to the origin, and never touches the network — the privacy
   promise is fully intact.
 
-**Measured (M1.5, `npx vite-node tools/measure/measure.ts`):**
+**Measured on a real customer capture** (`npm run inspect`) — 42.3 h, 152,308 samples,
+5,763 metrics, mongod 8.0.19-7 sharded, 102 MB on disk:
 
 | | |
 |---|---|
-| elision | **6.7×** busy, **13.1×** idle (31.7 MB dense → 4.8 MB stored) |
-| resident on open | **1.0 MB** — manifest + sample clock only |
-| series read | **0.62 ms** each at 1200 points |
+| ingest | 13.7 s for 877M values (64M values/s, cold) |
+| elision | 7,022 MB dense → **1,522 MB stored** (4.6×) |
+| resident on open | **1.95 MB** — manifest + sample clock only |
+| series read | **10.1 ms** each at 1200 points |
 
-Resident cost scales with capture *duration*, not width: the clock is 8 bytes/sample, so a
-week at 1 Hz is ~4.8 MB plus a ~350 KB manifest. Three replica-set members ≈ **16 MB**,
-against the 500 MB budget. Everything else is on disk and read on demand.
+Resident cost scales with capture *duration*, not width: the clock is 8 bytes/sample. A
+42-hour capture costs under 2 MB resident regardless of its 5,763 metrics.
+
+**Reads must be issued together, not awaited in turn.** A 42-hour capture is ~500 chunks and
+one series touches every one of them; serialising those reads cost 41 ms per series (~5 s to
+paint a 121-series dashboard). Planning the reads and running them through one `Promise.all`
+took it to 10 ms. The same applies one level up — a panel's metrics resolve concurrently in
+the worker.
+
+Remaining cost is inherent to reading full resolution and downsampling after: 152k samples ×
+8 bytes per series. Precomputed rollups would fix it if it ever needs fixing; do not trade
+away spike fidelity for it without measuring first.
 
 ## Downsampling
 
