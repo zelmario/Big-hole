@@ -60,6 +60,8 @@ export function formatValue(v: number, unit: Unit): string {
       return duration(v);
     case 'us':
       return duration(v / 1000);
+    case 'seconds':
+      return duration(v * 1000);
     case 'per-sec':
       return `${count(v)}/s`;
     default:
@@ -93,6 +95,7 @@ export function axisFormatter(unit: Unit): (ticks: number[]) => string[] {
     if (unit === 'percent') return ticks.map((t) => `${t.toFixed(0)}%`);
     if (unit === 'ms') return ticks.map((t) => duration(t));
     if (unit === 'us') return ticks.map((t) => duration(t / 1000));
+    if (unit === 'seconds') return ticks.map((t) => duration(t * 1000));
 
     const peak = Math.max(...ticks.map(Math.abs));
     let div = 1;

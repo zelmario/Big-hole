@@ -24,7 +24,15 @@
  * preserve.
  */
 
-export type Unit = 'count' | 'bytes' | 'bytes/s' | 'ms' | 'us' | 'percent' | 'per-sec';
+export type Unit =
+  | 'count'
+  | 'bytes'
+  | 'bytes/s'
+  | 'ms'
+  | 'us'
+  | 'seconds'
+  | 'percent'
+  | 'per-sec';
 
 export type Expr =
   | { readonly fn: 'raw'; readonly path: string }
@@ -187,7 +195,13 @@ export function evaluate(
     case 'raw': {
       const v = raw.get(e.path);
       if (v === undefined) throw new ExprError(`unknown metric: ${e.path}`);
-      return v;
+      // Normalise to the base unit here rather than in the templates, so a metric picked
+      // straight from the catalogue is as correct as one the dashboard shipped with.
+      const factor = scaleOfPath(e.path);
+      if (factor === 1) return v;
+      const out = new Float64Array(v.length);
+      for (let i = 0; i < v.length; i++) out[i] = v[i]! * factor;
+      return out;
     }
     case 'rate':
       return rateOf(t, evaluate(e.arg, t, raw));
@@ -196,7 +210,12 @@ export function evaluate(
     case 'div':
       return zip(evaluate(e.num, t, raw), evaluate(e.den, t, raw), safeDiv);
     case 'diff':
-      return zip(evaluate(e.a, t, raw), evaluate(e.b, t, raw), (x, y) => x - y);
+      // A zero operand means the field was never reported -- a replica member that has not
+      // checked in yet. Differencing against epoch yields ~56 years of "lag", which reads as
+      // catastrophic rather than as missing.
+      return zip(evaluate(e.a, t, raw), evaluate(e.b, t, raw), (x, y) =>
+        x === 0 || y === 0 ? NaN : x - y,
+      );
     case 'scale': {
       const v = evaluate(e.arg, t, raw);
       const out = new Float64Array(v.length);
@@ -225,13 +244,37 @@ export function evaluate(
 
 /* ------------------------------------------------------------------ units ---- */
 
+/**
+ * Metrics reported in a unit other than the base one, with the multiplier to normalise them.
+ *
+ * FTDC carries no unit metadata, so these come from knowing the server: `serverStatus.mem.*`
+ * is MiB (a raw 956 formats as "956 B" instead of "956 MiB"), and Linux `/proc/meminfo`
+ * values are kB.
+ */
+export const PATH_SCALES: ReadonlyArray<readonly [RegExp, number, Unit]> = [
+  [/(^|\.)mem\.(resident|virtual|mapped|mappedWithJournal)$/, 1024 * 1024, 'bytes'],
+  [/_kb$/, 1024, 'bytes'],
+];
+
+/** Multiplier needed to bring a path to its base unit, or 1. */
+export function scaleOfPath(path: string): number {
+  for (const [pattern, factor] of PATH_SCALES) if (pattern.test(path)) return factor;
+  return 1;
+}
+
 /** Guess a unit from a metric path. FTDC has no unit metadata, so naming is all we have. */
 export function unitOfPath(path: string): Unit {
+  for (const [pattern, , unit] of PATH_SCALES) if (pattern.test(path)) return unit;
+
   const p = path.toLowerCase();
   if (/micros$/.test(p) || p.endsWith('_us')) return 'us';
-  if (/millis$|_ms$|\bms\b/.test(p)) return 'ms';
-  if (p.includes('bytes') || p.endsWith('.size') || /\bmem\.(resident|virtual|mapped)/.test(p)) {
-    // serverStatus.mem.* is reported in MiB, not bytes -- see toBytes() in format.ts.
+  if (/millis$|_ms$|\bpingms$|\bms$/.test(p)) return 'ms';
+  if (/\buptime$|uptimeestimate$/.test(p)) return 'seconds';
+  if (/\.latency$/.test(p)) return 'us'; // opLatencies are microseconds
+  if (
+    p.includes('bytes') ||
+    /(^|\.)(storagesize|freestoragesize|avgobjsize|totalsize|totalindexsize|size)$/.test(p)
+  ) {
     return 'bytes';
   }
   return 'count';

@@ -18,6 +18,7 @@ import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader } from '../src/data/reader.js';
 import { envelope } from '../src/data/downsample.js';
+import { scaleOfPath } from '../src/data/expr.js';
 import { discoverFixtures } from './oracle.js';
 
 const fixtures = discoverFixtures();
@@ -119,13 +120,16 @@ describe.each(fixtures)('capture store: $name', (fixture) => {
     let compared = 0;
 
     for (const [path, want] of expected.series) {
+      // getSeries normalises units (mem.* is MiB, /proc values are kB), so the expectation
+      // taken straight from the decoder has to be scaled the same way.
+      const factor = scaleOfPath(path);
       const got = await reader.getSeries(path);
       expect(got.raw, `${path} should come back at full resolution`).toBe(true);
       expect(got.mean.length, `${path} length`).toBe(want.length);
 
       for (let i = 0; i < want.length; i++) {
         const a = got.mean[i]!;
-        const b = want[i]!;
+        const b = want[i]! * factor;
         if (Number.isNaN(b)) {
           if (!Number.isNaN(a)) {
             throw new Error(`${path}[${i}]: expected NaN (gap), got ${a}`);
