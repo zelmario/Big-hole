@@ -76,23 +76,37 @@ header button { flex-shrink: 0; }
 .catalog { width: 380px; }
 
 /* ---- legend at the foot of each panel (Grafana layout) ---- */
+:root { --legend-row: 18px; --legend-rows: 2; }
+
 .panel { display: flex; flex-direction: column; }
-/* The plot keeps the space: the legend may shrink and scroll, never push it out. */
+/* The plot takes whatever the (hard-capped) legend leaves. */
 .panel .plot { flex: 1 1 auto; min-height: 72px; }
-.legend { flex: 0 1 auto; max-height: 76px; overflow-y: auto; overflow-x: hidden;
-  display: flex; flex-wrap: wrap; align-content: flex-start; gap: 1px 12px;
+
+/* One metric per row, exactly two rows visible, the rest scrolls. A fixed cap keeps every
+   panel the same shape regardless of how many series it carries. */
+.legend { flex: 0 0 auto; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 0;
+  max-height: calc(var(--legend-row) * var(--legend-rows) + 6px);
+  overflow-y: auto; overflow-x: hidden;
   padding: 5px 2px 0; margin-top: 4px; border-top: 1px solid var(--line); }
-.legend-item { display: inline-flex; align-items: center; gap: 6px; background: none;
-  border: 0; padding: 1px 3px; cursor: pointer; font-size: 11px; color: var(--fg);
-  border-radius: 3px; min-width: 0; max-width: 280px; }
+
+.legend-item { display: flex; align-items: center; gap: 6px; width: 100%;
+  height: var(--legend-row); flex: 0 0 auto; background: none; border: 0; padding: 0 3px;
+  cursor: pointer; font-size: 11px; line-height: var(--legend-row); color: var(--fg);
+  border-radius: 3px; text-align: left; }
 .legend-item:hover { background: #232830; }
 .legend-item.off .legend-label { color: var(--muted); text-decoration: line-through; }
 .legend-dash { width: 12px; height: 2px; border-radius: 1px; flex: 0 0 auto; }
-/* min-width:0 is what lets the ellipsis actually engage inside a flex item. */
-.legend-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.legend-value { color: var(--fg); font-weight: 600; margin-left: 4px; flex: 0 0 auto;
+/* min-width:0 is what lets the ellipsis engage inside a flex item. */
+.legend-label { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-value { flex: 0 0 auto; color: var(--fg); font-weight: 600; margin-left: 8px;
   font-variant-numeric: tabular-nums; }
+
+/* Thin scrollbar so two rows stay two rows. */
+.legend::-webkit-scrollbar { width: 8px; }
+.legend::-webkit-scrollbar-thumb { background: #39404c; border-radius: 4px; }
+.legend::-webkit-scrollbar-track { background: transparent; }
+.legend { scrollbar-width: thin; scrollbar-color: #39404c transparent; }
 
 /* ---- time range picker ---- */
 .timerange { position: relative; display: flex; align-items: center; gap: 2px; }
