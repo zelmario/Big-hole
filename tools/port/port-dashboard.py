@@ -40,6 +40,16 @@ GAUGE = re.compile(r"""
 # Panels whose queries are not a plain field list. Values are expression templates; `*`
 # expands against the catalogue so every disk / mount / replica member is picked up.
 HAND = {
+    # Upstream plots only `available`. That was interpretable when the pool was a fixed 128,
+    # but 8.0 tunes it dynamically -- a real capture shows totalTickets settled at 8 -- so
+    # `available` alone says nothing about how close to saturation the server is. Plot the
+    # pool size alongside it.
+    'WiredTiger Tickets': ([
+        'serverStatus.wiredTiger.concurrentTransactions.read.available',
+        'serverStatus.wiredTiger.concurrentTransactions.write.available',
+        'serverStatus.wiredTiger.concurrentTransactions.read.totalTickets',
+        'serverStatus.wiredTiger.concurrentTransactions.write.totalTickets',
+    ], 'count'),
     'Replica members lag': (
         [f'diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)'], 'ms'),
     'Replica members ping': (['replSetGetStatus.members.*.pingMs'], 'ms'),
@@ -61,13 +71,13 @@ HAND = {
     'CPU Usage': ([f'scale(rate(systemMetrics.cpu.{k}_ms), 0.1)'
                    for k in ('user', 'system', 'iowait', 'nice', 'softirq', 'steal', 'idle')], 'percent'),
     'Disk I/O': (['rate(systemMetrics.disks.*.io_time_ms)',
-                  'systemMetrics.disks.*.io_in_progress'], 'count'),
+                  'systemMetrics.disks.*.io_in_progress'], ''),
     'Disk writes and reads': (['rate(systemMetrics.disks.*.reads)',
                                'rate(systemMetrics.disks.*.writes)'], 'per-sec'),
     'Disk writes': (['rate(systemMetrics.disks.*.write_sectors)',
-                     'rate(systemMetrics.disks.*.write_time_ms)'], 'count'),
+                     'rate(systemMetrics.disks.*.write_time_ms)'], ''),
     'Disk reads': (['rate(systemMetrics.disks.*.read_sectors)',
-                    'rate(systemMetrics.disks.*.read_time_ms)'], 'count'),
+                    'rate(systemMetrics.disks.*.read_time_ms)'], ''),
 }
 panels = []
 for p in d.get('panels', []):

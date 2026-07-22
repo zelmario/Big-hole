@@ -28,6 +28,12 @@ export const METRIC_ALIASES: Readonly<Record<string, readonly string[]>> = {
   'serverStatus.wiredTiger.concurrentTransactions.write.out': [
     'serverStatus.queues.execution.write.out',
   ],
+  'serverStatus.wiredTiger.concurrentTransactions.read.totalTickets': [
+    'serverStatus.queues.execution.read.totalTickets',
+  ],
+  'serverStatus.wiredTiger.concurrentTransactions.write.totalTickets': [
+    'serverStatus.queues.execution.write.totalTickets',
+  ],
 };
 
 /**

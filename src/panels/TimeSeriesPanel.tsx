@@ -31,6 +31,22 @@ function legendLabel(expression: string): string {
     .replace(/\blocal\.oplog\.rs\.stats\./g, 'oplog.');
 }
 
+/**
+ * Unit for one series.
+ *
+ * A panel can legitimately mix units -- Connections carries two gauges and a rate -- so the
+ * legend reads each series' own unit while the axis keeps the panel's. An explicit panel unit
+ * still wins, since that is a deliberate statement about the whole panel.
+ */
+function seriesUnit(panel: PanelSpec, metric: string): Unit {
+  if (panel.unit !== undefined) return panel.unit;
+  try {
+    return unitOf(parseExpr(metric));
+  } catch {
+    return 'count';
+  }
+}
+
 function panelUnit(panel: PanelSpec): Unit {
   if (panel.unit !== undefined) return panel.unit;
   const first = panel.metrics[0];
@@ -326,7 +342,9 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
               <span className="legend-dash" style={{ background: off ? '#5a6472' : colourOf(m) }} />
               <span className="legend-label">{legendLabel(m)}</span>
               {value !== undefined && !off && (
-                <span className="legend-value">{formatValue(value, unit)}</span>
+                <span className="legend-value">
+                  {formatValue(value, seriesUnit(panel, m))}
+                </span>
               )}
             </button>
           );

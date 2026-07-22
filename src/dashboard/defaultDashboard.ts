@@ -27,7 +27,7 @@ export interface PanelTemplate {
 
 export const DEFAULT_TEMPLATES: readonly PanelTemplate[] = [
   { kind: "section", title: "WiredTiger", metrics: [], x: 0, y: 0, w: 24, h: 1 },
-  { kind: "chart", title: "WiredTiger Tickets", metrics: ["serverStatus.wiredTiger.concurrentTransactions.write.available", "serverStatus.wiredTiger.concurrentTransactions.read.available"], x: 0, y: 1, w: 14, h: 6 },
+  { kind: "chart", title: "WiredTiger Tickets", metrics: ["serverStatus.wiredTiger.concurrentTransactions.read.available", "serverStatus.wiredTiger.concurrentTransactions.write.available", "serverStatus.wiredTiger.concurrentTransactions.read.totalTickets", "serverStatus.wiredTiger.concurrentTransactions.write.totalTickets"], unit: "count", x: 0, y: 1, w: 14, h: 6 },
   { kind: "chart", title: "WiredTiger cache", metrics: ["serverStatus.wiredTiger.cache.maximum bytes configured", "serverStatus.wiredTiger.cache.bytes currently in the cache"], unit: "bytes", x: 14, y: 1, w: 10, h: 6 },
   { kind: "chart", title: "Mb read into cache / written from cache", metrics: ["rate(serverStatus.wiredTiger.cache.bytes written from cache)", "rate(serverStatus.wiredTiger.cache.bytes read into cache)"], unit: "bytes/s", x: 0, y: 7, w: 6, h: 6 },
   { kind: "chart", title: "Pages Evicted", metrics: ["rate(serverStatus.wiredTiger.cache.modified pages evicted)", "rate(serverStatus.wiredTiger.cache.unmodified pages evicted)"], x: 6, y: 7, w: 8, h: 6 },
@@ -64,10 +64,10 @@ export const DEFAULT_TEMPLATES: readonly PanelTemplate[] = [
   { kind: "chart", title: "CPU Usage", metrics: ["scale(rate(systemMetrics.cpu.user_ms), 0.1)", "scale(rate(systemMetrics.cpu.system_ms), 0.1)", "scale(rate(systemMetrics.cpu.iowait_ms), 0.1)", "scale(rate(systemMetrics.cpu.nice_ms), 0.1)", "scale(rate(systemMetrics.cpu.softirq_ms), 0.1)", "scale(rate(systemMetrics.cpu.steal_ms), 0.1)", "scale(rate(systemMetrics.cpu.idle_ms), 0.1)"], unit: "percent", x: 0, y: 68, w: 8, h: 6 },
   { kind: "chart", title: "Disk writes and reads", metrics: ["rate(systemMetrics.disks.*.reads)", "rate(systemMetrics.disks.*.writes)"], unit: "per-sec", x: 8, y: 69, w: 8, h: 7 },
   { kind: "chart", title: "Memory", metrics: ["systemMetrics.memory.MemAvailable_kb", "systemMetrics.memory.MemFree_kb"], unit: "bytes", x: 16, y: 69, w: 8, h: 7 },
-  { kind: "chart", title: "Disk I/O", metrics: ["rate(systemMetrics.disks.*.io_time_ms)", "systemMetrics.disks.*.io_in_progress"], unit: "count", x: 0, y: 74, w: 8, h: 7 },
-  { kind: "chart", title: "Disk writes", metrics: ["rate(systemMetrics.disks.*.write_sectors)", "rate(systemMetrics.disks.*.write_time_ms)"], unit: "count", x: 8, y: 76, w: 8, h: 7 },
+  { kind: "chart", title: "Disk I/O", metrics: ["rate(systemMetrics.disks.*.io_time_ms)", "systemMetrics.disks.*.io_in_progress"], x: 0, y: 74, w: 8, h: 7 },
+  { kind: "chart", title: "Disk writes", metrics: ["rate(systemMetrics.disks.*.write_sectors)", "rate(systemMetrics.disks.*.write_time_ms)"], x: 8, y: 76, w: 8, h: 7 },
   { kind: "chart", title: "Swap Memory", metrics: ["systemMetrics.memory.SwapFree_kb", "systemMetrics.memory.SwapTotal_kb"], x: 16, y: 76, w: 8, h: 7 },
-  { kind: "chart", title: "Disk reads", metrics: ["rate(systemMetrics.disks.*.read_sectors)", "rate(systemMetrics.disks.*.read_time_ms)"], unit: "count", x: 0, y: 81, w: 8, h: 7 },
+  { kind: "chart", title: "Disk reads", metrics: ["rate(systemMetrics.disks.*.read_sectors)", "rate(systemMetrics.disks.*.read_time_ms)"], x: 0, y: 81, w: 8, h: 7 },
   { kind: "chart", title: "TCP ActiveOpens / AttemptFails / EstabResets", metrics: ["rate(systemMetrics.netstat.Tcp:ActiveOpens)", "rate(systemMetrics.netstat.Tcp:AttemptFails)", "rate(systemMetrics.netstat.Tcp:EstabResets)"], x: 8, y: 83, w: 8, h: 7 },
   { kind: "chart", title: "TCP: InSegs / OutSegs", metrics: ["rate(systemMetrics.netstat.Tcp:InSegs)", "rate(systemMetrics.netstat.Tcp:OutSegs)"], x: 16, y: 83, w: 8, h: 5 },
   { kind: "chart", title: "TCP Routing Issues", metrics: ["rate(systemMetrics.netstat.Ip:OutNoRoutes)"], x: 0, y: 88, w: 8, h: 5 },
