@@ -40,6 +40,15 @@ async function ingest(id: number, captureId: string, files: File[]): Promise<voi
 
   if (candidates.length === 0) throw new Error('no metrics.* files found');
 
+  // OPFS sync access handles are exclusive. A reader left open from a previous capture holds
+  // columns.bin, and both removeDir and createWritable would fail against it -- so releasing
+  // it has to happen before the writer is created, not after ingest finishes.
+  const existing = readers.get(captureId);
+  if (existing !== undefined) {
+    await existing.close();
+    readers.delete(captureId);
+  }
+
   const writer = await CaptureWriter.create(store, {
     captureId,
     sourceFile: candidates.map((f) => f.name).join(', '),
@@ -85,8 +94,6 @@ async function ingest(id: number, captureId: string, files: File[]): Promise<voi
   }
 
   const manifest = await writer.finish();
-  readers.get(captureId)?.close();
-  readers.delete(captureId);
 
   post({
     kind: 'ingested',

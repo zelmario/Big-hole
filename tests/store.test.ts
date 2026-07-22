@@ -217,3 +217,24 @@ describe('envelope', () => {
     expect(Array.from(out.mean).some((x) => Number.isNaN(x))).toBe(true);
   });
 });
+
+describe('FileStore contract', () => {
+  it('removeDir resolves when the directory does not exist', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-contract-'));
+    try {
+      const store = new NodeFileStore(dir);
+      // Both backends must agree here. OPFS removeEntry throws NotFoundError by default,
+      // which broke every first-ever ingest: CaptureWriter clears its target before writing,
+      // and on a fresh origin that target has never existed.
+      await expect(store.removeDir('never-existed')).resolves.toBeUndefined();
+      // Idempotent: a second call after a real create/remove cycle is also fine.
+      const w = await store.createWritable('cap/columns.bin');
+      await w.append(new Uint8Array([1, 2, 3]));
+      await w.close();
+      await expect(store.removeDir('cap')).resolves.toBeUndefined();
+      await expect(store.removeDir('cap')).resolves.toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

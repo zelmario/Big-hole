@@ -31,9 +31,42 @@ export interface FileStore {
   writeText(path: string, text: string): Promise<void>;
   readText(path: string): Promise<string>;
   exists(path: string): Promise<boolean>;
-  /** Remove a whole capture directory. */
+  /**
+   * Remove a whole capture directory.
+   *
+   * **Must resolve, not throw, when the directory does not exist.** Callers use this to clear
+   * a target before writing, so a fresh install would otherwise fail on first use. The two
+   * backends disagree by default here: `fs.rm({force:true})` is silent, OPFS `removeEntry`
+   * throws NotFoundError.
+   */
   removeDir(path: string): Promise<void>;
   listDirs(): Promise<string[]>;
+}
+
+/**
+ * Wrap a backend failure with the operation and path that caused it.
+ *
+ * Raw OPFS errors are close to useless in a bug report -- "A requested file or directory
+ * could not be found at the time an operation was processed" names neither the file nor the
+ * operation.
+ */
+export class FileStoreError extends Error {
+  override readonly name = 'FileStoreError';
+  constructor(op: string, path: string, cause: unknown) {
+    const detail = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+    super(`${op}(${path}) failed -- ${detail}`);
+    this.cause = cause;
+  }
+}
+
+/** The slice of FileSystemSyncAccessHandle we use; not in every lib.dom yet. */
+interface FileSystemSyncAccessHandleLike {
+  read(buf: Uint8Array, opts: { at: number }): number;
+  write(buf: Uint8Array, opts: { at: number }): number;
+  truncate(size: number): void;
+  getSize(): number;
+  flush(): void;
+  close(): void;
 }
 
 /* ------------------------------------------------------------------ OPFS ---- */
@@ -67,11 +100,16 @@ export class OpfsFileStore implements FileStore {
   }
 
   async createWritable(path: string): Promise<WritableFile> {
-    const { dir, name } = await this.resolve(path, true);
-    const handle = await dir.getFileHandle(name, { create: true });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const access = await (handle as any).createSyncAccessHandle();
-    access.truncate(0);
+    let access: FileSystemSyncAccessHandleLike;
+    try {
+      const { dir, name } = await this.resolve(path, true);
+      const handle = await dir.getFileHandle(name, { create: true });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      access = await (handle as any).createSyncAccessHandle();
+      access.truncate(0);
+    } catch (err) {
+      throw new FileStoreError('createWritable', path, err);
+    }
 
     let size = 0;
     return {
@@ -92,11 +130,17 @@ export class OpfsFileStore implements FileStore {
   }
 
   async openReadable(path: string): Promise<ReadableFile> {
-    const { dir, name } = await this.resolve(path, false);
-    const handle = await dir.getFileHandle(name);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const access = await (handle as any).createSyncAccessHandle();
-    const size: number = access.getSize();
+    let access: FileSystemSyncAccessHandleLike;
+    let size: number;
+    try {
+      const { dir, name } = await this.resolve(path, false);
+      const handle = await dir.getFileHandle(name);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      access = await (handle as any).createSyncAccessHandle();
+      size = access.getSize();
+    } catch (err) {
+      throw new FileStoreError('openReadable', path, err);
+    }
 
     return {
       size,
@@ -138,7 +182,15 @@ export class OpfsFileStore implements FileStore {
 
   async removeDir(path: string): Promise<void> {
     const root = await this.root();
-    await root.removeEntry(path, { recursive: true });
+    try {
+      await root.removeEntry(path, { recursive: true });
+    } catch (err) {
+      // Removing something that was never there is not an error. OPFS disagrees and throws
+      // NotFoundError, unlike fs.rm({force:true}) -- which made every first-ever ingest fail
+      // on a fresh origin, since CaptureWriter clears the target directory before writing.
+      if (err instanceof DOMException && err.name === 'NotFoundError') return;
+      throw err;
+    }
   }
 
   async listDirs(): Promise<string[]> {
