@@ -70,14 +70,18 @@ HAND = {
     'Replica members state': (['replSetGetStatus.members.*.state'], 'count'),
     'CPU Usage': ([f'scale(rate(systemMetrics.cpu.{k}_ms), 0.1)'
                    for k in ('user', 'system', 'iowait', 'nice', 'softirq', 'steal', 'idle')], 'percent'),
-    'Disk I/O': (['rate(systemMetrics.disks.*.io_time_ms)',
+    # io_time_ms is milliseconds the device was busy, so ms/s / 10 is utilisation percent --
+    # the standard iostat %util. Upstream plotted the raw ms/s, which reads as an op rate.
+    'Disk I/O': (['scale(rate(systemMetrics.disks.*.io_time_ms), 0.1)',
                   'systemMetrics.disks.*.io_in_progress'], ''),
     'Disk writes and reads': (['rate(systemMetrics.disks.*.reads)',
                                'rate(systemMetrics.disks.*.writes)'], 'per-sec'),
+    # write_sectors is 512-byte sectors (scaled to bytes by PATH_SCALES), so this is
+    # throughput. write_time_ms over writes is average service time -- iostat's w_await.
     'Disk writes': (['rate(systemMetrics.disks.*.write_sectors)',
-                     'rate(systemMetrics.disks.*.write_time_ms)'], ''),
+                     'div(rate(systemMetrics.disks.*.write_time_ms), rate(systemMetrics.disks.*.writes))'], ''),
     'Disk reads': (['rate(systemMetrics.disks.*.read_sectors)',
-                    'rate(systemMetrics.disks.*.read_time_ms)'], ''),
+                    'div(rate(systemMetrics.disks.*.read_time_ms), rate(systemMetrics.disks.*.reads))'], ''),
 }
 panels = []
 for p in d.get('panels', []):

@@ -38,7 +38,10 @@ for (const p of defaultDashboard(new Set(man.paths)).panels) {
     const s = await r.getSeries(m, { maxPoints: 200 });
     const vals = Array.from(s.mean).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
     const med = vals.length ? vals[vals.length >> 1]! : NaN;
-    const max = vals.length ? vals[vals.length - 1]! : NaN;
+    // The envelope max, not the max of bucket means -- otherwise peaks are understated by
+    // exactly the amount downsampling smooths away, which is the thing worth seeing.
+    const peaks = Array.from(s.max).filter((v) => Number.isFinite(v));
+    const max = peaks.length ? Math.max(...peaks) : NaN;
     const unit = p.unit ?? unitOf(parseExpr(m));
     console.log(
       `   ${formatValue(med, unit).padStart(12)}  max ${formatValue(max, unit).padStart(12)}   ${m}`,

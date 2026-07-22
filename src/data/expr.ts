@@ -247,13 +247,26 @@ export function evaluate(
 /**
  * Metrics reported in a unit other than the base one, with the multiplier to normalise them.
  *
- * FTDC carries no unit metadata, so these come from knowing the server: `serverStatus.mem.*`
- * is MiB (a raw 956 formats as "956 B" instead of "956 MiB"), and Linux `/proc/meminfo`
- * values are kB.
+ * FTDC carries no unit metadata, so these are taken from mongod's own collectors rather than
+ * guessed from the names:
+ *
+ * - `serverStatus.mem.{resident,virtual}` -- `ProcessInfo::getResidentSize()` and
+ *   `getVirtualMemorySize()` are both documented "@return mbytes" (`util/processinfo.h`).
+ *   A raw 956 would otherwise format as "956 B" instead of "956 MiB".
+ * - `*_kb` -- `parseProcMemInfoFile` appends the `_kb` suffix only when /proc/meminfo itself
+ *   reports the value in kB (`util/procparser.cpp`), so the suffix is a reliable marker.
+ * - `*_sectors` -- `kDiskFields` names /proc/diskstats columns verbatim with no conversion
+ *   (`util/procparser.cpp`). Linux always reports those in 512-byte sectors regardless of
+ *   the device's physical block size, so they are bytes once scaled.
+ *
+ * CPU is deliberately absent: `convertTicksToMilliSeconds` already normalises USER_HZ to ms
+ * before FTDC sees it, so `*_ms` needs no scaling -- only the /10 that turns ms/s into a
+ * percentage of one core, which the templates do explicitly.
  */
 export const PATH_SCALES: ReadonlyArray<readonly [RegExp, number, Unit]> = [
   [/(^|\.)mem\.(resident|virtual|mapped|mappedWithJournal)$/, 1024 * 1024, 'bytes'],
   [/_kb$/, 1024, 'bytes'],
+  [/_sectors$/, 512, 'bytes'],
 ];
 
 /** Multiplier needed to bring a path to its base unit, or 1. */
@@ -280,6 +293,16 @@ export function unitOfPath(path: string): Unit {
   return 'count';
 }
 
+/**
+ * Unit of an expression with any outer rate()/scale() peeled off.
+ *
+ * `rate(x_ms)` is milliseconds per second; its *base* is still milliseconds, which is what
+ * the dimensional rules below need.
+ */
+function baseUnit(e: Expr): Unit {
+  return e.fn === 'rate' || e.fn === 'scale' ? baseUnit(e.arg) : unitOf(e);
+}
+
 export function unitOf(e: Expr): Unit {
   switch (e.fn) {
     case 'raw':
@@ -290,12 +313,24 @@ export function unitOf(e: Expr): Unit {
       const inner = unitOf(e.arg);
       return inner === 'bytes' ? 'bytes/s' : 'per-sec';
     }
-    case 'div':
-      // Average of a total over a count: latency/ops keeps the numerator's unit.
-      return unitOf(e.num) === 'per-sec' || unitOf(e.num) === 'bytes/s' ? 'count' : unitOf(e.num);
-    case 'scale':
+    case 'div': {
+      // A rate over a rate cancels the per-second and leaves the numerator's own unit:
+      // ms/s over ops/s is milliseconds per operation. This is what makes the latency and
+      // disk-service-time panels read in time rather than as a bare number.
+      if (e.num.fn === 'rate' && e.den.fn === 'rate') return baseUnit(e.num);
+      const n = unitOf(e.num);
+      return n === 'per-sec' || n === 'bytes/s' ? 'count' : n;
+    }
+    case 'scale': {
+      const inner = unitOf(e.arg);
+      // Time accumulated per unit time is dimensionless -- 1000 ms/s is one core, or one
+      // device, fully busy. Scaling by 0.1 expresses that as a percentage, which is how both
+      // CPU usage and iostat's %util are conventionally read.
+      if (inner === 'per-sec' && baseUnit(e.arg) === 'ms' && e.k === 0.1) return 'percent';
+      return inner;
+    }
     case 'diff':
-      return unitOf(e.fn === 'scale' ? e.arg : e.a);
+      return unitOf(e.a);
     case 'sum':
       return unitOf(e.args[0]!);
   }

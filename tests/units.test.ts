@@ -132,3 +132,43 @@ describe('formatting', () => {
     expect(formatValue(value, unit)).toBe(expected);
   });
 });
+
+describe('dimensional analysis', () => {
+  // Units verified against mongod's own collectors, not inferred from names:
+  //   util/processinfo.h    getResidentSize() -> "@return mbytes"
+  //   util/procparser.cpp   parseProcMemInfoFile appends _kb only when /proc says kB
+  //   util/procparser.cpp   kDiskFields names /proc/diskstats verbatim (512-byte sectors)
+  //   util/procparser.cpp   convertTicksToMilliSeconds normalises USER_HZ before FTDC
+  it('scales disk sectors to bytes', () => {
+    expect(scaleOfPath('systemMetrics.disks.nvme0n1.write_sectors')).toBe(512);
+    expect(unitOfPath('systemMetrics.disks.nvme0n1.read_sectors')).toBe('bytes');
+    expect(unitOf(parseExpr('rate(systemMetrics.disks.sda.write_sectors)'))).toBe('bytes/s');
+  });
+
+  it('does not scale CPU, which mongod already converts to ms', () => {
+    expect(scaleOfPath('systemMetrics.cpu.user_ms')).toBe(1);
+    expect(unitOfPath('systemMetrics.cpu.user_ms')).toBe('ms');
+  });
+
+  it('reads a rate over a rate as the numerator per operation', () => {
+    // ms/s over ops/s is ms per op -- not a bare count.
+    expect(
+      unitOf(parseExpr('div(rate(systemMetrics.disks.sda.write_time_ms), rate(systemMetrics.disks.sda.writes))')),
+    ).toBe('ms');
+    expect(
+      unitOf(parseExpr('div(rate(serverStatus.opLatencies.reads.latency), rate(serverStatus.opLatencies.reads.ops))')),
+    ).toBe('us');
+    // Counter over counter really is a ratio.
+    expect(
+      unitOf(parseExpr('div(rate(serverStatus.metrics.queryExecutor.scannedObjects), rate(serverStatus.metrics.document.returned))')),
+    ).toBe('count');
+  });
+
+  it('reads time-per-time scaled by 0.1 as a percentage', () => {
+    // 1000 ms/s is one core, or one device, fully busy.
+    expect(unitOf(parseExpr('scale(rate(systemMetrics.cpu.user_ms), 0.1)'))).toBe('percent');
+    expect(unitOf(parseExpr('scale(rate(systemMetrics.disks.sda.io_time_ms), 0.1)'))).toBe('percent');
+    // A different factor is not a percentage.
+    expect(unitOf(parseExpr('scale(rate(systemMetrics.cpu.user_ms), 2)'))).toBe('per-sec');
+  });
+});

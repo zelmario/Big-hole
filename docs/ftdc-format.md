@@ -478,3 +478,51 @@ Sections: `serverStatus` 1,263 · `systemMetrics` 413 · `replSetGetStatus` 4 (p
 **Doubles are 1.4% of columns.** This is a direct empirical justification for the split
 arithmetic in CORRECTION 3: the expensive exact-64-bit hi/lo path runs on ~1% of columns
 while the fast `Number` path handles ~98%.
+
+
+---
+
+## 8. Units
+
+FTDC carries no unit metadata. Every value is a bare number, so a viewer either knows what
+mongod meant or renders something authoritative-looking and wrong — which is worse than
+rendering nothing.
+
+These are taken from mongod's own collectors rather than inferred from metric names. File
+references are to `mongodb/mongo` at `v8.0`.
+
+| Metric | Actual unit | Source |
+|---|---|---|
+| `serverStatus.mem.{resident,virtual}` | **MiB** | `util/processinfo.h` — `getResidentSize()` / `getVirtualMemorySize()` are both documented `@return mbytes` |
+| `systemMetrics.memory.*_kb` | **kB** | `util/procparser.cpp` — `parseProcMemInfoFile` appends `_kb` *only* when /proc/meminfo reports the kB token, so the suffix is a reliable marker |
+| `systemMetrics.cpu.*_ms` | **ms**, already normalised | `util/procparser.cpp` — `convertTicksToMilliSeconds` divides USER_HZ (`sysconf(_SC_CLK_TCK)`) before FTDC sees it, so no further scaling is needed |
+| `systemMetrics.disks.*_sectors` | **512-byte sectors** | `util/procparser.cpp` — `kDiskFields` names /proc/diskstats columns verbatim with no conversion; Linux always reports those in 512-byte units regardless of physical block size |
+| `systemMetrics.disks.*_time_ms`, `io_time_ms`, `io_queued_ms` | **ms** | same table |
+| `serverStatus.opLatencies.*.latency` | **µs** | cumulative; pair with `.ops` for a per-operation average |
+| `serverStatus.uptime` | **seconds** | |
+| `replSetGetStatus.members.*.pingMs` | **ms** | integer, so sub-millisecond links read as 0 |
+
+### Dimensional rules
+
+Two derived forms recur often enough to be worth stating:
+
+- **A rate over a rate cancels the per-second.** `rate(write_time_ms) / rate(writes)` is
+  milliseconds *per write* — iostat's `await`. Same shape gives average operation latency from
+  `opLatencies`. Treating the result as a bare count loses the unit entirely.
+- **Time accumulated per unit time is dimensionless.** 1000 ms/s is one core, or one device,
+  fully busy — so `× 0.1` expresses it as a percentage. That is how CPU usage and iostat's
+  `%util` are conventionally read, and it is why the templates carry an explicit
+  `scale(..., 0.1)`.
+
+### Counters vs gauges
+
+A gauge is an instantaneous reading; differencing it is meaningless. This matters because the
+upstream Grafana dashboard applies `derivative()` per *panel*, so a gauge sharing a panel with
+counters gets differenced too — which is how `connections.current` came to read `0.5/s`.
+
+Gauges include: `.current`, `.available`, `.active`, `.out`, `.totalTickets`, `.queueLength`,
+`mem.*`, the WiredTiger cache size and dirty-bytes readings, `io_in_progress`, `cursor.open.*`,
+`.health`, `.state`, `pingMs`, `uptime`, and everything from /proc/meminfo.
+
+Verify with `npm run units -- <capture>`, which prints every dashboard series with its unit and
+a formatted median and peak against real data.
