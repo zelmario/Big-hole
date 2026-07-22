@@ -29,6 +29,16 @@ const ALLOWED = new Set<string>([
   // (empty -- nothing in the app needs the network)
 ]);
 
+/**
+ * Strip comments before scanning.
+ *
+ * Prose *about* the privacy promise is not a violation of it, and block comments explaining
+ * why something deliberately avoids localStorage were being flagged as offenders.
+ */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
@@ -72,7 +82,7 @@ describe('privacy', () => {
     const offenders = sources('src').filter(
       (file) =>
         !allowed.includes(file.replace(/\\/g, '/')) &&
-        /localStorage|sessionStorage/.test(readFileSync(file, 'utf8').replace(/\/\/.*$/gm, '')),
+        /localStorage|sessionStorage/.test(stripComments(readFileSync(file, 'utf8'))),
     );
     expect(offenders).toEqual([]);
   });

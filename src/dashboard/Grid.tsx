@@ -1,50 +1,39 @@
-import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
-import { GridLayout, useContainerWidth, type Layout } from 'react-grid-layout';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+// The v1-compatible entry point, shipped by react-grid-layout for exactly this purpose.
+//
+// v2's new API (GridLayout + gridConfig/dragConfig + useContainerWidth) would not start a
+// drag: onDragStart and onDrag never fired, only onDragStop, and the dragged panel never
+// moved -- reproduced in tests/grid.test.tsx. Rather than keep reverse-engineering it, this
+// uses the API that has been stable for years. Revisit if v2 settles.
+import { WidthProvider, Responsive } from 'react-grid-layout/legacy';
+import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 // Required, and NOT shipped by react-grid-layout: its own stylesheet defines only the generic
 // `.react-grid-item > .react-resizable-handle` rule. The positioning that puts the handle at
 // the bottom-right corner (`.react-resizable-handle-se`) and `.react-resizable{position:
-// relative}` live here. Without it the handle renders at the wrong place with no cursor, so
-// resizing is unreachable.
+// relative}` live here. Without it the handle renders in the wrong place with no cursor.
 import 'react-resizable/css/styles.css';
 
 import { TimeSeriesPanel } from '../panels/TimeSeriesPanel.js';
 import { useStore } from '../store/useStore.js';
 import { GRID_COLUMNS } from './layout.js';
 
-/**
- * Config objects are hoisted, not written inline.
- *
- * react-grid-layout v2 merges these with `useMemo(..., [configProp])`, memoised by object
- * identity. An inline literal is a new object every render, so the merge recomputes and the
- * handlers built from it churn.
- */
-const GRID_CONFIG = { cols: GRID_COLUMNS, rowHeight: 30, margin: [12, 12] as [number, number] };
-/** Drag from the header only, so dragging inside a chart still brushes to zoom. */
-const DRAG_CONFIG = { handle: '.drag-handle' };
+const ResponsiveGrid = WidthProvider(Responsive);
 
-/**
- * Draggable, resizable panel grid.
- *
- * react-grid-layout v2 dropped the `WidthProvider` HOC in favour of `useContainerWidth`; the
- * old API still exists under `react-grid-layout/legacy`, but the hook is the supported path.
- */
+/** One breakpoint: the dashboard is a fixed 24-column grid, ported 1:1 from Grafana. */
+const BREAKPOINTS = { lg: 0 };
+const COLS = { lg: GRID_COLUMNS };
+
 export function Grid(): ReactElement {
   const panels = useStore((s) => s.panels);
   const applyGeometry = useStore((s) => s.applyGeometry);
 
-  const { width, containerRef } = useContainerWidth();
-
   /**
-   * Layout held locally while a gesture is in flight.
+   * Layout held locally while a gesture is in flight, committed to the store on stop.
    *
-   * `onLayoutChange` fires continuously during a drag. Writing each intermediate value to the
-   * store fed a fresh `layout` prop back into the grid mid-gesture, which fought its internal
-   * drag state and made panels look immovable. The store is updated on drag/resize *stop*
-   * instead; until then this local copy is what renders.
+   * Persisting every intermediate position would write to localStorage on every mouse move.
    */
   const [draft, setDraft] = useState<Layout | null>(null);
-  const interacting = useRef(false);
 
   const fromPanels = useMemo<Layout>(
     () =>
@@ -57,18 +46,14 @@ export function Grid(): ReactElement {
     [panels],
   );
 
-  const onLayoutChange = useCallback((next: Layout) => {
-    // Mid-gesture this stays local; the store is written once, on stop.
-    if (interacting.current) setDraft(next);
-  }, []);
+  // Anything the store does to the panels -- switching dashboards, adding, removing -- must
+  // win over a stale draft.
+  useEffect(() => setDraft(null), [panels]);
 
-  const onStart = useCallback(() => {
-    interacting.current = true;
-  }, []);
+  const onLayoutChange = useCallback((next: Layout) => setDraft(next), []);
 
   const onStop = useCallback(
     (next: Layout) => {
-      interacting.current = false;
       setDraft(null);
       applyGeometry(next);
     },
@@ -84,27 +69,26 @@ export function Grid(): ReactElement {
   }
 
   return (
-    <div ref={containerRef} className="grid-host">
-      {width > 0 && (
-        <GridLayout
-          className="grid"
-          width={width}
-          layout={draft ?? fromPanels}
-          gridConfig={GRID_CONFIG}
-          dragConfig={DRAG_CONFIG}
-          onLayoutChange={onLayoutChange}
-          onDragStart={onStart}
-          onResizeStart={onStart}
-          onDragStop={onStop}
-          onResizeStop={onStop}
-        >
-          {panels.map((panel) => (
-            <div key={panel.id}>
-              <TimeSeriesPanel panel={panel} />
-            </div>
-          ))}
-        </GridLayout>
-      )}
-    </div>
+    <ResponsiveGrid
+      className="grid"
+      layouts={{ lg: draft ?? fromPanels }}
+      breakpoints={BREAKPOINTS}
+      cols={COLS}
+      rowHeight={30}
+      margin={[12, 12]}
+      // Drag from the header only, so dragging inside a chart still brushes to zoom.
+      draggableHandle=".drag-handle"
+      isDraggable
+      isResizable
+      onLayoutChange={onLayoutChange}
+      onDragStop={onStop}
+      onResizeStop={onStop}
+    >
+      {panels.map((panel) => (
+        <div key={panel.id}>
+          <TimeSeriesPanel panel={panel} />
+        </div>
+      ))}
+    </ResponsiveGrid>
   );
 }

@@ -185,3 +185,8 @@ header { align-items: center; flex-wrap: wrap; }
 .react-grid-item:hover > .react-resizable-handle { opacity: .85; filter: invert(1); }
 .react-grid-item.react-draggable-dragging { z-index: 30; }
 .react-grid-item.resizing { z-index: 30; opacity: .9; }
+
+/* Title is a span until double-clicked, so the whole header stays a drag surface. */
+.panel-title-text { font-size: 12px; font-weight: 600; padding: 2px 4px; border-radius: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: grab; }
+.panel-title-text:hover { background: #0f1115; }

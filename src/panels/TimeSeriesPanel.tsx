@@ -132,6 +132,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 600, h: 160 });
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
 
   const client = useStore((s) => s.client);
   const status = useStore((s) => s.status);
@@ -327,17 +328,33 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   return (
     <div
       className={isFocused ? 'panel focused' : 'panel'}
-      // Focus lives here rather than on the grid item: react-draggable owns that element's
-      // mouse handlers and injects its own via cloneElement.
-      onPointerDownCapture={() => focusPanel(panel.id)}
+      // Click, not pointerdown: it fires after mouseup, so it can never race a drag gesture.
+      onClick={() => focusPanel(panel.id)}
     >
       <div className="panel-head drag-handle">
-        <input
-          className="panel-title"
-          value={panel.title}
-          onChange={(e) => renamePanel(panel.id, e.target.value)}
-          onMouseDown={(e) => e.stopPropagation()}
-        />
+        {editingTitle ? (
+          <input
+            className="panel-title"
+            value={panel.title}
+            autoFocus
+            onChange={(e) => renamePanel(panel.id, e.target.value)}
+            onBlur={() => setEditingTitle(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') setEditingTitle(false);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        ) : (
+          // A plain span, so the whole header is a drag surface. As an input it swallowed
+          // mousedown and any drag started on the title died before the grid saw it.
+          <span
+            className="panel-title-text"
+            title="Double-click to rename"
+            onDoubleClick={() => setEditingTitle(true)}
+          >
+            {panel.title}
+          </span>
+        )}
         {loading && <span className="muted small">…</span>}
         <span className="spacer" />
         {hidden.length > 0 && (
