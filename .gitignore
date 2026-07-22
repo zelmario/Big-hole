@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Fixtures are real captures and can be large; regenerate with `npm run fixtures`.
+# The oracle dumps are derived artifacts. Neither belongs in git.
+sample-data/
+tools/oracle/oracle
+tools/oracle/*.jsonl
+
+.DS_Store
+.idea/
+.vscode/

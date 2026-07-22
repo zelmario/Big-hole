@@ -1,0 +1,22 @@
+{
+  "name": "ftdc-lens",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-native, zero-infrastructure viewer for MongoDB FTDC diagnostic data",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "vitest bench --run",
+    "oracle:build": "bash tools/oracle/build.sh",
+    "fixtures": "bash tools/fixtures/generate.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  }
+}
