@@ -205,25 +205,7 @@ do {
 lo >>>= 0;
 ```
 
-Then branch on the column's BSON type, known from the reference document:
-
-**Integer-family columns** (`Int32`, `Int64`, `Boolean`, `DateTime` — the overwhelming
-majority) — reinterpret the delta as a signed `Number`, then accumulate in `Float64Array`:
-
-```js
-const delta = hi >= 0x80000000
-  ? (hi - 0x100000000) * 0x100000000 + lo   // two's-complement negative
-  : hi * 0x100000000 + lo;
-```
-
-This is *exact*: a delta of `-1` arrives as `hi=0xFFFFFFFF, lo=0xFFFFFFFF` and comes out as
-exactly `-1`. The accumulated value stays exact while `|value| < 2^53`, which holds for every
-realistic FTDC integer — epoch milliseconds are ~1.7e12, and a byte counter would need to
-reach 9 petabytes to break it.
-
-**`Double` columns** — these genuinely need full 64-bit accumulation, because the value being
-delta-encoded is a bit pattern (CORRECTION 1) and is routinely above 2^53. Accumulate hi/lo
-with an explicit carry:
+**Accumulate exactly in hi/lo halves for _every_ column type**, with an explicit carry:
 
 ```js
 const sum = accLo + dLo;
@@ -231,9 +213,39 @@ accLo = sum >>> 0;
 accHi = (accHi + dHi + (sum > 0xFFFFFFFF ? 1 : 0)) >>> 0;
 ```
 
-then convert once per sample via a reusable 8-byte `DataView`: `setUint32(0, accHi);
-setUint32(4, accLo); getFloat64(0)`. Doubles are a small minority of FTDC columns, so the
-expensive path runs rarely.
+Wrapping is intended: a delta of `-1` arrives as `hi=0xFFFFFFFF, lo=0xFFFFFFFF` and wraps
+back to exactly `-1`. Then convert **once per changed sample**, branching on the column's
+declared type. Each case reads straight off the halves, so all four are exact and none needs
+a modulo:
+
+```js
+switch (kind) {
+  case Int32:  return lo | 0;                       // int32(value), sign-extended
+  case Bool:   return (hi !== 0 || lo !== 0) ? 1 : 0;
+  case Double: return f64FromBits(hi, lo);          // CORRECTION 1
+  default:     return (hi >= 0x80000000 ? hi - 0x100000000 : hi) * 0x100000000 + lo;
+}
+```
+
+> **Earlier drafts of this document were wrong here.** They said integer columns could
+> accumulate directly in a `Float64Array` because "|value| < 2^53 holds for every realistic
+> FTDC integer." It does not. **WiredTiger timestamp columns routinely exceed 2^53** — they
+> are `seconds << 32`, so a 2026 timestamp is ~7.7e18. Accumulating such a column in double
+> precision rounds at every sample and drifts a full ULP away from the reference within a few
+> hundred samples. Caught by the oracle test at
+> `wiredTiger.transaction.transaction range of timestamps pinned by a checkpoint`, sample 223:
+> expected `7665349942738697000`, got `7665349942738696000`.
+>
+> Exact hi/lo accumulation with a single conversion at the end is *also* what makes the
+> output match: the reference converts its exact int64 once (int64 → JSON → double), so one
+> correctly-rounded conversion on our side lands on the identical double.
+
+**Known, bounded precision limit.** `Float64Array` storage cannot represent int64 values
+above 2^53 exactly, so WiredTiger timestamp columns are stored as the nearest double —
+a relative error around 1e-16, invisible at any chart scale, and identical to what the
+reference implementation's own consumers see. Every other column is exact. This is a
+storage-representation limit, not an accumulation error; do not "fix" it by reintroducing
+per-sample rounding.
 
 **Zero-run fast path** — when the run counter covers the rest of a column, the value is by
 definition unchanged, so fill it in one call instead of looping:
@@ -291,9 +303,26 @@ describes this correctly.
 For each column: `series[0] = referenceValue`, `series[i] = series[i-1] + delta[i-1]`,
 giving `deltaCount + 1` values (`util.go:48-55`).
 
-Then, per column, apply the type transform recorded during flattening:
-- `Double` → `Float64frombits`
-- everything else → the integer value as-is
+Then apply the per-column type transform recorded during flattening. This is **narrowing,
+not just relabelling** (`bson_restore.go:100-115`):
+
+| Declared type | Restored as |
+|---|---|
+| `Double` | `Float64frombits(value)` |
+| `Int32` | **`int32(value)` — truncated to the low 32 bits, sign-extended** |
+| `Boolean` | `value != 0` |
+| `DateTime` | epoch ms, unchanged |
+| `Int64` and everything else | unchanged |
+
+The `Int32` truncation is not hypothetical. FTDC stores every metric as int64 regardless of
+its declared BSON type, and some columns overflow their declared width:
+`serverStatus.wiredTiger.transaction.transaction range of timestamps currently pinned` is
+declared `Int32` but carries a 64-bit WiredTiger timestamp. The reference decoder truncates
+it to `0`; a decoder that keeps the full accumulator reports `85899345920`.
+
+Match the reference. Every FTDC tool in the ecosystem shows the truncated value, and a
+support tool that disagrees with MongoDB's own tooling on identical bytes is worse than
+useless — the discrepancy will be blamed on the tool, correctly.
 
 ## 5. Timestamps — verified empirically
 

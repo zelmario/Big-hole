@@ -98,13 +98,12 @@ arithmetic and it is 10–40× slower than `Number`. Full design in `docs/ftdc-f
 CORRECTION 3; the shape:
 
 - Read uvarints into `(hi, lo)` 32-bit `Number` halves — no BigInt, no DataView per byte.
-- **Integer-family columns** (`Int32`/`Int64`/`Boolean`/`DateTime`, the vast majority):
-  reinterpret the *delta* exactly via
-  `hi >= 0x80000000 ? (hi - 0x100000000) * 0x100000000 + lo : hi * 0x100000000 + lo`,
-  then accumulate in `Float64Array`. Exact while `|value| < 2^53`, which holds for every
-  realistic FTDC integer.
-- **`Double` columns** only: accumulate hi/lo with explicit carry, convert once per sample
-  through a reusable 8-byte `DataView`. Small minority of columns, so the slow path is rare.
+- **Accumulate exactly in hi/lo for every column type**, with an explicit carry, then convert
+  once per changed sample. Do *not* accumulate integer columns directly in a `Float64Array`:
+  WiredTiger timestamp columns are `seconds << 32` (~7.7e18, above 2^53), and per-sample
+  rounding drifts a full ULP from the reference within a few hundred samples.
+- **Restoration is narrowing, not relabelling.** `Int32` columns truncate to their low 32
+  bits — some carry 64-bit WT timestamps and the reference drops the high word. Match it.
 - **Zero-run fast path**: when the run covers the rest of a column, `out.fill(current, j, n)`
   instead of looping. Collapses idle captures to memset speed — and idle captures are the
   common case in support work.
@@ -113,9 +112,16 @@ Non-negotiable hot-path rules: one allocation per column, no intermediate JS obj
 no closures or `try`/`catch` inside the sample loop, read from `Uint8Array` directly rather
 than `DataView` per byte, reuse the inflate output buffer across chunks.
 
-Benchmark from day one — the oracle harness (M0.5) carries a bench over the same fixtures so
-regressions are caught immediately. Target to beat before considering a WASM rewrite:
-**a one-day single-node capture decoded in under 2 s on a laptop core.**
+**Measured (M1, single core, `npm run bench`):**
+
+| Fixture | Throughput |
+|---|---|
+| busy-replset | 197M values/s |
+| idle | 289M values/s |
+
+A one-day single-node capture (~216M values) decodes in **~1.1 s** worst case, inside the
+2 s target. A 3-node replica-set week is ~23 s single-core, or ~3 s across a worker pool.
+Re-run the bench after any hot-path change; a WASM rewrite is not justified at these numbers.
 
 A Rust/Go WASM decoder stays on the table (M7) but is explicitly *not* the starting point:
 you would be optimising before having a verified-correct baseline, and you need the oracle
