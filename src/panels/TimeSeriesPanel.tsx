@@ -15,6 +15,22 @@ const PALETTE = [
   '#ff780a', '#5794f2', '#fade2a', '#7ee0d1', '#e02f44', '#c0d8ff',
 ];
 
+/**
+ * Trim a legend label to what distinguishes it.
+ *
+ * Full paths are unreadable at panel width -- `rate(common.serverStatus.opcounters.query)` is
+ * mostly prefix shared with every other series in the panel. The role prefix and section are
+ * dropped for display; the full expression stays in the tooltip and in the panel definition.
+ */
+function legendLabel(expression: string): string {
+  return expression
+    .replace(/\b(common|shard|router|configsvr)\./g, '')
+    .replace(/\bserverStatus\./g, '')
+    .replace(/\bsystemMetrics\./g, 'sys.')
+    .replace(/\breplSetGetStatus\./g, 'rs.')
+    .replace(/\blocal\.oplog\.rs\.stats\./g, 'oplog.');
+}
+
 function panelUnit(panel: PanelSpec): Unit {
   if (panel.unit !== undefined) return panel.unit;
   const first = panel.metrics[0];
@@ -299,7 +315,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
               onClick={() => toggleSeries(panel.id, m)}
             >
               <span className="legend-dash" style={{ background: off ? '#5a6472' : colourOf(m) }} />
-              <span className="legend-label">{m}</span>
+              <span className="legend-label">{legendLabel(m)}</span>
               {value !== undefined && !off && (
                 <span className="legend-value">{formatValue(value, unit)}</span>
               )}

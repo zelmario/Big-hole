@@ -77,19 +77,22 @@ header button { flex-shrink: 0; }
 
 /* ---- legend at the foot of each panel (Grafana layout) ---- */
 .panel { display: flex; flex-direction: column; }
-.panel .plot { flex: 1; min-height: 0; }
-.legend { flex: 0 0 auto; max-height: 34%; overflow-y: auto; display: flex;
-  flex-wrap: wrap; gap: 2px 14px; padding: 6px 2px 0; margin-top: 4px;
-  border-top: 1px solid var(--line); }
+/* The plot keeps the space: the legend may shrink and scroll, never push it out. */
+.panel .plot { flex: 1 1 auto; min-height: 72px; }
+.legend { flex: 0 1 auto; max-height: 76px; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-wrap: wrap; align-content: flex-start; gap: 1px 12px;
+  padding: 5px 2px 0; margin-top: 4px; border-top: 1px solid var(--line); }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; background: none;
-  border: 0; padding: 1px 2px; cursor: pointer; font-size: 11px; color: var(--fg);
-  border-radius: 3px; max-width: 100%; }
+  border: 0; padding: 1px 3px; cursor: pointer; font-size: 11px; color: var(--fg);
+  border-radius: 3px; min-width: 0; max-width: 280px; }
 .legend-item:hover { background: #232830; }
 .legend-item.off .legend-label { color: var(--muted); text-decoration: line-through; }
 .legend-dash { width: 12px; height: 2px; border-radius: 1px; flex: 0 0 auto; }
+/* min-width:0 is what lets the ellipsis actually engage inside a flex item. */
 .legend-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.legend-value { color: var(--fg); font-weight: 600; margin-left: 2px; }
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-value { color: var(--fg); font-weight: 600; margin-left: 4px; flex: 0 0 auto;
+  font-variant-numeric: tabular-nums; }
 
 /* ---- time range picker ---- */
 .timerange { position: relative; display: flex; align-items: center; gap: 2px; }
