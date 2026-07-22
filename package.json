@@ -28,6 +28,7 @@
     "fflate": "^0.8.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-grid-layout": "^2.2.3",
     "uplot": "^1.6.32",
     "zustand": "^5.0.14"
   }

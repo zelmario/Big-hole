@@ -60,16 +60,27 @@ describe('privacy', () => {
     );
   });
 
-  it('keeps raw capture data out of localStorage', () => {
-    const offenders: string[] = [];
-    for (const file of sources('src')) {
-      const text = readFileSync(file, 'utf8');
-      if (/localStorage|sessionStorage/.test(text.replace(/\/\/.*$/gm, ''))) {
-        offenders.push(file);
-      }
-    }
-    // Layouts and settings may live here later; series data must not. Revisit this
-    // assertion at M3 when dashboard persistence lands, and narrow it rather than delete it.
+  it('confines localStorage to layout persistence', () => {
+    // Narrowed at M3 when dashboard persistence landed. Layouts and settings may live in
+    // localStorage; capture data must not. Keeping the allowlist to a single small module
+    // means "does anything store user data in the browser" stays a one-file review.
+    const allowed = ['src/dashboard/layout.ts'];
+    const offenders = sources('src').filter(
+      (file) =>
+        !allowed.includes(file.replace(/\\/g, '/')) &&
+        /localStorage|sessionStorage/.test(readFileSync(file, 'utf8').replace(/\/\/.*$/gm, '')),
+    );
     expect(offenders).toEqual([]);
+  });
+
+  it('never persists series data to localStorage', () => {
+    const text = readFileSync('src/dashboard/layout.ts', 'utf8');
+    // The only values written are the layout object; anything reaching for series, columns,
+    // or samples here would mean capture data leaving OPFS for a synchronous browser store.
+    const writes = [...text.matchAll(/localStorage\.setItem\(([^)]*)\)/g)].map((m) => m[1] ?? '');
+    expect(writes.length).toBeGreaterThan(0);
+    for (const w of writes) {
+      expect(w).not.toMatch(/series|columns|samples|values|Float64/i);
+    }
   });
 });

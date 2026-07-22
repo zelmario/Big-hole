@@ -12,9 +12,13 @@ import { useStore } from '../store/useStore.js';
  */
 export function MetricCatalog(): ReactElement {
   const catalog = useStore((s) => s.catalog);
-  const selected = useStore((s) => s.selected);
-  const toggle = useStore((s) => s.toggle);
+  const panels = useStore((s) => s.panels);
+  const focused = useStore((s) => s.focused);
+  const toggle = useStore((s) => s.toggleMetric);
   const status = useStore((s) => s.status);
+
+  const target = panels.find((p) => p.id === focused) ?? panels[0];
+  const selected = target?.metrics ?? [];
 
   const [term, setTerm] = useState('');
   const [showFlat, setShowFlat] = useState(false);
@@ -37,6 +41,9 @@ export function MetricCatalog(): ReactElement {
 
   return (
     <aside className="catalog">
+      <div className="catalog-target muted small">
+        adding to <b>{target?.title ?? 'no panel'}</b>
+      </div>
       <input
         value={term}
         onChange={(e) => setTerm(e.target.value)}
