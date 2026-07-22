@@ -15,6 +15,7 @@ import { act } from 'react';
 import { Grid } from '../src/dashboard/Grid.js';
 import { useStore } from '../src/store/useStore.js';
 import type { PanelSpec } from '../src/dashboard/layout.js';
+import type { ReactElement } from 'react';
 
 // The worker is irrelevant here and jsdom has no Worker; stub the client so panels mount.
 vi.mock('../src/workers/client.js', () => ({
@@ -58,12 +59,41 @@ function drag(node: Element, dx: number, dy: number): void {
   });
 }
 
+// Captured before any test swaps it for a spy; without restoring it, one test's stub leaks
+// into every test after it.
+const realApplyGeometry = useStore.getState().applyGeometry;
+
 afterEach(() => {
   cleanup();
-  useStore.setState({ panels: [], focused: null });
+  useStore.setState({ panels: [], focused: null, applyGeometry: realApplyGeometry });
 });
 
 describe('panel grid', () => {
+  it('settles instead of looping', async () => {
+    // A previous version passed `layouts={{ lg: ... }}` inline. The new object identity every
+    // render made the grid report a layout change, which set state, which produced another
+    // new object -- an infinite loop that hung the tab. Every other test still passed.
+    stubWidth(1200);
+    const applyGeometry = vi.fn();
+    useStore.setState({ status: 'ready', panels, focused: 'a', catalog: [], summary: null, applyGeometry });
+
+    let renders = 0;
+    function Counted(): ReactElement {
+      renders += 1;
+      return <Grid />;
+    }
+    render(<Counted />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+
+    expect(renders, `Grid re-rendered ${renders} times while idle`).toBeLessThan(6);
+    expect(
+      applyGeometry.mock.calls.length,
+      'geometry was written without any gesture',
+    ).toBe(0);
+  });
+
   it('renders one grid item per panel', () => {
     stubWidth(1200);
     mount();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useMemo, type ReactElement } from 'react';
 // The v1-compatible entry point, shipped by react-grid-layout for exactly this purpose.
 //
 // v2's new API (GridLayout + gridConfig/dragConfig + useContainerWidth) would not start a
@@ -28,13 +28,6 @@ export function Grid(): ReactElement {
   const panels = useStore((s) => s.panels);
   const applyGeometry = useStore((s) => s.applyGeometry);
 
-  /**
-   * Layout held locally while a gesture is in flight, committed to the store on stop.
-   *
-   * Persisting every intermediate position would write to localStorage on every mouse move.
-   */
-  const [draft, setDraft] = useState<Layout | null>(null);
-
   const fromPanels = useMemo<Layout>(
     () =>
       panels.map((p) =>
@@ -46,17 +39,19 @@ export function Grid(): ReactElement {
     [panels],
   );
 
-  // Anything the store does to the panels -- switching dashboards, adding, removing -- must
-  // win over a stale draft.
-  useEffect(() => setDraft(null), [panels]);
-
-  const onLayoutChange = useCallback((next: Layout) => setDraft(next), []);
+  /**
+   * The `layouts` object must be memoised.
+   *
+   * Passing `{{ lg: ... }}` inline creates a new object every render. The grid treats that as
+   * a changed layout, calls onLayoutChange, and if that sets state the next render makes
+   * another new object -- an infinite loop that hangs the tab. This is also why there is no
+   * local draft state any more: react-grid-layout owns the layout during a gesture, so the
+   * only thing to do is commit the result when the gesture ends.
+   */
+  const layouts = useMemo(() => ({ lg: fromPanels }), [fromPanels]);
 
   const onStop = useCallback(
-    (next: Layout) => {
-      setDraft(null);
-      applyGeometry(next);
-    },
+    (next: Layout) => applyGeometry(next),
     [applyGeometry],
   );
 
@@ -71,7 +66,7 @@ export function Grid(): ReactElement {
   return (
     <ResponsiveGrid
       className="grid"
-      layouts={{ lg: draft ?? fromPanels }}
+      layouts={layouts}
       breakpoints={BREAKPOINTS}
       cols={COLS}
       rowHeight={30}
@@ -80,7 +75,6 @@ export function Grid(): ReactElement {
       draggableHandle=".drag-handle"
       isDraggable
       isResizable
-      onLayoutChange={onLayoutChange}
       onDragStop={onStop}
       onResizeStop={onStop}
     >
