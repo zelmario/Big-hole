@@ -152,3 +152,20 @@ header { align-items: center; flex-wrap: wrap; }
   padding: 7px 8px; cursor: pointer; font-size: 13px; min-width: 0; }
 .dash-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .link.danger { color: var(--err); }
+
+/* ---- zoom selection ---- */
+/* uPlot's default is rgba(0,0,0,0.07), invisible on a dark theme. */
+.u-select {
+  background: rgba(79, 156, 249, 0.16);
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+}
+.u-select-label {
+  position: absolute; top: 4px; transform: translateX(-50%);
+  background: var(--accent); color: #08111c; font-size: 11px; font-weight: 600;
+  padding: 1px 6px; border-radius: 3px; pointer-events: none; white-space: nowrap; z-index: 10;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- collapsible catalog ---- */
+.catalog { flex: 0 0 380px; }

@@ -83,6 +83,47 @@ function gapPlugin(gaps: () => readonly Gap[]): uPlot.Plugin {
   };
 }
 
+/**
+ * Show what a drag will zoom to.
+ *
+ * uPlot already renders a selection element while dragging, but its default fill is
+ * rgba(0,0,0,0.07) -- invisible on a dark theme, so the gesture gave no feedback about which
+ * window was about to be applied. The element is styled in CSS; this adds a live readout of
+ * the span, which is the part you actually want to judge before releasing.
+ */
+function selectionPlugin(): uPlot.Plugin {
+  let label: HTMLDivElement | null = null;
+
+  return {
+    hooks: {
+      init: (u: uPlot) => {
+        label = document.createElement('div');
+        label.className = 'u-select-label';
+        label.style.display = 'none';
+        u.over.appendChild(label);
+      },
+      // setCursor fires on every pointer move, including while dragging, so the label tracks
+      // the selection as it grows.
+      setCursor: (u: uPlot) => {
+        if (label === null) return;
+        const { left, width } = u.select;
+        if (width > 2) {
+          const from = u.posToVal(left, 'x') * 1000;
+          const to = u.posToVal(left + width, 'x') * 1000;
+          label.textContent = formatValue(to - from, 'ms');
+          label.style.left = `${left + width / 2}px`;
+          label.style.display = 'block';
+        } else {
+          label.style.display = 'none';
+        }
+      },
+      setSelect: (u: uPlot) => {
+        if (label !== null && u.select.width <= 0) label.style.display = 'none';
+      },
+    },
+  };
+}
+
 export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const holder = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
@@ -213,7 +254,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
           size: 62,
         },
       ],
-      plugins: [gapPlugin(() => gapsRef.current)],
+      plugins: [gapPlugin(() => gapsRef.current), selectionPlugin()],
       series: [
         { label: 'time' },
         ...visible.flatMap((s) => {
@@ -256,7 +297,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
             if (u.select.width <= 0) return;
             const from = u.posToVal(u.select.left, 'x') * 1000;
             const to = u.posToVal(u.select.left + u.select.width, 'x') * 1000;
-            u.setSelect({ left: 0, width: 0, top: 0, height: 0 }, false);
+            u.setSelect({ left: 0, width: 0, top: 0, height: 0 }, true);
             setRange([Math.round(from), Math.round(to)]);
           },
         ],

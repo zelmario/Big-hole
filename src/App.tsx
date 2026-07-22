@@ -18,6 +18,8 @@ export function App(): ReactElement {
   const summary = useStore((s) => s.summary);
   const cursor = useStore((s) => s.cursor);
   const showBand = useStore((s) => s.showBand);
+  const showCatalog = useStore((s) => s.showCatalog);
+  const toggleCatalog = useStore((s) => s.toggleCatalog);
   const setShowBand = useStore((s) => s.setShowBand);
   const addPanel = useStore((s) => s.addPanel);
   const dashboard = useStore((s) => s.dashboard);
@@ -76,6 +78,13 @@ export function App(): ReactElement {
         {cursor !== null && <code className="cursor">{ms(cursor)}</code>}
         {status === 'ready' && (
           <>
+            <button
+              className="tr-btn"
+              title={showCatalog ? 'Hide metric catalog' : 'Show metric catalog'}
+              onClick={toggleCatalog}
+            >
+              {showCatalog ? '⯇ metrics' : '⯈ metrics'}
+            </button>
             <DashboardMenu />
             <TimeRange />
             <label className="muted small band-toggle" title="Shade min/max between samples">
@@ -97,7 +106,7 @@ export function App(): ReactElement {
 
       {status === 'ready' ? (
         <main>
-          <MetricCatalog />
+          {showCatalog && <MetricCatalog />}
           <section className="charts">
             <ErrorBoundary>
               <Grid />

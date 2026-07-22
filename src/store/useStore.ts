@@ -58,6 +58,8 @@ interface State {
    * averaged away by downsampling, so it stays available.
    */
   showBand: boolean;
+  /** Metric catalogue visibility; charts take the full width when hidden. */
+  showCatalog: boolean;
 
   /** Saved dashboards, most recently updated first. */
   library: SavedDashboard[];
@@ -81,6 +83,7 @@ interface State {
   setRange(range: [number, number] | null): void;
   setCursor(ms: number | null): void;
   setShowBand(on: boolean): void;
+  toggleCatalog(): void;
 
   saveCurrent(name?: string): void;
   saveAsNew(name: string): void;
@@ -120,6 +123,7 @@ export const useStore = create<State>((set, get) => ({
   range: null,
   cursor: null,
   showBand: false,
+  showCatalog: true,
   library: [],
   currentId: null,
 
@@ -333,6 +337,10 @@ export const useStore = create<State>((set, get) => ({
 
   setShowBand(on) {
     set({ showBand: on });
+  },
+
+  toggleCatalog() {
+    set({ showCatalog: !get().showCatalog });
   },
 
   saveCurrent(name) {
