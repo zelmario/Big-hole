@@ -161,12 +161,22 @@ export class OpfsFileStore implements FileStore {
     await w.close();
   }
 
+  /**
+   * Read a whole small file as text.
+   *
+   * Deliberately NOT via openReadable: that takes a sync access handle, which OPFS makes
+   * exclusive, so two concurrent readers of the same file collide and the loser throws
+   * NoModificationAllowedError. Manifests are read concurrently -- listing captures, opening
+   * one, ingesting another -- and a failure there presents as "this capture does not exist"
+   * rather than as an error. getFile() is a plain read with no exclusivity.
+   */
   async readText(path: string): Promise<string> {
-    const f = await this.openReadable(path);
     try {
-      return new TextDecoder().decode(await f.read(0, f.size));
-    } finally {
-      await f.close();
+      const { dir, name } = await this.resolve(path, false);
+      const handle = await dir.getFileHandle(name);
+      return await (await handle.getFile()).text();
+    } catch (err) {
+      throw new FileStoreError('readText', path, err);
     }
   }
 

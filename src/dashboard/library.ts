@@ -13,6 +13,7 @@
 
 import {
   LAYOUT_VERSION,
+  clearLayout,
   encodeState,
   decodeState,
   type DashboardState,
@@ -164,4 +165,25 @@ export function isDirty(id: string | null, state: DashboardState): boolean {
   const saved = getDashboard(id);
   if (saved === null) return true;
   return JSON.stringify(saved.state.panels) !== JSON.stringify(state.panels);
+}
+
+/**
+ * Wipe every piece of state this app keeps in the browser.
+ *
+ * The recovery path when a stale or hand-edited layout wedges the app at startup. It lives
+ * here, next to the writes, so localStorage access stays confined to this module and
+ * layout.ts -- "does anything store user data in the browser" has to remain a two-file
+ * review, and that is enforced by tests/privacy.test.ts.
+ *
+ * Captures are untouched: they are in OPFS, they are the expensive thing, and a broken
+ * dashboard is no reason to make someone decode 42 hours of FTDC again.
+ */
+export function clearAllLocalState(): void {
+  try {
+    localStorage.removeItem(LIBRARY_KEY);
+    localStorage.removeItem(CURRENT_KEY);
+  } catch {
+    /* private browsing, or a disabled store: nothing to clear */
+  }
+  clearLayout();
 }

@@ -79,6 +79,10 @@ export class FtdcClient {
         this.pending.delete(msg.id);
         entry.resolve(msg.series as never);
         return;
+      case 'captures':
+        this.pending.delete(msg.id);
+        entry.resolve(msg.captures as never);
+        return;
       case 'dropped':
         this.pending.delete(msg.id);
         entry.resolve(undefined as never);
@@ -138,11 +142,20 @@ export class FtdcClient {
     });
   }
 
-  /** Close the reader and delete the capture from OPFS. */
+  /** Every capture already in OPFS, newest first. Reads manifests only. */
+  captures(): Promise<CaptureSummary[]> {
+    return this.send<CaptureSummary[]>(this.worker(0), { kind: 'captures' });
+  }
+
+  /**
+   * Close the reader and delete the capture from OPFS.
+   *
+   * Routes even when the capture was never opened this session -- after a reload the recent
+   * list is read from disk, so "forget" has to reach a capture no worker owns yet. Returning
+   * early there left the bytes on disk while the row vanished from the UI.
+   */
   async drop(captureId: string): Promise<void> {
-    const index = this.owner.get(captureId);
-    if (index === undefined) return;
-    await this.send<void>(this.worker(index), { kind: 'drop', captureId });
+    await this.send<void>(this.route(captureId), { kind: 'drop', captureId });
     this.owner.delete(captureId);
   }
 }

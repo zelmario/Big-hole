@@ -65,6 +65,14 @@ interface State {
   captures: CaptureState[];
   /** Capture the metric catalogue lists, and that catalogue clicks are added for. */
   activeId: string | null;
+  /**
+   * Captures already decoded into OPFS and not currently loaded.
+   *
+   * Ingest produces a durable artifact, so re-opening one costs a manifest read. Without this
+   * a reload sent the user back to the folder picker for a capture that was already sitting
+   * decoded on their own disk.
+   */
+  recent: CaptureSummary[];
 
   panels: PanelSpec[];
   /** Panel that catalog clicks add to, and that renders with a highlight. */
@@ -95,6 +103,12 @@ interface State {
   currentId: string | null;
 
   ingest(sources: SourceFile[]): Promise<void>;
+  /** Refresh the list of captures already in OPFS. */
+  loadRecent(): Promise<void>;
+  /** Re-open previously ingested captures without decoding them again. */
+  reopen(ids: string[]): Promise<void>;
+  /** Delete a capture's bytes from OPFS. */
+  forget(id: string): Promise<void>;
   removeCapture(id: string): Promise<void>;
   toggleCapture(id: string): void;
   setActive(id: string): void;
@@ -177,11 +191,117 @@ function maxStateOf(catalog: readonly CatalogEntry[]): number | undefined {
 }
 
 let captureCounter = 0;
-/** Never reused, so a stale `c1:` reference can never silently alias a different node. */
-function mintCaptureId(): string {
+/**
+ * Never reused within a session, and never colliding with a capture already on disk.
+ *
+ * Two reasons. A stale `c1:` reference in a saved dashboard must not silently alias a
+ * different node; and ingest clears its target directory before writing, so minting an id
+ * that OPFS already holds would destroy a capture the user can still see in the recent list.
+ */
+function mintCaptureId(taken: ReadonlySet<string>): string {
+  while (taken.has(`c${captureCounter}`)) captureCounter++;
   const id = `c${captureCounter}`;
   captureCounter++;
   return id;
+}
+
+
+/**
+ * Fold newly available captures into the dashboard.
+ *
+ * Shared by ingest and reopen, because "a capture arrived" means the same thing either way:
+ * name it unambiguously, decide which layout to show if it is the first, and add the
+ * cross-host panels once a second node exists.
+ */
+function adopt(
+  get: () => State,
+  set: (partial: Partial<State>) => void,
+  added: CaptureState[],
+  first: boolean,
+  failures: string[] = [],
+): void {
+  // Two members of the same replica set can report the same hostname when the bundle was
+  // collected from containers. Keep the folder alongside so they stay tellable apart.
+  const seenLabels = new Map<string, number>();
+  for (const capture of [...get().captures, ...added]) {
+    seenLabels.set(capture.label, (seenLabels.get(capture.label) ?? 0) + 1);
+  }
+  const captures = [
+    ...get().captures,
+    ...added.map((c) =>
+      (seenLabels.get(c.label) ?? 0) > 1
+        ? { ...c, label: `${c.label} (${c.source.split('/').filter(Boolean).pop() ?? c.id})` }
+        : c,
+    ),
+  ];
+
+  set({ captures });
+
+  const available = get().availablePaths();
+  const perCapture = new Map(captures.map((c) => [c.id, c.paths] as const));
+  const known: KnownCapture = (id) => perCapture.has(id);
+
+  let panels: PanelSpec[];
+  let currentId = get().currentId;
+
+  if (first) {
+    // A permalink beats the last-open dashboard, which beats the autosaved working layout,
+    // which beats the built-in default. An explicitly shared link is the strongest statement
+    // of intent.
+    const savedId = getCurrentId();
+    const shared = fromHash(window.location.hash);
+    const saved =
+      shared ??
+      (savedId !== null ? (getDashboard(savedId)?.state ?? null) : null) ??
+      loadLayout();
+
+    let state: DashboardState;
+    if (saved !== null) {
+      // Drop metrics no loaded capture has; a layout built against another server version
+      // should degrade, not produce empty charts.
+      const kept = saved.panels
+        .map((p) =>
+          p.kind === 'section'
+            ? p
+            : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available, known, perCapture)) },
+        )
+        .filter((p) => p.kind === 'section' || p.metrics.length > 0);
+      state =
+        kept.length > 0
+          ? { v: LAYOUT_VERSION, panels: kept, range: saved.range }
+          : defaultDashboard(available);
+    } else {
+      state = defaultDashboard(available);
+    }
+    panels = state.panels;
+    currentId = shared === null ? savedId : null;
+    set({ library: listDashboards(), range: state.range });
+  } else {
+    // Adding a node to a dashboard that is already up: every unqualified panel metric picks
+    // the new capture up on its next fetch, so the layout is left alone.
+    panels = get().panels;
+  }
+
+  // Cross-host panels can only exist now, and only once.
+  const hasCrossHost = panels.some((p) => p.title.startsWith('Across hosts'));
+  if (captures.length > 1 && !hasCrossHost) {
+    const maxY = panels.reduce((m, p) => Math.max(m, p.y + p.h), 0);
+    panels = [...panels, ...crossHostPanels(captures, maxY)];
+  }
+
+  const loaded = new Set(captures.map((c) => c.id));
+  set({
+    status: 'ready',
+    error: failures.length > 0 ? failures.join('; ') : null,
+    panels,
+    currentId,
+    focused: get().focused ?? panels[0]?.id ?? null,
+    activeId: get().activeId ?? captures[0]?.id ?? null,
+    progress: {},
+    // A capture cannot be both open and "recent"; the list is what you could open next.
+    recent: get().recent.filter((c) => !loaded.has(c.captureId)),
+  });
+  persist(panels, get().range);
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -191,6 +311,7 @@ export const useStore = create<State>((set, get) => ({
   progress: {},
   captures: [],
   activeId: null,
+  recent: [],
   panels: [],
   focused: null,
   range: null,
@@ -257,9 +378,17 @@ export const useStore = create<State>((set, get) => ({
     // One capture per worker, decoded concurrently. Sequential ingest would make a three-node
     // replica set take three times as long for no reason -- the files are independent and so
     // are their OPFS directories.
+    // Everything currently loaded, plus everything on disk: ingest clears its target before
+    // writing, so a collision here would silently destroy another capture.
+    const taken = new Set([
+      ...get().captures.map((c) => c.id),
+      ...get().recent.map((c) => c.captureId),
+    ]);
+
     const results = await Promise.all(
       groups.map(async (group): Promise<CaptureState | null> => {
-        const id = mintCaptureId();
+        const id = mintCaptureId(taken);
+        taken.add(id);
         try {
           const onProgress = (p: IngestProgressMessage) =>
             set((s) => ({
@@ -307,88 +436,81 @@ export const useStore = create<State>((set, get) => ({
       return;
     }
 
-    // Two members of the same replica set can report the same hostname when the bundle was
-    // collected from containers. Keep the folder alongside so they stay tellable apart.
-    const seenLabels = new Map<string, number>();
-    for (const capture of [...get().captures, ...added]) {
-      seenLabels.set(capture.label, (seenLabels.get(capture.label) ?? 0) + 1);
+    adopt(get, set, added, first, failures);
+  },
+
+  async loadRecent() {
+    try {
+      const found = await get().client.captures();
+      const loaded = new Set(get().captures.map((c) => c.id));
+      set({
+        recent: found
+          .filter((c) => !loaded.has(c.captureId))
+          .sort((a, b) => b.endMs - a.endMs),
+      });
+    } catch {
+      // OPFS unavailable (private browsing, an old browser): the drop zone still works, and
+      // offering nothing is better than refusing to render.
+      set({ recent: [] });
     }
-    const captures = [
-      ...get().captures,
-      ...added.map((c) =>
-        (seenLabels.get(c.label) ?? 0) > 1
-          ? { ...c, label: `${c.label} (${c.source.split('/').filter(Boolean).pop() ?? c.id})` }
-          : c,
-      ),
-    ];
+  },
 
-    set({ captures });
+  async reopen(ids: string[]) {
+    const first = get().captures.length === 0;
+    const byId = new Map(get().recent.map((c) => [c.captureId, c]));
+    set({ status: 'ingesting', error: null, progress: {} });
 
-    const available = get().availablePaths();
-    const perCapture = new Map(captures.map((c) => [c.id, c.paths] as const));
-    const known: KnownCapture = (id) => perCapture.has(id);
+    const failures: string[] = [];
+    const results = await Promise.all(
+      ids.map(async (id): Promise<CaptureState | null> => {
+        const summary = byId.get(id);
+        if (summary === undefined) return null;
+        try {
+          // The bytes are already columnar in OPFS; this is a manifest read and a catalogue
+          // build, not a decode.
+          const catalog = await get().client.catalog(id);
+          const maxState = maxStateOf(catalog);
+          return {
+            id,
+            label: summary.hostname ?? id,
+            source: '',
+            summary,
+            catalog,
+            paths: new Set(catalog.map((c) => c.path)),
+            ...(maxState !== undefined ? { maxState } : {}),
+            visible: true,
+          };
+        } catch (err) {
+          failures.push(`${summary.hostname ?? id}: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
+        }
+      }),
+    );
 
-    let panels: PanelSpec[];
-    let currentId = get().currentId;
-
-    if (first) {
-      // A permalink beats the last-open dashboard, which beats the autosaved working layout,
-      // which beats the built-in default. An explicitly shared link is the strongest
-      // statement of intent.
-      const savedId = getCurrentId();
-      const shared = fromHash(window.location.hash);
-      const saved =
-        shared ??
-        (savedId !== null ? (getDashboard(savedId)?.state ?? null) : null) ??
-        loadLayout();
-
-      let state: DashboardState;
-      if (saved !== null) {
-        // Drop metrics no loaded capture has; a layout built against another server version
-        // should degrade, not produce empty charts.
-        const kept = saved.panels
-          .map((p) =>
-            p.kind === 'section'
-              ? p
-              : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available, known, perCapture)) },
-          )
-          .filter((p) => p.kind === 'section' || p.metrics.length > 0);
-        state =
-          kept.length > 0
-            ? { v: LAYOUT_VERSION, panels: kept, range: saved.range }
-            : defaultDashboard(available);
-      } else {
-        state = defaultDashboard(available);
-      }
-      panels = state.panels;
-      currentId = shared === null ? savedId : null;
-      set({ library: listDashboards(), range: state.range });
-    } else {
-      // Adding a node to a dashboard that is already up: every unqualified panel metric picks
-      // the new capture up on its next fetch, so the layout is left alone.
-      panels = get().panels;
+    const added = results.filter((c): c is CaptureState => c !== null);
+    if (added.length === 0) {
+      set({
+        status: first ? 'empty' : 'ready',
+        error: failures.join('; ') || 'nothing could be re-opened',
+      });
+      return;
     }
-
-    // Cross-host panels can only exist now, and only once.
-    const hasCrossHost = panels.some((p) => p.title.startsWith('Across hosts'));
-    if (captures.length > 1 && !hasCrossHost) {
-      const maxY = panels.reduce((m, p) => Math.max(m, p.y + p.h), 0);
-      panels = [...panels, ...crossHostPanels(captures, maxY)];
+    // Ids come back from disk, so the session counter has to move past them or the next
+    // ingest would clear a directory that is now open.
+    for (const capture of added) {
+      const n = Number(capture.id.slice(1));
+      if (Number.isFinite(n) && n >= captureCounter) captureCounter = n + 1;
     }
+    adopt(get, set, added, first, failures);
+  },
 
-    set({
-      status: 'ready',
-      error: failures.length > 0 ? failures.join('; ') : null,
-      panels,
-      currentId,
-      focused: get().focused ?? panels[0]?.id ?? null,
-      activeId: get().activeId ?? captures[0]?.id ?? null,
-      progress: {},
-    });
-    persist(panels, get().range);
+  async forget(id: string) {
+    set({ recent: get().recent.filter((c) => c.captureId !== id) });
+    await get().client.drop(id);
   },
 
   async removeCapture(id: string) {
+    const closing = get().captures.find((c) => c.id === id);
     const captures = get().captures.filter((c) => c.id !== id);
     // Drop panels that referred to this capture explicitly -- a cross-host lag panel with one
     // side gone is not a lag panel. Unqualified metrics simply stop fanning out to it.
@@ -398,15 +520,18 @@ export const useStore = create<State>((set, get) => ({
       )
       .filter((p) => p.kind === 'section' || p.metrics.length > 0);
 
+    // Closed, not deleted. The decoded columns stay in OPFS and the capture moves to the
+    // recent list, so putting it back is a manifest read rather than another ingest. Deleting
+    // is a separate, explicit action ("forget").
     set({
       captures,
       panels,
       status: captures.length === 0 ? 'empty' : 'ready',
       activeId: get().activeId === id ? (captures[0]?.id ?? null) : get().activeId,
       range: null,
+      ...(closing !== undefined ? { recent: [closing.summary, ...get().recent] } : {}),
     });
     persist(panels, null);
-    await get().client.drop(id);
   },
 
   toggleCapture(id: string) {
@@ -667,10 +792,17 @@ export const useStore = create<State>((set, get) => ({
   },
 
   reset() {
-    const ids = get().captures.map((c) => c.id);
-    set({ status: 'empty', captures: [], activeId: null, range: null, error: null });
-    // Bytes go with it: leaving OPFS full of captures nobody asked to keep is the kind of
-    // thing that quietly fills a disk.
-    for (const id of ids) void get().client.drop(id);
+    // Closes everything without deleting anything: the captures reappear in the recent list,
+    // where "forget" removes their bytes for real. Clearing the view and destroying decoded
+    // data are different intentions and should not share a button.
+    const closed = get().captures.map((c) => c.summary);
+    set({
+      status: 'empty',
+      captures: [],
+      activeId: null,
+      range: null,
+      error: null,
+      recent: [...closed, ...get().recent],
+    });
   },
 }));

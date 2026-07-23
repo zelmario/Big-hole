@@ -29,13 +29,29 @@ export interface SeriesRequest {
   readonly query: SeriesQuery;
 }
 
+/**
+ * Summaries of every capture already in OPFS.
+ *
+ * Ingest produces a durable artifact, so re-opening one should cost nothing -- but until the
+ * app can see what is on disk it cannot offer that, and a reload sends the user back to the
+ * folder picker for a capture that is already decoded on their own machine.
+ */
+export interface CapturesRequest {
+  readonly kind: 'captures';
+}
+
 /** Close the reader and delete the capture's bytes. Used when a capture is removed. */
 export interface DropRequest {
   readonly kind: 'drop';
   readonly captureId: string;
 }
 
-export type Request = IngestRequest | CatalogRequest | SeriesRequest | DropRequest;
+export type Request =
+  | IngestRequest
+  | CatalogRequest
+  | SeriesRequest
+  | CapturesRequest
+  | DropRequest;
 
 export interface IngestProgressMessage {
   readonly kind: 'progress';
@@ -76,6 +92,7 @@ export type Response =
   | { readonly kind: 'ingested'; readonly id: number; readonly summary: CaptureSummary }
   | { readonly kind: 'catalog'; readonly id: number; readonly entries: CatalogEntry[] }
   | { readonly kind: 'series'; readonly id: number; readonly series: SeriesPayload[] }
+  | { readonly kind: 'captures'; readonly id: number; readonly captures: CaptureSummary[] }
   | { readonly kind: 'dropped'; readonly id: number }
   | { readonly kind: 'error'; readonly id: number; readonly message: string };
 

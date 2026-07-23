@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
 import type { SourceFile } from '../ingest/discover.js';
@@ -15,13 +15,31 @@ import type { SourceFile } from '../ingest/discover.js';
  * another's -- they are all called `metrics.<timestamp>`, and merging them would produce one
  * incoherent timeline rather than three nodes.
  */
+function when(ms: number): string {
+  return new Date(ms).toISOString().replace('T', ' ').slice(0, 16);
+}
+
+function hours(from: number, to: number): string {
+  const h = (to - from) / 3_600_000;
+  return h >= 1 ? `${h.toFixed(1)} h` : `${Math.round(h * 60)} min`;
+}
+
 export function DropZone(): ReactElement {
   const ingest = useStore((s) => s.ingest);
   const status = useStore((s) => s.status);
   const progress = useStore((s) => s.progress);
   const error = useStore((s) => s.error);
+  const recent = useStore((s) => s.recent);
+  const loadRecent = useStore((s) => s.loadRecent);
+  const reopen = useStore((s) => s.reopen);
+  const forget = useStore((s) => s.forget);
   const [hover, setHover] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+
+  // What is already decoded on this machine, asked for once on mount.
+  useEffect(() => {
+    void loadRecent();
+  }, [loadRecent]);
 
   const onDrop = useCallback(
     async (event: React.DragEvent) => {
@@ -108,6 +126,48 @@ export function DropZone(): ReactElement {
         }}
       />
       {error !== null && <p className="error">{error}</p>}
+
+      {/* Ingest produces a durable artifact, so a capture opened before costs a manifest read
+          to put back. Without this the folder picker was the only way in, for data already
+          sitting decoded in OPFS. */}
+      {recent.length > 0 && (
+        <div className="recent">
+          <div className="recent-head muted small">
+            <span>already decoded on this machine</span>
+            {recent.length > 1 && (
+              <button
+                className="link small"
+                onClick={() => void reopen(recent.map((c) => c.captureId))}
+              >
+                open all {recent.length}
+              </button>
+            )}
+          </div>
+          <ul>
+            {recent.map((capture) => (
+              <li key={capture.captureId}>
+                <button className="recent-open" onClick={() => void reopen([capture.captureId])}>
+                  <b>{capture.hostname ?? capture.captureId}</b>
+                  <span className="muted small">
+                    {' '}
+                    {when(capture.startMs)} · {hours(capture.startMs, capture.endMs)} ·{' '}
+                    {capture.sampleCount.toLocaleString()} samples ·{' '}
+                    {capture.pathCount.toLocaleString()} metrics
+                    {capture.mongoVersion !== undefined && ` · ${capture.mongoVersion}`}
+                  </span>
+                </button>
+                <button
+                  className="link small"
+                  title="Delete this capture's decoded data from this browser"
+                  onClick={() => void forget(capture.captureId)}
+                >
+                  forget
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

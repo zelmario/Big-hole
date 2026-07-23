@@ -223,6 +223,40 @@ describe('envelope', () => {
 });
 
 describe('FileStore contract', () => {
+  it('reads the same file concurrently without either read failing', async () => {
+    // OPFS sync access handles are EXCLUSIVE. readText used to take one, so two concurrent
+    // reads of a manifest collided and the loser threw NoModificationAllowedError -- which the
+    // capture list caught and turned into "there are no captures", hiding data that was
+    // sitting on disk. Both backends have to allow this.
+    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-concurrent-'));
+    try {
+      const store = new NodeFileStore(dir);
+      await store.writeText('cap/manifest.json', '{"captureId":"cap"}');
+      const [a, b, c] = await Promise.all([
+        store.readText('cap/manifest.json'),
+        store.readText('cap/manifest.json'),
+        store.readText('cap/manifest.json'),
+      ]);
+      expect(a).toBe('{"captureId":"cap"}');
+      expect(b).toBe(a);
+      expect(c).toBe(a);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('lists capture directories', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-list-'));
+    try {
+      const store = new NodeFileStore(dir);
+      await store.writeText('c0/manifest.json', '{}');
+      await store.writeText('c1/manifest.json', '{}');
+      expect((await store.listDirs()).sort()).toEqual(['c0', 'c1']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('removeDir resolves when the directory does not exist', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-contract-'));
     try {

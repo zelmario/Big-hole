@@ -11,8 +11,10 @@ import { decodeFTDC, readMetadata } from '../ftdc/index.js';
 import { OpfsFileStore } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
 import { CaptureReader } from '../data/reader.js';
+import type { CaptureManifest } from '../data/types.js';
 import {
   summarise,
+  type CaptureSummary,
   type Request,
   type Response,
   type SeriesPayload,
@@ -159,6 +161,32 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         ]);
 
         post({ kind: 'series', id, series }, transfer);
+        break;
+      }
+
+      case 'captures': {
+        // Read manifests only -- no reader is opened, so this cannot collide with the sync
+        // access handle another worker holds on the same capture's columns.bin.
+        const dirs = await store.listDirs();
+        const found: CaptureSummary[] = [];
+        const unreadable: string[] = [];
+        for (const dir of dirs) {
+          try {
+            const manifest = JSON.parse(
+              await store.readText(`${dir}/manifest.json`),
+            ) as CaptureManifest;
+            found.push(summarise(manifest, []));
+          } catch (err) {
+            // A capture killed mid-ingest genuinely has no manifest, and skipping it is right.
+            // Anything else here means a readable capture is being hidden, which looks exactly
+            // like "it was never ingested" -- so it does not get to be silent.
+            unreadable.push(`${dir}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+        if (found.length === 0 && unreadable.length > 0) {
+          throw new Error(`no capture could be listed -- ${unreadable.join('; ')}`);
+        }
+        post({ kind: 'captures', id, captures: found });
         break;
       }
 

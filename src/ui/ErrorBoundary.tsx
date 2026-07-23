@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { clearAllLocalState } from '../dashboard/library.js';
+
 /**
  * Keep a render failure visible.
  *
@@ -30,12 +32,15 @@ export class ErrorBoundary extends Component<
       <div className="drop">
         <h2>Something broke while rendering</h2>
         <p className="error">{error.message}</p>
+        <pre className="muted small fatal-stack">
+          {(error.stack ?? '').split('\n').slice(1, 5).join('\n')}
+        </pre>
         <p className="muted small">
           The capture itself is still on disk. Resetting the layout usually clears this.
         </p>
         <button
           onClick={() => {
-            localStorage.removeItem('ftdc-lens:layout');
+            clearAllLocalState();
             window.location.hash = '';
             window.location.reload();
           }}

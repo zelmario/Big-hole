@@ -220,3 +220,16 @@ header { align-items: center; flex-wrap: wrap; }
 /* With the whole viewport to work with, show more of the legend before it scrolls -- the
    two-row cap exists to keep tiled panels the same shape, which no longer applies. */
 .maximized-host .legend { max-height: calc(var(--legend-row) * 8 + 6px); }
+
+/* ---- previously ingested captures ---- */
+.recent { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 12px;
+  text-align: left; max-width: 640px; }
+.recent-head { display: flex; align-items: center; justify-content: space-between; }
+.recent ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.recent li { display: flex; align-items: center; gap: 8px; }
+.recent-open { flex: 1; text-align: left; background: none; border: 0; color: var(--fg);
+  padding: 6px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.recent-open:hover { background: #232830; }
+/* A start-up failure has to be readable, so the stack is not hidden behind a console. */
+.fatal-stack { white-space: pre-wrap; text-align: left; max-width: 700px; margin: 8px auto;
+  opacity: .75; }
