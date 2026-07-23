@@ -66,6 +66,15 @@ const report = await page.evaluate(() => {
 console.log(JSON.stringify(report, null, 2));
 await page.screenshot({ path: 'tools/browser/multi.png' });
 
+// The CPU panel is the one whose units changed; capture it on its own.
+const cpu = page.locator('.panel', { hasText: 'CPU Usage' }).first();
+if (await cpu.count()) {
+  await cpu.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(2500);
+  await cpu.screenshot({ path: 'tools/browser/multi-cpu.png' });
+  console.log('cpu legend:', JSON.stringify(await cpu.locator('.legend-item').allInnerTexts()));
+}
+
 // --- maximize a panel: it must leave the grid, fill the area, and come back on Escape ---
 await page.locator('.panel-head button[title*="aximize"]').first().click();
 await page.waitForTimeout(1500);
