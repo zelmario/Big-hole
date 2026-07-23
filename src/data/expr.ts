@@ -331,6 +331,11 @@ export function unitOf(e: Expr): Unit {
         const base = baseUnit(e.arg);
         if (base === 'ms' && e.k === 0.1) return 'percent';
         if (base === 'us' && e.k === 0.0001) return 'percent';
+        // Scaled all the way to a plain ratio rather than a percentage. /proc/diskstats'
+        // weighted queue time over elapsed time is the average number of requests in flight --
+        // a count, and reading it as "18/s" invites it to be mistaken for an IOPS figure.
+        if (base === 'ms' && e.k === 0.001) return 'count';
+        if (base === 'us' && e.k === 0.000001) return 'count';
       }
       return inner;
     }

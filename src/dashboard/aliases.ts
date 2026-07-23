@@ -37,13 +37,15 @@ export const METRIC_ALIASES: Readonly<Record<string, readonly string[]>> = {
 
   // The oplog's collStats moved under a `storageStats` sub-document in 7.0. Observed across
   // the whole matrix (`npm run catalogs`): 4.4, 5.0 and 6.0 report the flat form, 7.0 and 8.0
-  // the nested one. Without these, "Storage Size" and "avg Obj Size" -- the panels that answer
-  // "how much oplog window is left" -- silently vanished on every server older than 7.0.
-  'local.oplog.rs.stats.storageStats.storageSize': ['local.oplog.rs.stats.storageSize'],
-  'local.oplog.rs.stats.storageStats.freeStorageSize': [
-    'local.oplog.rs.stats.freeStorageSize',
+  // the nested one. The Big-hole dashboard was written against the flat form, so that is the
+  // template name and the nested one is the alternative. Without these, "Storage Size" and
+  // "avg Obj Size" -- the panels that answer "how much oplog window is left" -- silently
+  // vanish on one side or the other of the 7.0 boundary.
+  'local.oplog.rs.stats.storageSize': ['local.oplog.rs.stats.storageStats.storageSize'],
+  'local.oplog.rs.stats.freeStorageSize': [
+    'local.oplog.rs.stats.storageStats.freeStorageSize',
   ],
-  'local.oplog.rs.stats.storageStats.avgObjSize': ['local.oplog.rs.stats.avgObjSize'],
+  'local.oplog.rs.stats.avgObjSize': ['local.oplog.rs.stats.storageStats.avgObjSize'],
 };
 
 /**

@@ -44,9 +44,9 @@ const ESSENTIAL: ReadonlyArray<[string, string]> = [
   // The oplog collStats moved under `storageStats` in 7.0, and nothing said so: "Storage Size"
   // and "avg Obj Size" simply stopped existing on 4.4/5.0/6.0. Oplog window is a first
   // question in most replication investigations, so these are essential rather than nice.
-  ['oplog size', 'local.oplog.rs.stats.storageStats.storageSize'],
-  ['oplog free space', 'local.oplog.rs.stats.storageStats.freeStorageSize'],
-  ['oplog avg doc size', 'local.oplog.rs.stats.storageStats.avgObjSize'],
+  ['oplog size', 'local.oplog.rs.stats.storageSize'],
+  ['oplog free space', 'local.oplog.rs.stats.freeStorageSize'],
+  ['oplog avg doc size', 'local.oplog.rs.stats.avgObjSize'],
 ];
 
 interface Capture {

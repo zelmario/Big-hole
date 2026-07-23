@@ -39,49 +39,77 @@ GAUGE = re.compile(r"""
 
 # Panels whose queries are not a plain field list. Values are expression templates; `*`
 # expands against the catalogue so every disk / mount / replica member is picked up.
+CPU_TOTAL = 'sum(' + ', '.join(
+    f'rate(systemMetrics.cpu.{k}_ms)'
+    for k in ('user', 'system', 'iowait', 'nice', 'softirq', 'steal', 'idle')
+) + ')'
+
 HAND = {
-    # Upstream plots only `available`. That was interpretable when the pool was a fixed 128,
-    # but 8.0 tunes it dynamically -- a real capture shows totalTickets settled at 8 -- so
-    # `available` alone says nothing about how close to saturation the server is. Plot the
-    # pool size alongside it.
+    # Exactly Big-hole's two series. `totalTickets` is worth having on 8.0, where the pool is
+    # tuned dynamically and `available: 8` alone cannot tell you how close to saturation the
+    # server is -- but it is one click away in the catalogue, and this panel is the dashboard's.
     'WiredTiger Tickets': ([
         'serverStatus.wiredTiger.concurrentTransactions.read.available',
         'serverStatus.wiredTiger.concurrentTransactions.write.available',
-        'serverStatus.wiredTiger.concurrentTransactions.read.totalTickets',
-        'serverStatus.wiredTiger.concurrentTransactions.write.totalTickets',
     ], 'count'),
+    # CORRECTION. Grafana computed (localTime - lastAppliedWallTime) / 1000 and labelled the
+    # result `ms`. Both are millisecond timestamps, so the difference is already milliseconds;
+    # dividing again makes it seconds while the axis still says ms, and 1.08 s of replica lag
+    # renders as "1.08 ms". Dropping the /1000 is what makes the number mean its label.
     'Replica members lag': (
         [f'diff(serverStatus.localTime, replSetGetStatus.members.*.lastAppliedWallTime)'], 'ms'),
     'Replica members ping': (['replSetGetStatus.members.*.pingMs'], 'ms'),
-    # Upstream plots rate(latency), i.e. microseconds accumulated per second -- a utilisation
-    # figure, not a latency, and it renders as "3.8 s" for a healthy server. Average latency
-    # per operation is what the panel title promises.
+    # CORRECTION (label, via a scale). Grafana plotted the rate and labelled it µs, but µs
+    # accumulated per second is not microseconds -- it is a fraction of wall time, and 1e6 µs/s
+    # is 100% of it. As a percentage the panel answers "how much of the time was this server
+    # under flow control", which is the question.
+    'FlowControl isLagged': (
+        ['scale(rate(serverStatus.flowControl.isLaggedTimeMicros), 0.0001)'], 'percent'),
+    # CORRECTION. Grafana plots rate(latency): microseconds accumulated per second, which is a
+    # utilisation figure, not a latency. Average latency per operation is what the panel title
+    # promises and what a support engineer reads it for.
     'Latency': ([f'div(rate(serverStatus.opLatencies.{k}.latency), '
                  f'rate(serverStatus.opLatencies.{k}.ops))' for k in ('reads','writes','commands')], 'us'),
-    # These are operations per second, not microseconds; upstream's unit was wrong.
+    # CORRECTION (label only). These are operations per second; Grafana's unit said µs.
     'Operations latencies op': ([f'rate(serverStatus.opLatencies.{k}.ops)'
                                  for k in ('reads','writes','commands')], 'per-sec'),
-    # The title promises a ratio; upstream plotted the two raw counters side by side.
+    # CORRECTION. Grafana divided the two cumulative counters, which yields the average over
+    # the server's whole uptime and barely moves. Dividing the rates gives the ratio right now,
+    # which is what makes a bad query plan visible when it starts.
     'Query Targeting: Scanned Objects / Returned ': (
         ['div(rate(serverStatus.metrics.queryExecutor.scannedObjects), '
          'rate(serverStatus.metrics.document.returned))'], 'count'),
-    # Upstream hardcoded members 0/1/2; glob so any set size works.
+    # FAN-OUT. Grafana hardcoded members 0/1/2 (with a "// Add more members as needed" note in
+    # the Flux); the glob expands to whatever the capture has.
     'Replica members health': (['replSetGetStatus.members.*.health'], 'count'),
     'Replica members state': (['replSetGetStatus.members.*.state'], 'count'),
-    'CPU Usage': ([f'scale(rate(systemMetrics.cpu.{k}_ms), 0.1)'
-                   for k in ('user', 'system', 'iowait', 'nice', 'softirq', 'steal', 'idle')], 'percent'),
+    # Big-hole's three series -- user, system, iowait -- as a share of the machine's total CPU:
+    # 100 * user / (user + system + iowait + nice + softirq + steal + idle), which is what its
+    # two chained map() steps computed. Bounded 0-100 whatever the core count, and immune to a
+    # stalled systemMetrics collector catching up in one sample, because numerator and
+    # denominator stretch together.
+    'CPU Usage': ([f'pct(rate(systemMetrics.cpu.{k}_ms), ' + CPU_TOTAL + ')'
+                   for k in ('user', 'system', 'iowait')], 'percent'),
+    # CORRECTION. Same three fields Grafana used, each read as what /proc/diskstats means:
+    # io_in_progress is a gauge (requests in flight now) and differencing it is meaningless;
     # io_time_ms is milliseconds the device was busy, so ms/s / 10 is utilisation percent --
-    # the standard iostat %util. Upstream plotted the raw ms/s, which reads as an op rate.
+    # iostat's %util; io_queued_ms is weighted time in queue, so ms/s / 1000 is average queue
+    # depth. Grafana differenced all three and plotted them as bare numbers.
     'Disk I/O': (['scale(rate(systemMetrics.disks.*.io_time_ms), 0.1)',
+                  'scale(rate(systemMetrics.disks.*.io_queued_ms), 0.001)',
                   'systemMetrics.disks.*.io_in_progress'], ''),
     'Disk writes and reads': (['rate(systemMetrics.disks.*.reads)',
                                'rate(systemMetrics.disks.*.writes)'], 'per-sec'),
-    # write_sectors is 512-byte sectors (scaled to bytes by PATH_SCALES), so this is
-    # throughput. write_time_ms over writes is average service time -- iostat's w_await.
+    # CORRECTION, plus Big-hole's writes_merged. write_sectors is 512-byte sectors (scaled to
+    # bytes by PATH_SCALES), so this is throughput. write_time_ms alone is milliseconds of
+    # service time accumulated per second; over the write count it is average service time,
+    # iostat's w_await, which is the number anyone reads this panel for.
     'Disk writes': (['rate(systemMetrics.disks.*.write_sectors)',
-                     'div(rate(systemMetrics.disks.*.write_time_ms), rate(systemMetrics.disks.*.writes))'], ''),
+                     'div(rate(systemMetrics.disks.*.write_time_ms), rate(systemMetrics.disks.*.writes))',
+                     'rate(systemMetrics.disks.*.writes_merged)'], ''),
     'Disk reads': (['rate(systemMetrics.disks.*.read_sectors)',
-                    'div(rate(systemMetrics.disks.*.read_time_ms), rate(systemMetrics.disks.*.reads))'], ''),
+                    'div(rate(systemMetrics.disks.*.read_time_ms), rate(systemMetrics.disks.*.reads))',
+                    'rate(systemMetrics.disks.*.reads_merged)'], ''),
 }
 panels = []
 for p in d.get('panels', []):
@@ -126,13 +154,17 @@ out = [
     '/**',
     ' * Default dashboard.',
     ' *',
-    ' * Ported from the Grafana dashboard in devops-land/mongodb_ftdc_viewer (MIT), which is',
-    ' * itself a descendant of zelmario/Big-hole. Generated by tools/port/port-dashboard.py --',
-    ' * regenerate rather than hand-editing if the upstream dashboard changes.',
+    ' * Ported panel for panel from zelmario/Big-hole (grafana/dashboards/dashboard.json,',
+    ' * vendored at tools/port/big-hole-dashboard.json). Generated by',
+    ' * tools/port/port-dashboard.py -- regenerate rather than hand-editing.',
     ' *',
-    ' * Grafana applied derivative() to most panels, so those metrics are wrapped in rate()',
-    ' * here. Panels whose Flux fanned out over a regex (per-disk, per-replica-member) use a `*`',
-    ' * glob, expanded against the capture catalogue at load time.',
+    ' * Titles, order, geometry and series are Big-hole\'s. Grafana applied derivative() to most',
+    ' * panels, so those metrics are wrapped in rate() here, except on gauges: Grafana',
+    ' * differenced whole streams, so `connections.current` was being plotted as a rate.',
+    ' *',
+    ' * Panels Grafana fanned out by regex or hardcoded index (per-disk, per-replica-member) use',
+    ' * a `*` glob, expanded against the capture catalogue at load time. A handful of queries',
+    ' * whose math did not match their title are corrected; each is justified in the porter.',
     ' *',
     ' * Grid is 24 columns to match Grafana 1:1.',
     ' */',

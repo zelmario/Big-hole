@@ -180,6 +180,14 @@ describe('dimensional analysis', () => {
     ).toBe('per-sec');
   });
 
+  it('reads time-per-time scaled to a plain ratio as a count', () => {
+    // Average queue depth from /proc/diskstats' weighted io_queued_ms. Left as 'per-sec' it
+    // renders "18/s", which reads as an IOPS figure rather than 18 requests in flight.
+    expect(unitOf(parseExpr('scale(rate(systemMetrics.disks.sda.io_queued_ms), 0.001)'))).toBe(
+      'count',
+    );
+  });
+
   it('reads a share of a total as a percentage', () => {
     // CPU usage as Big-hole computed it: 100 * user / (sum of every cpu counter). Bounded
     // 0-100 whatever the core count, and immune to a stalled collector catching up, because
