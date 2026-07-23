@@ -8,7 +8,9 @@
 /// <reference lib="webworker" />
 
 import { decodeFTDC, readMetadata } from '../ftdc/index.js';
-import { analyzeLines } from '../logs/analyze.js';
+import { LogAnalyzer } from '../logs/analyze.js';
+import { emptyStats, parseLine } from '../logs/parse.js';
+import { rangeFor } from '../logs/locate.js';
 import { OpfsFileStore } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
 import { CaptureReader } from '../data/reader.js';
@@ -16,6 +18,7 @@ import type { CaptureManifest } from '../data/types.js';
 import {
   summarise,
   type CaptureSummary,
+  type LogWindowLine,
   type Request,
   type Response,
   type SeriesPayload,
@@ -23,6 +26,13 @@ import {
 
 const store = new OpfsFileStore();
 const readers = new Map<string, CaptureReader>();
+/**
+ * Log files per capture, kept as handles rather than contents.
+ *
+ * A File is a reference to bytes on disk; holding one costs nothing and makes "show me the log
+ * around this moment" a positioned read instead of a reason to keep 2.5 GB in memory.
+ */
+const logFiles = new Map<string, File[]>();
 
 function post(message: Response, transfer: Transferable[] = []): void {
   (self as unknown as Worker).postMessage(message, transfer);
@@ -165,27 +175,107 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         break;
       }
 
-      case 'logs': {
-        // Streamed, not read whole: a support bundle's mongod.log runs to tens of megabytes and
-        // there is no reason to hold the text and the parsed objects at once.
-        const lines: string[] = [];
-        for (const file of request.files) {
-          const stream = file.stream().pipeThrough(new TextDecoderStream());
-          const readerStream = stream.getReader();
-          let carry = '';
-          for (;;) {
-            const { done, value } = await readerStream.read();
-            if (done) break;
-            const text = carry + value;
-            const parts = text.split('\n');
-            // The last piece may be half a line; it is completed by the next chunk.
-            carry = parts.pop() ?? '';
-            for (const part of parts) lines.push(part);
+      case 'logWindow': {
+        // The File handle is still held from ingest, so this is a positioned read of a few
+        // kilobytes -- no part of the log had to be kept in memory to make it possible.
+        const held = logFiles.get(request.captureId) ?? [];
+        const lines: LogWindowLine[] = [];
+        const from = request.tMs - request.radiusMs;
+        const to = request.tMs + request.radiusMs;
+
+        for (const file of held) {
+          const range = await rangeFor(file, from, to);
+          if (range.to <= range.from) continue;
+          const text = new TextDecoder().decode(
+            await file.slice(range.from, Math.min(range.to, range.from + 4 * 1024 * 1024)).arrayBuffer(),
+          );
+          const stats = emptyStats();
+          for (const raw of text.split('\n')) {
+            const line = parseLine(raw, stats);
+            if (line === null || line.tMs < from || line.tMs > to) continue;
+            const at = raw.indexOf('"attr":');
+            lines.push({
+              tMs: line.tMs,
+              severity: line.s,
+              component: line.c,
+              msg: line.msg,
+              // Enough to identify the operation; the whole command document is not worth
+              // moving across the port to be ellipsized in a 300-pixel column.
+              attr: at < 0 ? '' : raw.slice(at + 7, at + 407),
+            });
+            if (lines.length >= request.maxLines * 4) break;
           }
-          if (carry.length > 0) lines.push(carry);
         }
 
-        const analysis = analyzeLines(lines);
+        lines.sort((a, b) => Math.abs(a.tMs - request.tMs) - Math.abs(b.tMs - request.tMs));
+        const near = lines.slice(0, request.maxLines).sort((a, b) => a.tMs - b.tMs);
+        post({ kind: 'logWindow', id, lines: near });
+        break;
+      }
+
+      case 'logs': {
+        // Streamed into the analyzer, never collected. Real bundles carry mongo_log_36h.log at
+        // 2.58 GB; holding those lines as JS strings is an out-of-memory crash, not a slow
+        // parse. Memory here is the accumulators only, a few MB whatever the file size.
+        const analyzer = new LogAnalyzer();
+        let bytes = 0;
+        let lines = 0;
+        let done = 0;
+        let skipped = 0;
+        // Held, not read: clicking an event later reads the raw lines straight from disk.
+        logFiles.set(request.captureId, request.files);
+
+        for (const file of request.files) {
+          // Only the part covering the capture. On a 36-hour log beside a 4-hour capture this
+          // is the difference between reading 2.5 GB and reading a few hundred megabytes.
+          const range = await rangeFor(file, request.fromMs, request.toMs);
+          skipped += file.size - (range.to - range.from);
+          if (range.to <= range.from) {
+            done++;
+            continue;
+          }
+          const reader = file
+            .slice(range.from, range.to)
+            .stream()
+            .pipeThrough(new TextDecoderStream())
+            .getReader();
+          let carry = '';
+          for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            bytes += chunk.value.length;
+            const parts = (carry + chunk.value).split('\n');
+            // The last piece may be half a line; the next chunk completes it.
+            carry = parts.pop() ?? '';
+            for (const part of parts) {
+              analyzer.push(part);
+              lines++;
+            }
+            // A 2.5 GB log takes a while. Say so, or it looks like a hang.
+            if (lines % 200_000 < parts.length) {
+              post({
+                kind: 'progress',
+                id,
+                file: file.name,
+                filesDone: done,
+                filesTotal: request.files.length,
+                samples: lines,
+                bytesWritten: bytes,
+              });
+            }
+          }
+          if (carry.length > 0) analyzer.push(carry);
+          done++;
+        }
+
+        const analysis = analyzer.finish();
+        if (skipped > 0) {
+          // eslint-disable-next-line no-console
+          console.info(
+            `ftdc-lens: indexed ${(bytes / 1e6).toFixed(0)} MB of log, skipped ` +
+              `${(skipped / 1e6).toFixed(0)} MB outside the capture window`,
+          );
+        }
         const transfer: Transferable[] = Object.values(analysis.series).flatMap((s) => [
           s.t.buffer,
           s.v.buffer,

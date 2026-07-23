@@ -40,6 +40,24 @@ export interface LogsRequest {
   readonly kind: 'logs';
   readonly captureId: string;
   readonly files: File[];
+  /**
+   * Only index the part of the log covering this window -- normally the capture's own span.
+   *
+   * A bundle pairs a 36-hour, 2.58 GB log with a capture covering a few hours of it. Logs are
+   * chronological and File.slice() is lazy, so the range is found by binary search and the
+   * rest of the file is never read.
+   */
+  readonly fromMs?: number;
+  readonly toMs?: number;
+}
+
+/** Raw log lines around an instant, read on demand from the file the worker still holds. */
+export interface LogWindowRequest {
+  readonly kind: 'logWindow';
+  readonly captureId: string;
+  readonly tMs: number;
+  readonly radiusMs: number;
+  readonly maxLines: number;
 }
 
 /**
@@ -64,6 +82,7 @@ export type Request =
   | CatalogRequest
   | SeriesRequest
   | LogsRequest
+  | LogWindowRequest
   | CapturesRequest
   | DropRequest;
 
@@ -108,8 +127,25 @@ export type Response =
   | { readonly kind: 'series'; readonly id: number; readonly series: SeriesPayload[] }
   | { readonly kind: 'captures'; readonly id: number; readonly captures: CaptureSummary[] }
   | { readonly kind: 'logs'; readonly id: number; readonly analysis: LogAnalysis }
+  | { readonly kind: 'logWindow'; readonly id: number; readonly lines: LogWindowLine[] }
   | { readonly kind: 'dropped'; readonly id: number }
   | { readonly kind: 'error'; readonly id: number; readonly message: string };
+
+/**
+ * One log line as read from disk.
+ *
+ * The message and the attributes are separated because that is how a log line is read: the
+ * message says what happened and the attributes say to what. Showing the raw JSON meant the
+ * useful half was past the ellipsis. `attr` is truncated in the worker so a slow-query line
+ * carrying an 11 KB command document does not travel across the port.
+ */
+export interface LogWindowLine {
+  readonly tMs: number;
+  readonly severity: string;
+  readonly component: string;
+  readonly msg: string;
+  readonly attr: string;
+}
 
 export function summarise(manifest: CaptureManifest, skipped: string[]): CaptureSummary {
   return {

@@ -31,7 +31,11 @@ import { groupCaptures, groupLogs, isLogFile, type SourceFile } from '../ingest/
 import { withLogs } from '../logs/logSource.js';
 import type { LogAnalysis } from '../logs/analyze.js';
 import { FtdcClient } from '../workers/client.js';
-import type { CaptureSummary, IngestProgressMessage } from '../workers/protocol.js';
+import type {
+  CaptureSummary,
+  IngestProgressMessage,
+  LogWindowLine,
+} from '../workers/protocol.js';
 import type { Gap } from '../data/types.js';
 import type { LogEvent } from '../logs/analyze.js';
 
@@ -136,6 +140,8 @@ interface State {
   eventKinds(): Array<{ kind: string; label: string; n: number }>;
   /** Attach logs to a capture that is already open. */
   addLogs(captureId: string, files: File[]): Promise<void>;
+  /** Raw log lines around an instant, read from disk on demand. */
+  logWindow(captureId: string, tMs: number): Promise<LogWindowLine[]>;
   /** True for an id that names a loaded capture. */
   known: KnownCapture;
   /** Union bounds across visible captures, or null when nothing is loaded. */
@@ -396,10 +402,22 @@ export const useStore = create<State>((set, get) => ({
     set({ eventKind: kind, eventTerm: term });
   },
 
+  logWindow(captureId, tMs) {
+    // Nothing was kept in memory to make this possible -- the worker still holds the File and
+    // reads the bytes around this instant.
+    return get().client.logWindow(captureId, tMs);
+  },
+
   async addLogs(captureId: string, files: File[]) {
     if (files.length === 0) return;
     try {
-      const analysis = await get().client.logs(captureId, files);
+      const capture = get().captures.find((c) => c.id === captureId);
+      const analysis = await get().client.logs(
+        captureId,
+        files,
+        capture?.summary.startMs,
+        capture?.summary.endMs,
+      );
       set({
         captures: get().captures.map((c) =>
           c.id === captureId
@@ -502,7 +520,9 @@ export const useStore = create<State>((set, get) => ({
           let logs: LogAnalysis | undefined;
           if (logFiles.length > 0) {
             try {
-              logs = await get().client.logs(id, logFiles);
+              // Index only what the capture covers: a 36-hour log beside a 4-hour capture is
+              // mostly bytes nobody will look at.
+              logs = await get().client.logs(id, logFiles, summary.startMs, summary.endMs);
             } catch (err) {
               failures.push(`${group.label} logs: ${err instanceof Error ? err.message : String(err)}`);
             }

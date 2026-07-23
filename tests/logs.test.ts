@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import { analyzeLines, logMetricLabel } from '../src/logs/analyze.js';
 import { classify, RULES } from '../src/logs/classify.js';
-import { emptyStats, looksLikeMongodLog, parseLine } from '../src/logs/parse.js';
+import { attrOf, durationOf, emptyStats, looksLikeMongodLog, parseLine } from '../src/logs/parse.js';
 import { logExpressionKind } from '../src/logs/logSource.js';
 import { groupLogs, isLogFile, type SourceFile } from '../src/ingest/discover.js';
 
@@ -35,6 +35,29 @@ describe('parsing mongod JSON logs', () => {
     expect(new Date(line.tMs).toISOString()).toBe('2026-07-20T08:38:36.171Z');
     expect(line.id).toBe(51803);
     expect(stats.parsed).toBe(1);
+  });
+
+  it('unwraps a syslog prefix, which collected bundles almost always have', () => {
+    // "Jul 15 06:52:31 host mongo[3731]: {json}" -- 2.5 GB of a real customer bundle looks
+    // exactly like this, and rejecting it reported "0 lines parsed" on a perfectly good log.
+    const stats = emptyStats();
+    const wrapped = `Jul 15 06:52:31 ip-10-0-0-152 mongo[3731]: ${REAL.slow}`;
+    const line = parseLine(wrapped, stats)!;
+    expect(line.id).toBe(51803);
+    expect(stats.wrapped).toBe(1);
+    expect(looksLikeMongodLog(wrapped)).toBe(true);
+  });
+
+  it('reads the header without parsing the document', () => {
+    // A slow-query line carries its whole command; real ones reach 11 KB. Classification needs
+    // none of it, and parsing every one is most of the cost of reading a log.
+    const fat = REAL.slow.replace('"durationMillis":936', `"filter":{"x":"${'y'.repeat(9000)}"},"durationMillis":936`);
+    const stats = emptyStats();
+    const line = parseLine(fat, stats)!;
+    expect(line.msg).toBe('Slow query');
+    expect(durationOf(fat)).toBe(936);
+    // The document is available when something actually needs it.
+    expect(attrOf(fat)?.['ns']).toBe('db.objectdata_v2');
   });
 
   it('counts unparsable lines instead of throwing', () => {

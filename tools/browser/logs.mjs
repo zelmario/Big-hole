@@ -67,6 +67,14 @@ if (await fetcher.count()) {
 await page.selectOption('.events-head select', 'oplogFetcher');
 await page.waitForTimeout(2000);
 console.log('after filter :', (await page.locator('.events p.muted').first().innerText()).replace(/\s+/g, ' '));
+// Opening an event must read the real log lines from disk on demand.
+await page.locator('.event').first().click();
+await page.waitForTimeout(3000);
+const raw = await page.locator('.event-lines .raw').count();
+console.log('raw lines    :', raw);
+if (raw > 0) {
+  console.log('sample line  :', (await page.locator('.event-lines .raw').first().innerText()).replace(/\s+/g, ' ').slice(0, 120));
+}
 await page.screenshot({ path: 'tools/browser/logs.png' });
 
 console.log(errors.length ? 'ERRORS:\n  ' + errors.slice(0, 5).join('\n  ') : 'no console errors');

@@ -3,26 +3,44 @@
  *
  *   npm run logscan -- /path/to/mongod.log
  */
-import { createReadStream } from 'node:fs';
+import { createReadStream, openAsBlob } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { analyzeLines } from '../src/logs/analyze.js';
+import { rangeFor } from '../src/logs/locate.js';
+import { LogAnalyzer } from '../src/logs/analyze.js';
 
 const path = process.argv[2];
 if (path === undefined) throw new Error('usage: npm run logscan -- <mongod.log>');
 
-const lines: string[] = [];
-const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
-for await (const line of rl) lines.push(line);
+// Optional window, exactly as the app passes the capture's span.
+const fromArg = process.argv[3];
+const toArg = process.argv[4];
+if (fromArg !== undefined && toArg !== undefined) {
+  const blob = await openAsBlob(path);
+  const t0 = Date.now();
+  const range = await rangeFor(blob, Date.parse(fromArg), Date.parse(toArg));
+  console.log(
+    `window ${fromArg} .. ${toArg}\n  located in ${Date.now() - t0} ms: bytes ` +
+      `${(range.from / 1e6).toFixed(0)}–${(range.to / 1e6).toFixed(0)} MB of ` +
+      `${(blob.size / 1e6).toFixed(0)} MB ` +
+      `(${(((range.to - range.from) / blob.size) * 100).toFixed(1)}% of the file)`,
+  );
+}
 
+// Streamed, exactly as the worker does it: never hold the lines.
 const started = Date.now();
-const analysis = analyzeLines(lines);
+const analyzer = new LogAnalyzer();
+const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
+for await (const line of rl) analyzer.push(line);
+const analysis = analyzer.finish();
 const ms = Date.now() - started;
+const peak = Math.round(process.memoryUsage().heapUsed / 1e6);
 const { stats } = analysis;
 
 console.log(`${path}`);
 console.log(`  ${stats.parsed.toLocaleString()} lines parsed in ${ms} ms ` +
   `(${Math.round(stats.parsed / (ms / 1000)).toLocaleString()} lines/s), ` +
-  `${stats.text} text, ${stats.malformed} malformed`);
+  `${stats.text} text, ${stats.malformed} malformed, heap ${peak} MB, ` +
+  `bucket ${analysis.stats.bucketMs / 1000}s`);
 console.log(`  span ${new Date(stats.firstMs).toISOString()} -> ${new Date(stats.lastMs).toISOString()}`);
 console.log(`\n  ${analysis.events.length} annotations kept:`);
 const byKind = new Map<string, number>();

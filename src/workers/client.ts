@@ -17,6 +17,7 @@ import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
 import type {
   CaptureSummary,
+  LogWindowLine,
   IngestProgressMessage,
   Request,
   Response,
@@ -88,6 +89,10 @@ export class FtdcClient {
         this.pending.delete(msg.id);
         entry.resolve(msg.analysis as never);
         return;
+      case 'logWindow':
+        this.pending.delete(msg.id);
+        entry.resolve(msg.lines as never);
+        return;
       case 'dropped':
         this.pending.delete(msg.id);
         entry.resolve(undefined as never);
@@ -147,9 +152,36 @@ export class FtdcClient {
     });
   }
 
-  /** Parse mongod logs for a capture. Routed to that capture's worker, like everything else. */
-  logs(captureId: string, files: File[]): Promise<LogAnalysis> {
-    return this.send<LogAnalysis>(this.route(captureId), { kind: 'logs', captureId, files });
+  /**
+   * Parse mongod logs for a capture, indexing only the window the capture covers.
+   *
+   * Routed to that capture's worker, like everything else, and the worker keeps the file
+   * handles so raw lines can be read later without holding any of the log in memory.
+   */
+  logs(captureId: string, files: File[], fromMs?: number, toMs?: number): Promise<LogAnalysis> {
+    return this.send<LogAnalysis>(this.route(captureId), {
+      kind: 'logs',
+      captureId,
+      files,
+      ...(fromMs !== undefined ? { fromMs } : {}),
+      ...(toMs !== undefined ? { toMs } : {}),
+    });
+  }
+
+  /** Raw log lines around an instant, read positionally from the file on disk. */
+  logWindow(
+    captureId: string,
+    tMs: number,
+    radiusMs = 5_000,
+    maxLines = 60,
+  ): Promise<LogWindowLine[]> {
+    return this.send<LogWindowLine[]>(this.route(captureId), {
+      kind: 'logWindow',
+      captureId,
+      tMs,
+      radiusMs,
+      maxLines,
+    });
   }
 
   /** Every capture already in OPFS, newest first. Reads manifests only. */

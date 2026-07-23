@@ -1,6 +1,7 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import type { LogWindowLine } from '../workers/protocol.js';
 
 /**
  * What the log said, and when.
@@ -29,6 +30,13 @@ export function EventList(): ReactElement {
   const setFilter = useStore((s) => s.setEventFilter);
   const captures = useStore((s) => s.captures);
   const setRange = useStore((s) => s.setRange);
+  const logWindow = useStore((s) => s.logWindow);
+
+  // Which row is expanded, and the raw lines fetched for it. Nothing is prefetched: the log
+  // stays on disk until someone asks to read a specific moment of it.
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [lines, setLines] = useState<LogWindowLine[]>([]);
+  const [loadingRow, setLoadingRow] = useState(false);
 
   const matches = useMemo(() => events.slice(0, 500), [events]);
   const total = kinds.reduce((n, k) => n + k.n, 0);
@@ -73,16 +81,54 @@ export function EventList(): ReactElement {
           <li key={`${e.captureId}-${e.tMs}-${i}`}>
             <button
               className={`event ${SEVERITY_CLASS[e.severity] ?? ''}`}
-              title={`${e.message}${e.detail ? ` — ${e.detail}` : ''}\nClick to zoom every panel here`}
+              title={`${e.message}${e.detail ? ` — ${e.detail}` : ''}\nClick to zoom here and read the log around it`}
               // A two-minute window either side: wide enough to show what led up to it, narrow
               // enough that a one-second stall is still a visible feature rather than a pixel.
-              onClick={() => setRange([e.tMs - 120_000, e.tMs + 120_000])}
+              onClick={() => {
+                setRange([e.tMs - 120_000, e.tMs + 120_000]);
+                const key = `${e.captureId}-${e.tMs}-${i}`;
+                if (openRow === key) {
+                  setOpenRow(null);
+                  return;
+                }
+                setOpenRow(key);
+                setLines([]);
+                setLoadingRow(true);
+                void logWindow(e.captureId, e.tMs)
+                  .then((got) => setLines(got))
+                  .catch(() => setLines([]))
+                  .finally(() => setLoadingRow(false));
+              }}
             >
               <span className="event-time">{stamp(e.tMs)}</span>
               {multiNode && <span className="event-host">{e.captureLabel}</span>}
               <span className="event-label">{e.label}</span>
               <span className="event-msg muted">{e.detail || e.message}</span>
             </button>
+            {openRow === `${e.captureId}-${e.tMs}-${i}` && (
+              <div className="event-lines">
+                {loadingRow && <div className="muted small">reading the log…</div>}
+                {!loadingRow && lines.length === 0 && (
+                  <div className="muted small">no lines found around this moment</div>
+                )}
+                {lines.map((line, n) => (
+                  <div
+                    key={n}
+                    className={`raw ${SEVERITY_CLASS[line.severity] ?? ''}`}
+                    title={`${line.msg} ${line.attr}`}
+                  >
+                    <span className="raw-time">
+                      {new Date(line.tMs).toISOString().slice(11, 23)}
+                    </span>
+                    <span className="raw-comp muted">{line.component}</span>
+                    <span className="raw-text">
+                      <b>{line.msg}</b>
+                      {line.attr !== '' && <span className="muted"> {line.attr}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </li>
         ))}
       </ul>

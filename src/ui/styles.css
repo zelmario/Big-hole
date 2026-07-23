@@ -265,3 +265,14 @@ header { align-items: center; flex-wrap: wrap; }
 /* Log-derived metrics sit in the same catalogue as decoded ones; the badge says which. */
 .from-log { background: #2a3550; color: #8ab8ff; border-radius: 3px; font-size: 9px;
   padding: 0 4px; margin-right: 6px; text-transform: uppercase; letter-spacing: .04em; }
+/* Raw log lines, read on demand when an event is opened. */
+.event-lines { margin: 2px 0 8px 8px; border-left: 2px solid var(--line); padding-left: 8px;
+  max-height: 260px; overflow: auto; }
+.raw { display: flex; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px; line-height: 1.45; padding: 1px 0; }
+.raw-time { flex: 0 0 auto; color: var(--muted); }
+.raw-comp { flex: 0 0 52px; }
+.raw-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.raw.sev-warn .raw-time { color: var(--warn); }
+.raw.sev-error .raw-time { color: var(--err); }
