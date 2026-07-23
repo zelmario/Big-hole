@@ -30,9 +30,11 @@ export function App(): ReactElement {
   const reset = useStore((s) => s.reset);
 
   const [copied, setCopied] = useState<string | null>(null);
-  const [tab, setTab] = useState<'metrics' | 'log'>('metrics');
+  const tab = useStore((s) => s.sidebarTab);
+  const setTab = useStore((s) => s.setSidebarTab);
   const hasLogs = useStore((s) => s.hasLogs)();
   const pinCount = useStore((s) => s.pins.length);
+  const logLoading = useStore((s) => Object.keys(s.logProgress).length > 0);
 
   async function share(): Promise<void> {
     const link = toPermalink(dashboard(), window.location.href);
@@ -142,6 +144,7 @@ export function App(): ReactElement {
                     onClick={() => setTab('log')}
                   >
                     log{hasLogs ? '' : ' +'}
+                    {logLoading && <span className="tab-loading"> ●</span>}
                     {pinCount > 0 && <span className="tab-pins"> {pinCount}📌</span>}
                   </button>
                 </div>

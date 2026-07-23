@@ -28,6 +28,7 @@ export function DropZone(): ReactElement {
   const ingest = useStore((s) => s.ingest);
   const status = useStore((s) => s.status);
   const progress = useStore((s) => s.progress);
+  const logProgress = useStore((s) => s.logProgress);
   const error = useStore((s) => s.error);
   const recent = useStore((s) => s.recent);
   const loadRecent = useStore((s) => s.loadRecent);
@@ -66,6 +67,8 @@ export function DropZone(): ReactElement {
     // One bar per node: they decode concurrently, one worker each, and a single merged bar
     // would hide a member that is stuck while the others finish.
     const nodes = Object.entries(progress);
+    const logBytes = Object.values(logProgress).reduce((n, p) => n + p.bytes, 0);
+    const logLineCount = Object.values(logProgress).reduce((n, p) => n + p.lines, 0);
     return (
       <div className="drop working">
         <h2>Decoding{nodes.length > 1 ? ` ${nodes.length} nodes` : ''}…</h2>
@@ -85,6 +88,18 @@ export function DropZone(): ReactElement {
             </div>
           );
         })}
+        {/* Log parsing runs after a node's FTDC, and a multi-gigabyte log is not instant.
+            Without this the FTDC bar sits full and it looks hung -- the reported complaint. */}
+        {logBytes > 0 && (
+          <div className="node-progress">
+            <p className="muted small">
+              reading log… {(logBytes / 1e6).toFixed(0)} MB · {logLineCount.toLocaleString()} lines
+            </p>
+            <div className="bar indeterminate">
+              <div className="bar-fill" />
+            </div>
+          </div>
+        )}
       </div>
     );
   }

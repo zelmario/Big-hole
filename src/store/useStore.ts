@@ -104,6 +104,23 @@ interface State {
    * the dashboard is laid out, so it must not end up in a permalink or a saved dashboard.
    */
   maximized: string | null;
+  /** Which sidebar panel is showing. In the store so revealing a log line can switch to it. */
+  sidebarTab: 'metrics' | 'log';
+  setSidebarTab(tab: 'metrics' | 'log'): void;
+  /**
+   * Per-capture log-parse progress, while a log is being read. Absent when idle.
+   *
+   * Parsing a multi-gigabyte log is not instant, and without a bar it looks like a hang -- the
+   * complaint that motivated this.
+   */
+  logProgress: Record<string, { bytes: number; lines: number }>;
+  /**
+   * A log line to scroll to and flash, set by double-clicking a chart. `nonce` makes repeated
+   * reveals of the same instant still fire.
+   */
+  logReveal: { tMs: number; nonce: number } | null;
+  /** Zoom to an instant and reveal the log line there -- the double-click-a-chart gesture. */
+  revealLogAt(tMs: number): void;
 
   /** Saved dashboards, most recently updated first. */
   library: SavedDashboard[];
@@ -346,6 +363,9 @@ export const useStore = create<State>((set, get) => ({
   activeId: null,
   recent: [],
   pins: [],
+  sidebarTab: 'metrics',
+  logProgress: {},
+  logReveal: null,
   panels: [],
   focused: null,
   range: null,
@@ -408,8 +428,27 @@ export const useStore = create<State>((set, get) => ({
     set({ pins: [] });
   },
 
+  setSidebarTab(tab) {
+    set({ sidebarTab: tab });
+  },
+
+  revealLogAt(tMs) {
+    // Zoom to a couple of minutes either side, so the log window is small enough to hold this
+    // instant (the whole-capture window is capped at a few hundred lines and might not), and
+    // the charts show what surrounds it. Then switch to the log and mark the moment; the
+    // LogView scrolls to the nearest line once its window has loaded.
+    get().setRange([tMs - 120_000, tMs + 120_000]);
+    set({
+      sidebarTab: 'log',
+      showCatalog: true,
+      logReveal: { tMs, nonce: (get().logReveal?.nonce ?? 0) + 1 },
+    });
+  },
+
   async addLogs(captureId: string, files: File[]) {
     if (files.length === 0) return;
+    // Switch to the log tab immediately, so the progress bar is where the user is looking.
+    set({ sidebarTab: 'log' });
     try {
       const capture = get().captures.find((c) => c.id === captureId);
       const analysis = await get().client.logs(
@@ -417,6 +456,10 @@ export const useStore = create<State>((set, get) => ({
         files,
         capture?.summary.startMs,
         capture?.summary.endMs,
+        (p) =>
+          set((st) => ({
+            logProgress: { ...st.logProgress, [captureId]: { bytes: p.bytesWritten, lines: p.samples } },
+          })),
       );
       set({
         captures: get().captures.map((c) =>
@@ -431,6 +474,12 @@ export const useStore = create<State>((set, get) => ({
       });
     } catch (err) {
       set({ error: `log parse failed: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      set((st) => {
+        const next = { ...st.logProgress };
+        delete next[captureId];
+        return { logProgress: next };
+      });
     }
   },
 
@@ -522,10 +571,22 @@ export const useStore = create<State>((set, get) => ({
             try {
               // Index only what the capture covers: a 36-hour log beside a 4-hour capture is
               // mostly bytes nobody will look at.
-              logs = await get().client.logs(id, logFiles, summary.startMs, summary.endMs);
+              logs = await get().client.logs(id, logFiles, summary.startMs, summary.endMs, (p) =>
+                set((st) => ({
+                  logProgress: {
+                    ...st.logProgress,
+                    [id]: { bytes: p.bytesWritten, lines: p.samples },
+                  },
+                })),
+              );
             } catch (err) {
               failures.push(`${group.label} logs: ${err instanceof Error ? err.message : String(err)}`);
             }
+            set((st) => {
+              const next = { ...st.logProgress };
+              delete next[id];
+              return { logProgress: next };
+            });
           }
           return {
             id,

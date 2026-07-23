@@ -182,6 +182,8 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const toggleMaximized = useStore((s) => s.toggleMaximized);
   const isMaximized = useStore((s) => s.maximized === panel.id);
   const renamePanel = useStore((s) => s.renamePanel);
+  const revealLogAt = useStore((s) => s.revealLogAt);
+  const hasLogs = useStore((s) => s.hasLogs)();
 
   const gapsRef = useRef<readonly Gap[]>([]);
   gapsRef.current = useStore((s) => s.gaps)();
@@ -496,7 +498,19 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
           No samples in this time range — zoom out or widen the window.
         </div>
       )}
-      <div ref={holder} className="plot" />
+      <div
+        ref={holder}
+        className="plot"
+        // Double-click a chart to jump to the log at that instant. uPlot owns single clicks
+        // and drags; a native dblclick is free, and posToVal turns the pointer x into a time.
+        onDoubleClick={(e) => {
+          const u = plot.current;
+          if (u === null || !hasLogs) return;
+          const rect = u.over.getBoundingClientRect();
+          const ms = u.posToVal(e.clientX - rect.left, 'x') * 1000;
+          if (Number.isFinite(ms)) revealLogAt(ms);
+        }}
+      />
 
       {/* Legend below the plot, as in Grafana. Clicking toggles visibility; it does not
           remove the metric -- removal is done from the catalogue. */}

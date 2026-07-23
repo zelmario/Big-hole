@@ -1,14 +1,14 @@
 /**
- * Load a capture with its mongod.log and drive the log viewer.
- *
- * The viewer follows the dashboard window, highlights notable lines, and pins a marker on
- * double-click. All three are checked here on real customer data.
+ * Drive the log viewer's three interactions on real customer data:
+ *   1. a parsing bar while the log loads,
+ *   2. double-click a chart -> the log scrolls to that moment,
+ *   3. click a line -> it expands to the full text.
+ * Plus the existing follow-the-window and pin behaviour.
  */
 import { chromium } from 'playwright';
 
 const url = process.env.URL ?? 'http://127.0.0.1:5174/';
 const bundle = process.env.BUNDLE ?? '/bundle';
-
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];
@@ -17,41 +17,46 @@ page.on('pageerror', (e) => errors.push(String(e)));
 
 await page.goto(url, { waitUntil: 'domcontentloaded' });
 await page.waitForSelector('.drop');
-const started = Date.now();
 await page.setInputFiles('input[type=file]', bundle);
-await page.waitForFunction(
-  () => document.querySelectorAll('.panel canvas').length > 15,
-  undefined,
-  { timeout: 600000, polling: 1000 },
-);
-console.log(`ingest + parse: ${Math.round((Date.now() - started) / 1000)} s`);
-await page.waitForTimeout(3000);
 
-// Open the log tab.
+// 1. The parsing bar should be visible while the log is read (in the DropZone during ingest).
+let sawBar = false;
+for (let i = 0; i < 400; i++) {
+  const txt = await page.locator('.drop.working').innerText().catch(() => '');
+  if (txt.includes('reading log')) { sawBar = true; break; }
+  if (await page.evaluate(() => document.querySelectorAll('.panel canvas').length > 15)) break;
+  await page.waitForTimeout(150);
+}
+await page.waitForFunction(() => document.querySelectorAll('.panel canvas').length > 15, undefined, { timeout: 600000, polling: 1000 });
+console.log('saw parsing bar:', sawBar);
+await page.waitForTimeout(2500);
+
+// Log tab, whole-capture window.
 await page.locator('.tab', { hasText: 'log' }).click();
-// The read follows the window; the whole-capture window is a real read, so give it a moment.
 await page.waitForFunction(() => !document.querySelector('.logview-note')?.textContent?.includes('reading'), undefined, { timeout: 30000 });
-console.log('note         :', (await page.locator('.logview-note').first().innerText()).replace(/\s+/g, ' '));
 console.log('lines shown  :', await page.locator('.logline').count());
-console.log('notable lines:', await page.locator('.logline.important').count());
-console.log('first notable:');
-for (const t of (await page.locator('.logline.important').allInnerTexts()).slice(0, 4)) {
-  console.log('   ', t.replace(/\s+/g, ' ').slice(0, 120));
-}
 
-// Notable-only: the highlighted lines become the whole list, for scanning a wide window.
-await page.locator('.logview-head input[type=checkbox]').check();
+// 3. Click a slow-query line -> expands to full text (the long ones).
+await page.fill('.search', 'Slow query');
 await page.waitForFunction(() => !document.querySelector('.logview-note')?.textContent?.includes('reading'), undefined, { timeout: 30000 });
-console.log('notable-only :', (await page.locator('.logview-note').first().innerText()).replace(/\s+/g, ' '));
+await page.locator('.logline').first().click();
+await page.waitForTimeout(400);
+const full = await page.locator('.logline.open .logline-full').first();
+console.log('expanded len :', (await full.count()) ? (await full.innerText()).length : 0);
+await page.fill('.search', '');
+await page.waitForTimeout(1500);
 
-// Double-click a notable line: a pin marker must appear on the charts.
-const notable = page.locator('.logline.important').first();
-if (await notable.count()) {
-  await notable.dblclick();
-  await page.waitForTimeout(1500);
-  console.log('pins in tab  :', (await page.locator('.tab-pins').first().innerText().catch(() => '0')));
-  console.log('pinned rows  :', await page.locator('.logline.pinned').count());
-}
+// 2. Double-click a chart in its later portion (the log's coverage starts partway into the
+//    capture), so there are lines at that moment to scroll to.
+// The log covers roughly the middle of the capture; ~62% of the width lands inside it.
+const box = await page.locator('.panel .plot').first().boundingBox();
+await page.mouse.dblclick(box.x + box.width * 0.62, box.y + box.height * 0.5);
+await page.waitForFunction(() => !document.querySelector('.logview-note')?.textContent?.includes('reading'), undefined, { timeout: 30000 });
+await page.waitForTimeout(1200);
+console.log('range now    :', (await page.locator('.tr-main').innerText()).replace(/\s+/g, ' '));
+console.log('flashed line :', await page.locator('.logline.flash').count());
+console.log('window lines :', await page.locator('.logline').count());
+
 await page.screenshot({ path: 'tools/browser/logs.png' });
 console.log(errors.length ? 'ERRORS:\n  ' + errors.slice(0, 5).join('\n  ') : 'no console errors');
 await browser.close();

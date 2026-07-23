@@ -305,3 +305,27 @@ header { align-items: center; flex-wrap: wrap; }
 .logline.sev-warn .logline-time { color: var(--warn); }
 .logline.sev-error .logline-time { color: var(--err); }
 .tab-pins { color: #f2cc0c; }
+
+/* ---- M5: log viewer — expand, parse bar, reveal ---- */
+.logline { flex-direction: column; align-items: stretch; }
+.logline-row { display: flex; gap: 6px; align-items: baseline; overflow: hidden;
+  text-overflow: ellipsis; }
+.logline.open { background: #20252e; white-space: normal; }
+/* The full line, wrapped, when a row is expanded. */
+.logline-full { white-space: pre-wrap; word-break: break-word; padding: 4px 0 6px 4px;
+  line-height: 1.5; color: var(--fg); }
+.logline-attr { color: var(--muted); margin-top: 3px; }
+/* Flash the line a chart double-click scrolled to. */
+.logline.flash { animation: logflash 1.6s ease-out; }
+@keyframes logflash {
+  0%, 30% { background: rgba(242,204,12,.28); }
+  100% { background: transparent; }
+}
+.logview-parsing { display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
+/* Progress made, not a percentage: the scan's total is unknown until it finishes. */
+.bar.indeterminate { position: relative; overflow: hidden; }
+.bar.indeterminate .bar-fill { position: absolute; width: 40%; left: -40%;
+  animation: barslide 1.1s ease-in-out infinite; }
+@keyframes barslide { to { left: 100%; } }
+.tab-loading { color: #8ab8ff; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .3; } }

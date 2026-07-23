@@ -223,9 +223,10 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
                 severity: line.s,
                 component: line.c,
                 msg: line.msg,
-                // Enough to identify the operation; the whole command document is not worth
-                // moving across the port to be ellipsized in a narrow column.
-                attr: at < 0 ? '' : raw.slice(at + 7, at + 407),
+                // Enough for the row and for an expanded line to read complete: a slow-query
+                // command document runs to a few KB, and only the pathological ones exceed
+                // this. Short lines stay short -- slice just takes what is there.
+                attr: at < 0 ? '' : raw.slice(at + 7, at + 6007),
                 kind: rule?.kind ?? '',
                 label: important ? (rule?.label ?? '') : '',
                 important,

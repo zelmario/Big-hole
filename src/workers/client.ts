@@ -158,14 +158,24 @@ export class FtdcClient {
    * Routed to that capture's worker, like everything else, and the worker keeps the file
    * handles so raw lines can be read later without holding any of the log in memory.
    */
-  logs(captureId: string, files: File[], fromMs?: number, toMs?: number): Promise<LogAnalysis> {
-    return this.send<LogAnalysis>(this.route(captureId), {
-      kind: 'logs',
-      captureId,
-      files,
-      ...(fromMs !== undefined ? { fromMs } : {}),
-      ...(toMs !== undefined ? { toMs } : {}),
-    });
+  logs(
+    captureId: string,
+    files: File[],
+    fromMs?: number,
+    toMs?: number,
+    onProgress?: (p: IngestProgressMessage) => void,
+  ): Promise<LogAnalysis> {
+    return this.send<LogAnalysis>(
+      this.route(captureId),
+      {
+        kind: 'logs',
+        captureId,
+        files,
+        ...(fromMs !== undefined ? { fromMs } : {}),
+        ...(toMs !== undefined ? { toMs } : {}),
+      },
+      onProgress,
+    );
   }
 
   /**
