@@ -1,8 +1,8 @@
 /**
- * Load a capture with its mongod.log and report what correlating them produced.
+ * Load a capture with its mongod.log and drive the log viewer.
  *
- * Real customer data: the incident this bundle is named for is a replication lag event, so the
- * markers and the metrics should agree about when it happened.
+ * The viewer follows the dashboard window, highlights notable lines, and pins a marker on
+ * double-click. All three are checked here on real customer data.
  */
 import { chromium } from 'playwright';
 
@@ -19,63 +19,39 @@ await page.goto(url, { waitUntil: 'domcontentloaded' });
 await page.waitForSelector('.drop');
 const started = Date.now();
 await page.setInputFiles('input[type=file]', bundle);
-await page.waitForFunction(() => document.querySelectorAll('.panel canvas').length > 15, { timeout: 600000 });
+await page.waitForFunction(
+  () => document.querySelectorAll('.panel canvas').length > 15,
+  undefined,
+  { timeout: 600000, polling: 1000 },
+);
 console.log(`ingest + parse: ${Math.round((Date.now() - started) / 1000)} s`);
-await page.waitForTimeout(4000);
-
-console.log('capture chip :', (await page.locator('.capture-chip').first().innerText()).replace(/\s+/g, ' '));
-
-// The events tab: what the log contributed.
-await page.locator('.tab', { hasText: 'events' }).click();
-await page.waitForTimeout(800);
-const kinds = await page.locator('.events-head select option').allInnerTexts();
-console.log('event classes:', JSON.stringify(kinds));
-const rows = await page.locator('.event').count();
-console.log('event rows   :', rows);
-console.log('first events :');
-for (const t of (await page.locator('.event').allInnerTexts()).slice(0, 6)) {
-  console.log('   ', t.replace(/\s+/g, ' ').slice(0, 130));
-}
-
-// Log-derived metrics must be pickable like any other metric.
-await page.locator('.tab', { hasText: 'metrics' }).click();
-await page.fill('.search', 'logs.');
-await page.waitForTimeout(500);
-const logMetrics = await page.locator('.metric-path').allInnerTexts();
-console.log('log metrics  :', JSON.stringify(logMetrics.slice(0, 8)));
-
-// Put slow-query p95 on a new panel next to the FTDC data.
-await page.click('button:has-text("+ panel")');
-await page.waitForTimeout(500);
-await page.fill('.search', 'slowQuery.p95');
-await page.waitForTimeout(500);
-await page.locator('.metric').first().click();
-await page.waitForTimeout(2500);
-const lastPanel = page.locator('.panel').last();
-console.log('new panel    :', (await lastPanel.innerText()).replace(/\s+/g, ' ').slice(0, 120));
-
-// Click an event: every panel should zoom to that moment.
-await page.locator('.tab', { hasText: 'events' }).click();
-await page.waitForTimeout(400);
-const fetcher = page.locator('.event', { hasText: 'Oplog fetcher' }).first();
-if (await fetcher.count()) {
-  await fetcher.click();
-  await page.waitForTimeout(3000);
-  console.log('range after  :', (await page.locator('.tr-main').first().innerText().catch(() => '?')).replace(/\s+/g, ' '));
-}
-// Narrowing the class must narrow the markers too, not just the list.
-await page.selectOption('.events-head select', 'oplogFetcher');
-await page.waitForTimeout(2000);
-console.log('after filter :', (await page.locator('.events p.muted').first().innerText()).replace(/\s+/g, ' '));
-// Opening an event must read the real log lines from disk on demand.
-await page.locator('.event').first().click();
 await page.waitForTimeout(3000);
-const raw = await page.locator('.event-lines .raw').count();
-console.log('raw lines    :', raw);
-if (raw > 0) {
-  console.log('sample line  :', (await page.locator('.event-lines .raw').first().innerText()).replace(/\s+/g, ' ').slice(0, 120));
+
+// Open the log tab.
+await page.locator('.tab', { hasText: 'log' }).click();
+// The read follows the window; the whole-capture window is a real read, so give it a moment.
+await page.waitForFunction(() => !document.querySelector('.logview-note')?.textContent?.includes('reading'), undefined, { timeout: 30000 });
+console.log('note         :', (await page.locator('.logview-note').first().innerText()).replace(/\s+/g, ' '));
+console.log('lines shown  :', await page.locator('.logline').count());
+console.log('notable lines:', await page.locator('.logline.important').count());
+console.log('first notable:');
+for (const t of (await page.locator('.logline.important').allInnerTexts()).slice(0, 4)) {
+  console.log('   ', t.replace(/\s+/g, ' ').slice(0, 120));
+}
+
+// Notable-only: the highlighted lines become the whole list, for scanning a wide window.
+await page.locator('.logview-head input[type=checkbox]').check();
+await page.waitForFunction(() => !document.querySelector('.logview-note')?.textContent?.includes('reading'), undefined, { timeout: 30000 });
+console.log('notable-only :', (await page.locator('.logview-note').first().innerText()).replace(/\s+/g, ' '));
+
+// Double-click a notable line: a pin marker must appear on the charts.
+const notable = page.locator('.logline.important').first();
+if (await notable.count()) {
+  await notable.dblclick();
+  await page.waitForTimeout(1500);
+  console.log('pins in tab  :', (await page.locator('.tab-pins').first().innerText().catch(() => '0')));
+  console.log('pinned rows  :', await page.locator('.logline.pinned').count());
 }
 await page.screenshot({ path: 'tools/browser/logs.png' });
-
 console.log(errors.length ? 'ERRORS:\n  ' + errors.slice(0, 5).join('\n  ') : 'no console errors');
 await browser.close();

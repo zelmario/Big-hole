@@ -51,13 +51,24 @@ export interface LogsRequest {
   readonly toMs?: number;
 }
 
-/** Raw log lines around an instant, read on demand from the file the worker still holds. */
-export interface LogWindowRequest {
-  readonly kind: 'logWindow';
+/**
+ * Raw log lines within a time window, read on demand from the file the worker still holds.
+ *
+ * This is the log viewer's whole data source: the visible dashboard window in, the lines that
+ * fall inside it out. Nothing is precomputed and nothing is cached -- the File is on disk and
+ * the bytes for a window are a positioned read, so following the dashboard as it zooms costs a
+ * few milliseconds per move rather than any resident memory.
+ */
+export interface LogRangeRequest {
+  readonly kind: 'logRange';
   readonly captureId: string;
-  readonly tMs: number;
-  readonly radiusMs: number;
+  readonly fromMs: number;
+  readonly toMs: number;
   readonly maxLines: number;
+  /** Show only the lines that classify as notable, for scanning a wide window. */
+  readonly importantOnly: boolean;
+  /** Case-insensitive substring filter, applied to the whole raw line. */
+  readonly query: string;
 }
 
 /**
@@ -82,7 +93,7 @@ export type Request =
   | CatalogRequest
   | SeriesRequest
   | LogsRequest
-  | LogWindowRequest
+  | LogRangeRequest
   | CapturesRequest
   | DropRequest;
 
@@ -127,24 +138,37 @@ export type Response =
   | { readonly kind: 'series'; readonly id: number; readonly series: SeriesPayload[] }
   | { readonly kind: 'captures'; readonly id: number; readonly captures: CaptureSummary[] }
   | { readonly kind: 'logs'; readonly id: number; readonly analysis: LogAnalysis }
-  | { readonly kind: 'logWindow'; readonly id: number; readonly lines: LogWindowLine[] }
+  | {
+      readonly kind: 'logRange';
+      readonly id: number;
+      readonly lines: LogViewLine[];
+      /** True when the window held more lines than were returned. */
+      readonly truncated: boolean;
+    }
   | { readonly kind: 'dropped'; readonly id: number }
   | { readonly kind: 'error'; readonly id: number; readonly message: string };
 
 /**
  * One log line as read from disk.
  *
- * The message and the attributes are separated because that is how a log line is read: the
- * message says what happened and the attributes say to what. Showing the raw JSON meant the
- * useful half was past the ellipsis. `attr` is truncated in the worker so a slow-query line
- * carrying an 11 KB command document does not travel across the port.
+ * Message and attributes are separated because that is how a line reads -- the message says
+ * what happened, the attributes say to what -- and the raw JSON put the useful half past the
+ * ellipsis. `attr` is truncated in the worker so a slow-query line's 11 KB command document
+ * does not travel across the port. `kind`/`label` carry the classification so the viewer can
+ * highlight a notable line without re-running the rules.
  */
-export interface LogWindowLine {
+export interface LogViewLine {
   readonly tMs: number;
   readonly severity: string;
   readonly component: string;
   readonly msg: string;
   readonly attr: string;
+  /** Classification kind, or '' for an ordinary line. */
+  readonly kind: string;
+  /** Human label when the line is notable enough to highlight, else ''. */
+  readonly label: string;
+  /** True for the classes that would otherwise have been markers. */
+  readonly important: boolean;
 }
 
 export function summarise(manifest: CaptureManifest, skipped: string[]): CaptureSummary {

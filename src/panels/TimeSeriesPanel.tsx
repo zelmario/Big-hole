@@ -11,7 +11,6 @@ import { describeCrossHost } from '../dashboard/crossHost.js';
 import { legendLabel, plotColumn, timeColumn } from './plotData.js';
 import type { KnownCapture } from '../data/qualify.js';
 import type { Gap } from '../data/types.js';
-import type { LogEvent } from '../logs/analyze.js';
 
 /** Grafana's classic series palette, so a ported dashboard reads the same. */
 const PALETTE = [
@@ -61,51 +60,52 @@ function gapPlugin(gaps: () => readonly Gap[]): uPlot.Plugin {
   };
 }
 
+/** Pin marker: a moment the user pinned from the log, drawn on every chart. */
+interface Pin {
+  readonly tMs: number;
+  readonly label: string;
+  readonly severity: string;
+}
+
 /**
- * Draw log events on the time axis.
+ * Draw pinned log moments on the time axis.
  *
- * This is the whole point of correlating logs with FTDC: an election, a sync-source change or a
- * restart is a vertical line through every chart, so "the cache dropped at 03:41" and "the
- * oplog fetcher timed out at 03:41" stop being two separate observations.
+ * This is what makes a log line and a metric spike the same observation: pin the moment the
+ * oplog fetcher timed out and it becomes a vertical line through every chart, so the cache dip
+ * beside it is obviously the same event rather than a coincidence at the same minute.
  *
- * Markers are drawn per pixel column, not per event -- a log with 300 annotations over 24
- * hours puts several in the same pixel at full zoom, and stroking each one separately is both
- * slower and darker than the data behind it. Colour is by severity, since that is what decides
- * whether something is worth interrupting your reading for.
+ * Markers are user-pinned by double-clicking a log line, not drawn automatically -- a bulk
+ * overlay of every notable line was noise, and the point of a marker is that you chose it.
+ * Colour is by the pinned line's severity.
  */
-function annotationPlugin(events: () => ReadonlyArray<LogEvent>): uPlot.Plugin {
+function pinPlugin(pins: () => ReadonlyArray<Pin>): uPlot.Plugin {
   const colour = (severity: string): string =>
     severity === 'F' || severity === 'E' ? '#f2495c' : severity === 'W' ? '#ff9830' : '#8ab8ff';
 
   return {
     hooks: {
       draw: (u: uPlot) => {
-        const list = events();
+        const list = pins();
         if (list.length === 0) return;
         const ctx = u.ctx;
         ctx.save();
         ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
 
-        const drawn = new Set<number>();
-        for (const event of list) {
-          const x = Math.round(u.valToPos(event.tMs / 1000, 'x', true));
+        for (const pin of list) {
+          const x = Math.round(u.valToPos(pin.tMs / 1000, 'x', true));
           if (x < u.bbox.left || x > u.bbox.left + u.bbox.width) continue;
-          // One stroke per pixel column, strongest severity wins.
-          const key = x;
-          if (drawn.has(key)) continue;
-          drawn.add(key);
 
-          ctx.strokeStyle = colour(event.severity);
-          ctx.globalAlpha = 0.55;
+          ctx.strokeStyle = colour(pin.severity);
+          ctx.globalAlpha = 0.8;
           ctx.beginPath();
           ctx.moveTo(x + 0.5, u.bbox.top);
           ctx.lineTo(x + 0.5, u.bbox.top + u.bbox.height);
           ctx.stroke();
 
-          // A tick at the top edge, so markers stay findable when the plot is busy.
           ctx.globalAlpha = 1;
-          ctx.fillStyle = colour(event.severity);
-          ctx.fillRect(x - 1, u.bbox.top, 3, 4);
+          ctx.fillStyle = colour(pin.severity);
+          ctx.fillRect(x - 2, u.bbox.top, 5, 5);
         }
         ctx.restore();
       },
@@ -186,19 +186,16 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const gapsRef = useRef<readonly Gap[]>([]);
   gapsRef.current = useStore((s) => s.gaps)();
 
-  const captureLogs = useStore((s) => s.captures.map((c) => (c.logs === undefined ? '' : c.id)).join(','));
-  const logsKey = captureLogs;
-  // Subscribing to the filter, not just calling s.events(): the selector `(s) => s.events`
-  // returns a function whose identity never changes, so zustand had no reason to re-render
-  // this panel when the filter moved. The list narrowed and every chart kept its old markers.
-  const eventKind = useStore((s) => s.eventKind);
-  const eventTerm = useStore((s) => s.eventTerm);
-  const events = useStore((s) => s.events)();
-  const eventsRef = useRef<ReadonlyArray<LogEvent & { captureId: string }>>([]);
-  eventsRef.current = events;
-  // The plugin reads the ref at draw time, and nothing else asks uPlot to draw. Without this,
-  // narrowing the event filter updated the list while every chart kept its old markers.
-  const eventsKey = `${eventKind}|${eventTerm}|${events.length}|${events[0]?.tMs ?? 0}`;
+  const logsKey = useStore((s) =>
+    s.captures.map((c) => (c.logs === undefined ? '' : c.id)).join(','),
+  );
+  // Subscribe to the pins directly, not through s.pins() -- a function selector has a stable
+  // identity, so zustand would never re-render this panel when a pin was added.
+  const pins = useStore((s) => s.pins);
+  const pinsRef = useRef<ReadonlyArray<Pin>>([]);
+  pinsRef.current = pins;
+  // The plugin reads the ref at draw time; nothing else asks uPlot to redraw when a pin lands.
+  const pinsKey = pins.map((p) => p.tMs).join(',');
 
   // Only the visible captures are drawn, and the fetch has to re-run when that set changes --
   // ticking a node off is a view change, not a reload.
@@ -267,7 +264,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, status, metricsKey, capturesKey, logsKey, range, size.w, isSection]);
+  }, [client, status, metricsKey, capturesKey, range, size.w, isSection]);
 
   // Hidden series are dropped before the plot is built rather than styled away, so the y-axis
   // rescales to what is actually shown -- which is the point of hiding a large series.
@@ -341,7 +338,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       ],
       plugins: [
         gapPlugin(() => gapsRef.current),
-        annotationPlugin(() => eventsRef.current),
+        pinPlugin(() => pinsRef.current),
         selectionPlugin(),
       ],
       series: [
@@ -404,7 +401,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
 
   useEffect(() => {
     plot.current?.redraw();
-  }, [eventsKey]);
+  }, [pinsKey]);
 
   if (isSection) {
     return (

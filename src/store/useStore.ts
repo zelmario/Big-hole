@@ -34,10 +34,9 @@ import { FtdcClient } from '../workers/client.js';
 import type {
   CaptureSummary,
   IngestProgressMessage,
-  LogWindowLine,
+  LogViewLine,
 } from '../workers/protocol.js';
 import type { Gap } from '../data/types.js';
-import type { LogEvent } from '../logs/analyze.js';
 
 export interface Progress {
   readonly file: string;
@@ -130,18 +129,26 @@ interface State {
    * Recreated per call so a log dropped mid-session is picked up without remounting anything.
    */
   source(): SeriesSource;
-  /** Annotations from every visible capture, filtered, oldest first. */
-  events(): Array<LogEvent & { captureId: string; captureLabel: string }>;
-  /** Event class to show, or '' for all. Filters the list AND the chart markers together. */
-  eventKind: string;
-  eventTerm: string;
-  setEventFilter(kind: string, term: string): void;
-  /** Every class present, with counts, ignoring the current filter. */
-  eventKinds(): Array<{ kind: string; label: string; n: number }>;
   /** Attach logs to a capture that is already open. */
   addLogs(captureId: string, files: File[]): Promise<void>;
-  /** Raw log lines around an instant, read from disk on demand. */
-  logWindow(captureId: string, tMs: number): Promise<LogWindowLine[]>;
+  /**
+   * Raw log lines within a window, read from disk on demand, merged across every visible node
+   * that has a log and sorted by time. This is the log viewer's whole data source.
+   */
+  logLines(
+    fromMs: number,
+    toMs: number,
+    opts?: { maxLines?: number; importantOnly?: boolean; query?: string },
+  ): Promise<{ lines: Array<LogViewLine & { captureId: string; captureLabel: string }>; truncated: boolean }>;
+  /**
+   * User-pinned markers, epoch ms. Double-clicking a log line pins one; the panels draw it.
+   * View state, not layout -- deliberately out of the permalink and saved dashboards.
+   */
+  pins: Array<{ tMs: number; label: string; severity: string }>;
+  togglePin(pin: { tMs: number; label: string; severity: string }): void;
+  clearPins(): void;
+  /** Whether any visible capture has a log loaded. */
+  hasLogs(): boolean;
   /** True for an id that names a loaded capture. */
   known: KnownCapture;
   /** Union bounds across visible captures, or null when nothing is loaded. */
@@ -338,8 +345,7 @@ export const useStore = create<State>((set, get) => ({
   captures: [],
   activeId: null,
   recent: [],
-  eventKind: '',
-  eventTerm: '',
+  pins: [],
   panels: [],
   focused: null,
   range: null,
@@ -361,51 +367,45 @@ export const useStore = create<State>((set, get) => ({
     return withLogs(get().client, (id) => byId.get(id));
   },
 
-  events() {
-    const { eventKind, eventTerm } = get();
-    const needles = eventTerm.toLowerCase().split(/\s+/).filter(Boolean);
-    return get()
+  hasLogs() {
+    return get().visibleCaptures().some((c) => c.logs !== undefined);
+  },
+
+  async logLines(fromMs, toMs, opts = {}) {
+    // One read per node that has a log, issued together. Merging on the main thread keeps the
+    // worker side a plain positioned read; the volume that comes back is bounded by maxLines.
+    const withLog = get()
       .visibleCaptures()
-      .flatMap((c) =>
-        (c.logs?.events ?? []).map((e) => ({
-          ...e,
-          captureId: c.id,
-          captureLabel: c.label,
-        })),
-      )
-      // Filtering here rather than in the list is what makes the markers follow it: a panel
-      // asks the store for events, so narrowing to "oplog fetcher error" clears 235 checkpoint
-      // lines off every chart at the same time.
-      .filter((e) => eventKind === '' || e.kind === eventKind)
-      .filter((e) => {
-        if (needles.length === 0) return true;
-        const hay = `${e.label} ${e.message} ${e.detail} ${e.captureLabel}`.toLowerCase();
-        return needles.every((n) => hay.includes(n));
-      })
-      .sort((a, b) => a.tMs - b.tMs);
+      .filter((c) => c.logs !== undefined);
+    if (withLog.length === 0) return { lines: [], truncated: false };
+
+    const results = await Promise.all(
+      withLog.map(async (capture) => {
+        const { lines, truncated } = await get().client.logLines(capture.id, fromMs, toMs, opts);
+        return {
+          truncated,
+          lines: lines.map((line) => ({
+            ...line,
+            captureId: capture.id,
+            captureLabel: capture.label,
+          })),
+        };
+      }),
+    );
+
+    const lines = results.flatMap((r) => r.lines).sort((a, b) => a.tMs - b.tMs);
+    return { lines, truncated: results.some((r) => r.truncated) };
   },
 
-  eventKinds() {
-    const counts = new Map<string, { label: string; n: number }>();
-    for (const capture of get().visibleCaptures()) {
-      for (const e of capture.logs?.events ?? []) {
-        const seen = counts.get(e.kind);
-        counts.set(e.kind, { label: e.label, n: (seen?.n ?? 0) + 1 });
-      }
-    }
-    return [...counts]
-      .map(([kind, v]) => ({ kind, ...v }))
-      .sort((a, b) => b.n - a.n);
+  togglePin(pin) {
+    const pins = get().pins;
+    // Same instant toggles off, so a double-click that pinned a marker un-pins it.
+    const without = pins.filter((p) => p.tMs !== pin.tMs);
+    set({ pins: without.length === pins.length ? [...pins, pin] : without });
   },
 
-  setEventFilter(kind, term) {
-    set({ eventKind: kind, eventTerm: term });
-  },
-
-  logWindow(captureId, tMs) {
-    // Nothing was kept in memory to make this possible -- the worker still holds the File and
-    // reads the bytes around this instant.
-    return get().client.logWindow(captureId, tMs);
+  clearPins() {
+    set({ pins: [] });
   },
 
   async addLogs(captureId: string, files: File[]) {

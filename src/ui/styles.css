@@ -276,3 +276,32 @@ header { align-items: center; flex-wrap: wrap; }
   white-space: nowrap; }
 .raw.sev-warn .raw-time { color: var(--warn); }
 .raw.sev-error .raw-time { color: var(--err); }
+
+/* ---- M5: the log viewer ---- */
+.logview { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1;
+  padding: 8px; gap: 6px; }
+.logview.empty { padding: 16px; line-height: 1.55; }
+.logview-head { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.logview-head .search { min-width: 0; flex: 1 1 auto; }
+.logview-note { display: flex; gap: 8px; align-items: center; }
+.logview-lines { flex: 1; overflow: auto; min-height: 0; font-family: ui-monospace,
+  SFMono-Regular, Menlo, monospace; }
+.logline { display: flex; gap: 6px; align-items: baseline; font-size: 10px; line-height: 1.5;
+  padding: 1px 4px; border-left: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.logline:hover { background: #232830; }
+/* A notable line -- the ones that used to be the "events" -- stands out of the stream. */
+.logline.important { border-left-color: #8ab8ff; background: rgba(138,184,255,.05); }
+.logline.important.sev-warn { border-left-color: var(--warn); }
+.logline.important.sev-error { border-left-color: var(--err); }
+.logline.pinned { background: rgba(242,204,12,.12); border-left-color: #f2cc0c; }
+.logline-time { flex: 0 0 auto; color: var(--muted); }
+.logline-host { flex: 0 0 auto; color: var(--accent); }
+.logline-comp { flex: 0 0 46px; }
+.logline-badge { flex: 0 0 auto; background: #2a3550; color: #8ab8ff; border-radius: 3px;
+  font-size: 9px; padding: 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+.logline.sev-warn .logline-badge { background: #3a2f1a; color: var(--warn); }
+.logline.sev-error .logline-badge { background: #3a1f22; color: var(--err); }
+.logline-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.logline.sev-warn .logline-time { color: var(--warn); }
+.logline.sev-error .logline-time { color: var(--err); }
+.tab-pins { color: #f2cc0c; }

@@ -17,7 +17,7 @@ import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
 import type {
   CaptureSummary,
-  LogWindowLine,
+  LogViewLine,
   IngestProgressMessage,
   Request,
   Response,
@@ -89,9 +89,9 @@ export class FtdcClient {
         this.pending.delete(msg.id);
         entry.resolve(msg.analysis as never);
         return;
-      case 'logWindow':
+      case 'logRange':
         this.pending.delete(msg.id);
-        entry.resolve(msg.lines as never);
+        entry.resolve({ lines: msg.lines, truncated: msg.truncated } as never);
         return;
       case 'dropped':
         this.pending.delete(msg.id);
@@ -168,19 +168,26 @@ export class FtdcClient {
     });
   }
 
-  /** Raw log lines around an instant, read positionally from the file on disk. */
-  logWindow(
+  /**
+   * Raw log lines within a window, read positionally from the file on disk.
+   *
+   * The log viewer's only data source. `truncated` is true when the window held more than
+   * `maxLines`, so the viewer can say "zoom in" rather than pretend it showed everything.
+   */
+  logLines(
     captureId: string,
-    tMs: number,
-    radiusMs = 5_000,
-    maxLines = 60,
-  ): Promise<LogWindowLine[]> {
-    return this.send<LogWindowLine[]>(this.route(captureId), {
-      kind: 'logWindow',
+    fromMs: number,
+    toMs: number,
+    opts: { maxLines?: number; importantOnly?: boolean; query?: string } = {},
+  ): Promise<{ lines: LogViewLine[]; truncated: boolean }> {
+    return this.send<{ lines: LogViewLine[]; truncated: boolean }>(this.route(captureId), {
+      kind: 'logRange',
       captureId,
-      tMs,
-      radiusMs,
-      maxLines,
+      fromMs,
+      toMs,
+      maxLines: opts.maxLines ?? 500,
+      importantOnly: opts.importantOnly ?? false,
+      query: opts.query ?? '',
     });
   }
 

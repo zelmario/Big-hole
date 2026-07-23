@@ -10,6 +10,7 @@
 import { decodeFTDC, readMetadata } from '../ftdc/index.js';
 import { LogAnalyzer } from '../logs/analyze.js';
 import { emptyStats, parseLine } from '../logs/parse.js';
+import { classify } from '../logs/classify.js';
 import { rangeFor } from '../logs/locate.js';
 import { OpfsFileStore } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
@@ -18,7 +19,7 @@ import type { CaptureManifest } from '../data/types.js';
 import {
   summarise,
   type CaptureSummary,
-  type LogWindowLine,
+  type LogViewLine,
   type Request,
   type Response,
   type SeriesPayload,
@@ -175,41 +176,71 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         break;
       }
 
-      case 'logWindow': {
-        // The File handle is still held from ingest, so this is a positioned read of a few
-        // kilobytes -- no part of the log had to be kept in memory to make it possible.
+      case 'logRange': {
+        // The log viewer's data source. The File handles are still held from ingest, so the
+        // bytes covering the visible window are a positioned read -- following the dashboard as
+        // it zooms costs milliseconds, not memory.
         const held = logFiles.get(request.captureId) ?? [];
-        const lines: LogWindowLine[] = [];
-        const from = request.tMs - request.radiusMs;
-        const to = request.tMs + request.radiusMs;
+        const { fromMs, toMs, maxLines, importantOnly } = request;
+        const query = request.query.toLowerCase();
+        const out: LogViewLine[] = [];
+        let truncated = false;
+        // Never read more than this scanning for notable lines in a wide window; past it the
+        // viewer says so and asks for a narrower one.
+        const SCAN_BUDGET = 256 * 1024 * 1024;
 
         for (const file of held) {
-          const range = await rangeFor(file, from, to);
+          if (out.length >= maxLines) break;
+          const range = await rangeFor(file, fromMs, toMs);
           if (range.to <= range.from) continue;
-          const text = new TextDecoder().decode(
-            await file.slice(range.from, Math.min(range.to, range.from + 4 * 1024 * 1024)).arrayBuffer(),
-          );
+          const end = Math.min(range.to, range.from + SCAN_BUDGET);
+          if (end < range.to) truncated = true;
+
+          const reader = file
+            .slice(range.from, end)
+            .stream()
+            .pipeThrough(new TextDecoderStream())
+            .getReader();
+          let carry = '';
           const stats = emptyStats();
-          for (const raw of text.split('\n')) {
-            const line = parseLine(raw, stats);
-            if (line === null || line.tMs < from || line.tMs > to) continue;
-            const at = raw.indexOf('"attr":');
-            lines.push({
-              tMs: line.tMs,
-              severity: line.s,
-              component: line.c,
-              msg: line.msg,
-              // Enough to identify the operation; the whole command document is not worth
-              // moving across the port to be ellipsized in a 300-pixel column.
-              attr: at < 0 ? '' : raw.slice(at + 7, at + 407),
-            });
-            if (lines.length >= request.maxLines * 4) break;
+
+          read: for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            const parts = (carry + chunk.value).split('\n');
+            carry = parts.pop() ?? '';
+            for (const raw of parts) {
+              const line = parseLine(raw, stats);
+              if (line === null || line.tMs < fromMs || line.tMs > toMs) continue;
+              if (query.length > 0 && !raw.toLowerCase().includes(query)) continue;
+              const rule = classify(line);
+              const important = rule?.mode === 'annotate';
+              if (importantOnly && !important) continue;
+
+              const at = raw.indexOf('"attr":');
+              out.push({
+                tMs: line.tMs,
+                severity: line.s,
+                component: line.c,
+                msg: line.msg,
+                // Enough to identify the operation; the whole command document is not worth
+                // moving across the port to be ellipsized in a narrow column.
+                attr: at < 0 ? '' : raw.slice(at + 7, at + 407),
+                kind: rule?.kind ?? '',
+                label: important ? (rule?.label ?? '') : '',
+                important,
+              });
+              if (out.length >= maxLines) {
+                truncated = true;
+                break read;
+              }
+            }
           }
+          await reader.cancel();
         }
 
-        lines.sort((a, b) => Math.abs(a.tMs - request.tMs) - Math.abs(b.tMs - request.tMs));
-        const near = lines.slice(0, request.maxLines).sort((a, b) => a.tMs - b.tMs);
-        post({ kind: 'logWindow', id, lines: near });
+        out.sort((a, b) => a.tMs - b.tMs);
+        post({ kind: 'logRange', id, lines: out, truncated });
         break;
       }
 

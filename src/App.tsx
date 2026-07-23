@@ -7,7 +7,7 @@ import { TimeRange } from './ui/TimeRange.js';
 import { DashboardMenu } from './ui/DashboardMenu.js';
 import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
-import { EventList } from './logs/EventList.js';
+import { LogView } from './logs/LogView.js';
 import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
 
@@ -30,11 +30,9 @@ export function App(): ReactElement {
   const reset = useStore((s) => s.reset);
 
   const [copied, setCopied] = useState<string | null>(null);
-  const [tab, setTab] = useState<'metrics' | 'events'>('metrics');
-  // Depends on the loaded logs and on the filter, both of which have to be subscribed to for
-  // the tab label to move; `(s) => s.events` alone is a stable function reference.
-  useStore((s) => s.eventKind);
-  const eventCount = useStore((s) => s.captures.reduce((n, c) => n + (c.logs?.events.length ?? 0), 0));
+  const [tab, setTab] = useState<'metrics' | 'log'>('metrics');
+  const hasLogs = useStore((s) => s.hasLogs)();
+  const pinCount = useStore((s) => s.pins.length);
 
   async function share(): Promise<void> {
     const link = toPermalink(dashboard(), window.location.href);
@@ -140,13 +138,14 @@ export function App(): ReactElement {
                     metrics
                   </button>
                   <button
-                    className={tab === 'events' ? 'tab on' : 'tab'}
-                    onClick={() => setTab('events')}
+                    className={tab === 'log' ? 'tab on' : 'tab'}
+                    onClick={() => setTab('log')}
                   >
-                    events{eventCount > 0 && ` (${eventCount})`}
+                    log{hasLogs ? '' : ' +'}
+                    {pinCount > 0 && <span className="tab-pins"> {pinCount}📌</span>}
                   </button>
                 </div>
-                {tab === 'metrics' ? <MetricCatalog /> : <EventList />}
+                {tab === 'metrics' ? <MetricCatalog /> : <LogView />}
               </>
             )}
           </div>
