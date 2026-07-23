@@ -257,7 +257,17 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
           grid: { stroke: '#2a2f38', width: 1 },
           ticks: { stroke: '#2a2f38' },
           values: (_u: uPlot, ticks: number[]) => axisFormatter(unit)(ticks),
-          size: 62,
+          // Measured, not fixed. At a hardcoded 62px anything past eight characters lost its
+          // leading digits, so "143.1 MiB" rendered as "43.1 MiB" -- a plausible-looking
+          // number that is wrong by an order of magnitude, on the axis a reader trusts to say
+          // what scale they are looking at.
+          // Estimated from the character count rather than measured: uPlot calls this before
+          // the axis font is on the context, so ctx.measureText under-reports and the labels
+          // still lose their leading digits.
+          size: (_u: uPlot, values: string[] | null) => {
+            const chars = (values ?? []).reduce((m, v) => Math.max(m, v.length), 0);
+            return Math.min(130, Math.max(44, Math.round(chars * 7.8) + 16));
+          },
         },
       ],
       plugins: [gapPlugin(() => gapsRef.current), selectionPlugin()],
