@@ -48,7 +48,10 @@ export const DEFAULT_TEMPLATES: readonly PanelTemplate[] = [
   { kind: "chart", title: "Operations latencies op", metrics: ["rate(serverStatus.opLatencies.reads.ops)", "rate(serverStatus.opLatencies.writes.ops)", "rate(serverStatus.opLatencies.commands.ops)"], unit: "per-sec", x: 0, y: 38, w: 8, h: 5 },
   { kind: "chart", title: "Server Uptime", metrics: ["serverStatus.uptime"], x: 8, y: 38, w: 7, h: 5 },
   { kind: "chart", title: "Replica members ping", metrics: ["replSetGetStatus.members.*.pingMs"], unit: "ms", x: 15, y: 38, w: 9, h: 5 },
-  { kind: "chart", title: "FlowControl isLagged", metrics: ["rate(serverStatus.flowControl.isLaggedTimeMicros)"], unit: "us", x: 0, y: 43, w: 8, h: 6 },
+  // µs of lag accumulated per second is a fraction of wall time, so it reads as a percentage:
+  // 1e6 µs/s is 100% of the time under flow control. Labelling the rate "µs" said microseconds
+  // when it meant microseconds per second.
+  { kind: "chart", title: "FlowControl isLagged", metrics: ["scale(rate(serverStatus.flowControl.isLaggedTimeMicros), 0.0001)"], unit: "percent", x: 0, y: 43, w: 8, h: 6 },
   { kind: "chart", title: "Asserts", metrics: ["rate(serverStatus.asserts.warning)", "rate(serverStatus.asserts.user)", "rate(serverStatus.asserts.rollovers)", "rate(serverStatus.asserts.regular)", "rate(serverStatus.asserts.msg)"], x: 8, y: 43, w: 7, h: 7 },
   { kind: "chart", title: "Query Executor", metrics: ["rate(serverStatus.metrics.queryExecutor.scannedObjects)", "rate(serverStatus.metrics.queryExecutor.scanned)", "rate(serverStatus.metrics.queryExecutor.collectionScans.total)"], x: 15, y: 43, w: 9, h: 6 },
   { kind: "chart", title: "Commands", metrics: ["rate(serverStatus.metrics.commands.createIndexes.total)", "rate(serverStatus.metrics.commands.dataSize.total)", "rate(serverStatus.metrics.commands.dropIndexes.total)", "rate(serverStatus.metrics.commands.listCollections.total)", "rate(serverStatus.metrics.commands.listDatabases.total)"], x: 0, y: 49, w: 8, h: 6 },
@@ -61,7 +64,12 @@ export const DEFAULT_TEMPLATES: readonly PanelTemplate[] = [
   { kind: "chart", title: "Network In / Out physical", metrics: ["rate(serverStatus.network.physicalBytesIn)", "rate(serverStatus.network.physicalBytesOut)"], unit: "bytes/s", x: 0, y: 63, w: 8, h: 5 },
   { kind: "chart", title: "Network In / Out", metrics: ["rate(serverStatus.network.bytesOut)", "rate(serverStatus.network.bytesIn)"], x: 8, y: 63, w: 8, h: 6 },
   { kind: "chart", title: "Storage Size", metrics: ["local.oplog.rs.stats.storageStats.freeStorageSize", "local.oplog.rs.stats.storageStats.storageSize"], unit: "bytes", x: 16, y: 63, w: 8, h: 6 },
-  { kind: "chart", title: "CPU Usage", metrics: ["scale(rate(systemMetrics.cpu.user_ms), 0.1)", "scale(rate(systemMetrics.cpu.system_ms), 0.1)", "scale(rate(systemMetrics.cpu.iowait_ms), 0.1)", "scale(rate(systemMetrics.cpu.nice_ms), 0.1)", "scale(rate(systemMetrics.cpu.softirq_ms), 0.1)", "scale(rate(systemMetrics.cpu.steal_ms), 0.1)", "scale(rate(systemMetrics.cpu.idle_ms), 0.1)"], unit: "percent", x: 0, y: 68, w: 8, h: 6 },
+  // Percent of the machine's total CPU, exactly as the Big-hole dashboard computed it:
+  // 100 * user / (user + system + iowait + nice + softirq + steal + idle). Not
+  // `scale(rate(user_ms), 0.1)`, which is percent of ONE core -- that reads as "855% idle" on
+  // a 16-core host, and a stalled systemMetrics collector catching up in a single sample sent
+  // it to 24,752%. A ratio is immune to that: numerator and denominator stretch together.
+  { kind: "chart", title: "CPU Usage", metrics: ["pct(rate(systemMetrics.cpu.user_ms), sum(rate(systemMetrics.cpu.user_ms), rate(systemMetrics.cpu.system_ms), rate(systemMetrics.cpu.iowait_ms), rate(systemMetrics.cpu.nice_ms), rate(systemMetrics.cpu.softirq_ms), rate(systemMetrics.cpu.steal_ms), rate(systemMetrics.cpu.idle_ms)))", "pct(rate(systemMetrics.cpu.system_ms), sum(rate(systemMetrics.cpu.user_ms), rate(systemMetrics.cpu.system_ms), rate(systemMetrics.cpu.iowait_ms), rate(systemMetrics.cpu.nice_ms), rate(systemMetrics.cpu.softirq_ms), rate(systemMetrics.cpu.steal_ms), rate(systemMetrics.cpu.idle_ms)))", "pct(rate(systemMetrics.cpu.iowait_ms), sum(rate(systemMetrics.cpu.user_ms), rate(systemMetrics.cpu.system_ms), rate(systemMetrics.cpu.iowait_ms), rate(systemMetrics.cpu.nice_ms), rate(systemMetrics.cpu.softirq_ms), rate(systemMetrics.cpu.steal_ms), rate(systemMetrics.cpu.idle_ms)))"], unit: "percent", x: 0, y: 68, w: 8, h: 6 },
   { kind: "chart", title: "Disk writes and reads", metrics: ["rate(systemMetrics.disks.*.reads)", "rate(systemMetrics.disks.*.writes)"], unit: "per-sec", x: 8, y: 69, w: 8, h: 7 },
   { kind: "chart", title: "Memory", metrics: ["systemMetrics.memory.MemAvailable_kb", "systemMetrics.memory.MemFree_kb"], unit: "bytes", x: 16, y: 69, w: 8, h: 7 },
   { kind: "chart", title: "Disk I/O", metrics: ["scale(rate(systemMetrics.disks.*.io_time_ms), 0.1)", "systemMetrics.disks.*.io_in_progress"], x: 0, y: 74, w: 8, h: 7 },

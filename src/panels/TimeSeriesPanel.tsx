@@ -8,7 +8,7 @@ import { axisFormatter, formatValue } from '../data/format.js';
 import type { Unit } from '../data/expr.js';
 import { fetchPanelData, unitOfMetric, type PanelSeries } from '../data/panelData.js';
 import { describeCrossHost } from '../dashboard/crossHost.js';
-import { plotColumn, timeColumn } from './plotData.js';
+import { legendLabel, plotColumn, timeColumn } from './plotData.js';
 import type { KnownCapture } from '../data/qualify.js';
 import type { Gap } from '../data/types.js';
 
@@ -17,22 +17,6 @@ const PALETTE = [
   '#73bf69', '#f2cc0c', '#8ab8ff', '#ff9830', '#f2495c', '#b877d9',
   '#ff780a', '#5794f2', '#fade2a', '#7ee0d1', '#e02f44', '#c0d8ff',
 ];
-
-/**
- * Trim a legend label to what distinguishes it.
- *
- * Full paths are unreadable at panel width -- `rate(common.serverStatus.opcounters.query)` is
- * mostly prefix shared with every other series in the panel. The role prefix and section are
- * dropped for display; the full expression stays in the tooltip and in the panel definition.
- */
-function legendLabel(expression: string): string {
-  return expression
-    .replace(/\b(common|shard|router|configsvr)\./g, '')
-    .replace(/\bserverStatus\./g, '')
-    .replace(/\bsystemMetrics\./g, 'sys.')
-    .replace(/\breplSetGetStatus\./g, 'rs.')
-    .replace(/\blocal\.oplog\.rs\.stats\./g, 'oplog.');
-}
 
 /**
  * Unit for one series.

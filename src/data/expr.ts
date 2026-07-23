@@ -324,9 +324,14 @@ export function unitOf(e: Expr): Unit {
     case 'scale': {
       const inner = unitOf(e.arg);
       // Time accumulated per unit time is dimensionless -- 1000 ms/s is one core, or one
-      // device, fully busy. Scaling by 0.1 expresses that as a percentage, which is how both
-      // CPU usage and iostat's %util are conventionally read.
-      if (inner === 'per-sec' && baseUnit(e.arg) === 'ms' && e.k === 0.1) return 'percent';
+      // device, fully busy. Scaling to a fraction of that expresses it as a percentage, which
+      // is how iostat's %util, CPU usage and flow-control lag are conventionally read. The
+      // factor differs only by the base unit: 0.1 for ms/s, 1e-4 for µs/s.
+      if (inner === 'per-sec') {
+        const base = baseUnit(e.arg);
+        if (base === 'ms' && e.k === 0.1) return 'percent';
+        if (base === 'us' && e.k === 0.0001) return 'percent';
+      }
       return inner;
     }
     case 'diff':

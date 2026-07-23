@@ -164,17 +164,30 @@ cross-section expressions.
 
 | Capture | Paths | Roles | Panels |
 |---|---|---|---|
-| 4.4 / 5.0 / 6.0 | ~2.1–2.5k | none | 41/44 |
+| 4.4 / 5.0 / 6.0 | ~2.1–2.5k | none | 43/44 |
 | 7.0 | 2,950 | none | 43/44 |
 | 8.0 | 5,616 | none | 43/44 |
 | 8.0 sharded | 5,846 | `common`, `shard` | 43/44 |
+| real 8.0 sharded, 3-member | 5,763 | `common`, `shard` | **44/44** |
 
-### Observed ticket paths
+The one panel missing everywhere but the last is "Replica members ping", which needs a peer to
+ping — a single-node fixture genuinely has none, and it resolves on a real multi-member
+capture. `npm run coverage -- <dir>` prints the drop list with the offending paths and
+near-miss candidates from the capture's own catalogue; a dropped panel is otherwise silent by
+construction.
 
-| Version | Path |
-|---|---|
-| 4.4 – 7.0 | `serverStatus.wiredTiger.concurrentTransactions.read.available` |
-| 8.0 | `serverStatus.queues.execution.read.available` (the old section is gone) |
+### Observed renames
+
+| Metric | Version | Path |
+|---|---|---|
+| tickets | 4.4 – 7.0 | `serverStatus.wiredTiger.concurrentTransactions.read.available` |
+| tickets | 8.0 | `serverStatus.queues.execution.read.available` (the old section is gone) |
+| oplog collStats | 4.4 – 6.0 | `local.oplog.rs.stats.storageSize` |
+| oplog collStats | 7.0 – 8.0 | `local.oplog.rs.stats.storageStats.storageSize` |
+
+The oplog one cost two panels — "Storage Size" and "avg Obj Size" simply did not exist on any
+server older than 7.0, and the version guardrail's floor was set low enough (25 of 44) that
+nothing went red. A floor well below what actually passes is not a guardrail; it is now 43.
 
 ### The guardrail
 
@@ -182,6 +195,7 @@ cross-section expressions.
 npm run fixtures:versions   # captures 4.4/5.0/6.0/7.0/8.0 via Docker
 npm run fixtures:sharded    # sharded cluster -- the only way to reproduce role scoping
 npm run catalogs            # per-version diff + alias candidates
+npm run coverage -- <dir>   # which panels this capture cannot draw, and exactly why
 npm test                    # tests/versions.test.ts asserts essentials resolve everywhere
 ```
 

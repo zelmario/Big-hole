@@ -36,7 +36,7 @@ import {
   type SeriesSource,
 } from '../src/data/panelData.js';
 import { crossHostPanels, referenceCapture } from '../src/dashboard/crossHost.js';
-import { plotColumn, timeColumn } from '../src/panels/plotData.js';
+import { legendLabel, plotColumn, timeColumn } from '../src/panels/plotData.js';
 import { discoverFixtures } from './oracle.js';
 
 const known = (id: string): boolean => id === 'c0' || id === 'c1';
@@ -477,5 +477,30 @@ describe('handing a series to uPlot', () => {
 
   it('converts the clock to the seconds uPlot expects', () => {
     expect(timeColumn(Float64Array.from([1000, 2500]))).toEqual([1, 2.5]);
+  });
+});
+
+describe('legend labels', () => {
+  it('drops the prefix every series in a panel shares', () => {
+    expect(legendLabel('rate(common.serverStatus.opcounters.query)')).toBe('rate(opcounters.query)');
+    expect(legendLabel('shard.replSetGetStatus.members.0.health')).toBe('rs.members.0.health');
+    expect(legendLabel('local.oplog.rs.stats.storageStats.storageSize')).toBe(
+      'oplog.storageStats.storageSize',
+    );
+  });
+
+  it('collapses the shared total in a share-of-total expression', () => {
+    // CPU usage is one numerator over a seven-term denominator, repeated for every series.
+    // Spelled out, three legend rows are identical for their first 30 characters.
+    const total =
+      'sum(rate(systemMetrics.cpu.user_ms), rate(systemMetrics.cpu.system_ms), rate(systemMetrics.cpu.idle_ms))';
+    expect(legendLabel(`pct(rate(systemMetrics.cpu.user_ms), ${total})`)).toBe(
+      'pct(rate(sys.cpu.user_ms), sum(…))',
+    );
+  });
+
+  it('leaves a two-term sum spelled out', () => {
+    // Short enough to read, and the terms are the information.
+    expect(legendLabel('sum(serverStatus.a, serverStatus.b)')).toBe('sum(a, b)');
   });
 });

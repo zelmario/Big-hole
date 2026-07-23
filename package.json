@@ -20,7 +20,8 @@
     "fixtures:sharded": "bash tools/fixtures/sharded.sh",
     "units": "vite-node tools/units.ts",
     "verify:browser": "bash tools/browser/verify.sh",
-    "verify:multi": "bash tools/browser/verify-multi.sh"
+    "verify:multi": "bash tools/browser/verify-multi.sh",
+    "coverage": "vite-node tools/coverage.ts"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

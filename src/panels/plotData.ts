@@ -37,3 +37,60 @@ export function timeColumn(ms: Float64Array): number[] {
   for (let i = 0; i < ms.length; i++) out[i] = ms[i]! / 1000;
   return out;
 }
+
+/**
+ * Trim a legend label to what distinguishes it.
+ *
+ * Full paths are unreadable at panel width -- `rate(common.serverStatus.opcounters.query)` is
+ * mostly prefix shared with every other series in the panel. The role prefix and section are
+ * dropped for display; the full expression stays in the tooltip and in the panel definition.
+ */
+export function legendLabel(expression: string): string {
+  return collapseSums(expression)
+    .replace(/\b(common|shard|router|configsvr)\./g, '')
+    .replace(/\bserverStatus\./g, '')
+    .replace(/\bsystemMetrics\./g, 'sys.')
+    .replace(/\breplSetGetStatus\./g, 'rs.')
+    .replace(/\blocal\.oplog\.rs\.stats\./g, 'oplog.');
+}
+
+/**
+ * Shorten a wide `sum(...)` to `sum(…)`.
+ *
+ * CPU usage is a percentage of a seven-term total, so each of its three series carries the
+ * same 300-character denominator. Left alone the legend shows three rows that are identical
+ * for the first 30 characters and then run out of width -- the one part that distinguishes
+ * them, which is the numerator, sits at the front but the row reads as noise. The full
+ * expression stays in the row's tooltip and in the panel definition.
+ */
+function collapseSums(expression: string): string {
+  let out = '';
+  let i = 0;
+  while (i < expression.length) {
+    const at = expression.indexOf('sum(', i);
+    if (at < 0) {
+      out += expression.slice(i);
+      break;
+    }
+    // Find this sum's matching close paren, and count its top-level arguments.
+    let depth = 0;
+    let commas = 0;
+    let end = at + 3;
+    for (; end < expression.length; end++) {
+      const ch = expression[end]!;
+      if (ch === '(') depth++;
+      else if (ch === ')') {
+        depth--;
+        if (depth === 0) break;
+      } else if (ch === ',' && depth === 1) commas++;
+    }
+    if (end >= expression.length) {
+      out += expression.slice(i); // unbalanced: leave it alone
+      break;
+    }
+    out += expression.slice(i, at);
+    out += commas >= 2 ? 'sum(…)' : expression.slice(at, end + 1);
+    i = end + 1;
+  }
+  return out;
+}

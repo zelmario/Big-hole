@@ -41,6 +41,12 @@ const ESSENTIAL: ReadonlyArray<[string, string]> = [
   ['resident memory', 'serverStatus.mem.resident'],
   ['cpu user', 'scale(rate(systemMetrics.cpu.user_ms), 0.1)'],
   ['page faults', 'rate(serverStatus.extra_info.page_faults)'],
+  // The oplog collStats moved under `storageStats` in 7.0, and nothing said so: "Storage Size"
+  // and "avg Obj Size" simply stopped existing on 4.4/5.0/6.0. Oplog window is a first
+  // question in most replication investigations, so these are essential rather than nice.
+  ['oplog size', 'local.oplog.rs.stats.storageStats.storageSize'],
+  ['oplog free space', 'local.oplog.rs.stats.storageStats.freeStorageSize'],
+  ['oplog avg doc size', 'local.oplog.rs.stats.storageStats.avgObjSize'],
 ];
 
 interface Capture {
@@ -112,11 +118,16 @@ describe.each(captures)('MongoDB $version', (capture) => {
 
   it('builds a dashboard with most panels populated', () => {
     const charts = defaultDashboard(capture.paths).panels.filter((p) => p.kind === 'chart');
-    // Some panels legitimately do not apply to a standalone or a single-node set (replica
-    // ping has no peers, oplog storage stats may be absent), so this is a floor, not a match.
+    // 43 of the 44 charts resolve on every captured version. The one that does not is
+    // "Replica members ping", which needs a peer to ping and so is genuinely absent from a
+    // single-node fixture -- it does resolve on a real multi-member capture.
+    //
+    // This floor used to be 25, which is why three panels could disappear on 4.4/5.0/6.0
+    // without a single test going red. A floor set well below what actually passes is not a
+    // guardrail.
     expect(
       charts.length,
       `only ${charts.length} panels resolved on ${capture.version}`,
-    ).toBeGreaterThanOrEqual(25);
+    ).toBeGreaterThanOrEqual(43);
   });
 });

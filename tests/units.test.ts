@@ -170,5 +170,26 @@ describe('dimensional analysis', () => {
     expect(unitOf(parseExpr('scale(rate(systemMetrics.disks.sda.io_time_ms), 0.1)'))).toBe('percent');
     // A different factor is not a percentage.
     expect(unitOf(parseExpr('scale(rate(systemMetrics.cpu.user_ms), 2)'))).toBe('per-sec');
+    // Microseconds accumulated per second is the same dimensionless quantity, three orders
+    // further down: 1e6 µs/s is 100% of wall time. Flow control reports in µs.
+    expect(
+      unitOf(parseExpr('scale(rate(serverStatus.flowControl.isLaggedTimeMicros), 0.0001)')),
+    ).toBe('percent');
+    expect(
+      unitOf(parseExpr('scale(rate(serverStatus.flowControl.isLaggedTimeMicros), 0.1)')),
+    ).toBe('per-sec');
+  });
+
+  it('reads a share of a total as a percentage', () => {
+    // CPU usage as Big-hole computed it: 100 * user / (sum of every cpu counter). Bounded
+    // 0-100 whatever the core count, and immune to a stalled collector catching up, because
+    // numerator and denominator stretch together.
+    expect(
+      unitOf(
+        parseExpr(
+          'pct(rate(systemMetrics.cpu.user_ms), sum(rate(systemMetrics.cpu.user_ms), rate(systemMetrics.cpu.idle_ms)))',
+        ),
+      ),
+    ).toBe('percent');
   });
 });
