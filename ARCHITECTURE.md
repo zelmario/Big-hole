@@ -376,6 +376,14 @@ Enforced mechanically, not by convention:
 
 Build milestone by milestone per `PLAN.md`. Do not scaffold future milestones early.
 
+**Never redirect a generator's stdout into a file under `src/`.** The shell truncates the
+target before the generator writes a byte; Vite's watcher transforms the empty file, caches
+it, and then serves 0 bytes for a module that is perfectly correct on disk. The importing
+module fails with "does not provide an export named …", the app never mounts, and reloading
+cannot fix it because the staleness is in the dev server, not the browser. Generators take a
+destination argument and write atomically (temp file, then rename) --
+`tools/port/port-dashboard.py` is the pattern.
+
 Order matters: **M0.5 (the oracle harness) comes before M1 (the decoder)**, and **M1.5 (the
 OPFS storage layer) comes before any UI**. The decoder is the highest-risk component and the
 storage layer determines every panel's interface; both are cheap to get right first and

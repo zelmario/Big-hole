@@ -4,9 +4,10 @@ Grafana applies derivative() to most panels; those become rate() here. Panels wh
 does something we cannot express generically (per-disk regex fans, CPU percent, replica lag)
 are hand-mapped below and expanded against the capture catalogue at load time via `*` globs.
 """
-import json, re, sys
+import json, os, re, sys, tempfile
 
 src = sys.argv[1]
+dest = sys.argv[2] if len(sys.argv) > 2 else None
 d = json.load(open(src))
 
 # Only units Grafana was told explicitly. 'short'/'none'/absent are its DEFAULTS, not
@@ -193,4 +194,15 @@ for p in panels:
                f"x: {p['x']}, y: {p['y']}, w: {p['w']}, h: {p['h']} }},")
 out.append('];')
 out.append('')
-print('\n'.join(out))
+text = '\n'.join(out)
+
+if dest is None:
+    # stdout still works for inspection; it is redirecting it into a watched file that hurts.
+    print(text)
+else:
+    # Atomic: the watcher never sees a partial or empty file.
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dest) or '.', suffix='.tmp')
+    with os.fdopen(fd, 'w') as f:
+        f.write(text)
+    os.replace(tmp, dest)
+    print(f'wrote {dest} ({len(text)} bytes)', file=sys.stderr)

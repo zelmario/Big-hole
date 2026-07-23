@@ -78,4 +78,3 @@ export const DEFAULT_TEMPLATES: readonly PanelTemplate[] = [
   { kind: "chart", title: "TCP Connection Issues", metrics: ["systemMetrics.netstat.Tcp:CurrEstab", "rate(systemMetrics.netstat.Tcp:EstabResets)", "rate(systemMetrics.netstat.Tcp:OutRsts)"], x: 8, y: 90, w: 8, h: 7 },
   { kind: "chart", title: "TCP Packet Loss or Corruption", metrics: ["rate(systemMetrics.netstat.Tcp:InCsumErrors)", "rate(systemMetrics.netstat.Tcp:InErrs)", "rate(systemMetrics.netstat.Tcp:RetransSegs)", "rate(systemMetrics.netstat.Ip:InDiscards)", "rate(systemMetrics.netstat.Ip:OutDiscards)"], x: 0, y: 93, w: 8, h: 5 },
 ];
-
