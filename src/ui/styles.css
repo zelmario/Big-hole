@@ -211,3 +211,12 @@ header { align-items: center; flex-wrap: wrap; }
 .node-progress { margin-bottom: 10px; }
 .node-progress .bar { margin: 4px 0; }
 .pad { padding: 6px 16px; }
+
+/* ---- maximized panel ---- */
+/* Outside the grid: react-grid-layout sizes rows in fixed 30px units and cannot express
+   "fill the viewport", so the panel measures itself instead. */
+.maximized-host { height: 100%; }
+.maximized-host > .panel { height: 100%; }
+/* With the whole viewport to work with, show more of the legend before it scrolls -- the
+   two-row cap exists to keep tiled panels the same shape, which no longer applies. */
+.maximized-host .legend { max-height: calc(var(--legend-row) * 8 + 6px); }

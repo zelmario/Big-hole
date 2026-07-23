@@ -36,6 +36,7 @@ import {
   type SeriesSource,
 } from '../src/data/panelData.js';
 import { crossHostPanels, referenceCapture } from '../src/dashboard/crossHost.js';
+import { plotColumn, timeColumn } from '../src/panels/plotData.js';
 import { discoverFixtures } from './oracle.js';
 
 const known = (id: string): boolean => id === 'c0' || id === 'c1';
@@ -451,5 +452,30 @@ describe.skipIf(fixtures.length === 0)('two real captures on one dashboard', () 
     const values = Array.from(data.series[0]!.mean).filter((v) => !Number.isNaN(v));
     expect(values.length).toBeGreaterThan(10);
     expect(values.every((v) => v === 0)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------ plot columns ---- */
+
+describe('handing a series to uPlot', () => {
+  it('marks gaps with null, which is what uPlot understands', () => {
+    // Verified in Chromium against the bundled uPlot: [NaN, 20, 30] gives series.min === NaN,
+    // which makes the shared y scale NaN and draws NOTHING -- no line, no axis, for every
+    // series in the panel. [null, 20, 30] ranges correctly. The storage layer uses NaN because
+    // a gap has to be representable inside a Float64Array, so the conversion belongs at this
+    // boundary.
+    expect(plotColumn(Float64Array.from([NaN, 20, 30]))).toEqual([null, 20, 30]);
+    expect(plotColumn(Float64Array.from([10, NaN, 30]))).toEqual([10, null, 30]);
+    expect(plotColumn(Float64Array.from([10, 20, 30]))).toEqual([10, 20, 30]);
+  });
+
+  it('keeps zero, which is a value and not a gap', () => {
+    // A ticket pool at zero IS the finding. Anything that treats it as missing hides exactly
+    // the event the panel exists to show.
+    expect(plotColumn(Float64Array.from([0, 0]))).toEqual([0, 0]);
+  });
+
+  it('converts the clock to the seconds uPlot expects', () => {
+    expect(timeColumn(Float64Array.from([1000, 2500]))).toEqual([1, 2.5]);
   });
 });

@@ -66,6 +66,37 @@ const report = await page.evaluate(() => {
 console.log(JSON.stringify(report, null, 2));
 await page.screenshot({ path: 'tools/browser/multi.png' });
 
+// --- maximize a panel: it must leave the grid, fill the area, and come back on Escape ---
+await page.locator('.panel-head button[title*="aximize"]').first().click();
+await page.waitForTimeout(1500);
+const maximized = await page.evaluate(() => {
+  const host = document.querySelector('.maximized-host .panel');
+  const canvas = host?.querySelector('canvas');
+  return {
+    gridItems: document.querySelectorAll('.react-grid-item').length,
+    panels: document.querySelectorAll('.panel').length,
+    panelHeight: host ? Math.round(host.getBoundingClientRect().height) : 0,
+    plotHeight: canvas ? Math.round(canvas.getBoundingClientRect().height) : 0,
+    legendItems: host?.querySelectorAll('.legend-item').length ?? 0,
+  };
+});
+console.log('maximized:', JSON.stringify(maximized));
+await page.screenshot({ path: 'tools/browser/multi-maximized.png' });
+await page.keyboard.press('Escape');
+// The whole dashboard remounts and re-reads; wait for the charts rather than a fixed delay.
+await page
+  .waitForFunction(() => document.querySelectorAll('.panel canvas').length > 20, { timeout: 120000 })
+  .catch(() => errors.push('charts did not come back after Escape'));
+console.log(
+  'after Escape:',
+  JSON.stringify(
+    await page.evaluate(() => ({
+      gridItems: document.querySelectorAll('.react-grid-item').length,
+      canvases: document.querySelectorAll('.panel canvas').length,
+    })),
+  ),
+);
+
 // Untick a node: the panels must redraw with one line each, without a reload.
 await page.click('.capture-chip input[type=checkbox]');
 await page.waitForTimeout(2500);

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, type ReactElement } from 'react';
 // The v1-compatible entry point, shipped by react-grid-layout for exactly this purpose.
 //
 // v2's new API (GridLayout + gridConfig/dragConfig + useContainerWidth) would not start a
@@ -27,6 +27,19 @@ const COLS = { lg: GRID_COLUMNS };
 export function Grid(): ReactElement {
   const panels = useStore((s) => s.panels);
   const applyGeometry = useStore((s) => s.applyGeometry);
+  const maximized = useStore((s) => s.maximized);
+  const toggleMaximized = useStore((s) => s.toggleMaximized);
+
+  // Escape gets out. A maximised panel covers the dashboard, so the way back has to be the
+  // one every full-screen view in every other tool already trained people to press.
+  useEffect(() => {
+    if (maximized === null) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') toggleMaximized(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [maximized, toggleMaximized]);
 
   const fromPanels = useMemo<Layout>(
     () =>
@@ -60,6 +73,18 @@ export function Grid(): ReactElement {
       <p className="muted pad">
         No panels. Use “+ panel”, or the dashboard menu to restore the default.
       </p>
+    );
+  }
+
+  const solo = maximized === null ? undefined : panels.find((p) => p.id === maximized);
+  if (solo !== undefined) {
+    // Rendered outside the grid rather than as a full-width grid item: react-grid-layout sizes
+    // rows in fixed 30px units, so "fill the viewport" is not something it can express, and
+    // the panel has to be the one measuring itself.
+    return (
+      <div className="maximized-host">
+        <TimeSeriesPanel panel={solo} />
+      </div>
     );
   }
 

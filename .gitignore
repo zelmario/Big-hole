@@ -15,3 +15,6 @@ tools/oracle/*.jsonl
 # Playwright browser binaries live in ~/.cache; nothing to ignore here, but the
 # container-written Vite cache sometimes ends up root-owned.
 node_modules/.vite/
+
+# Screenshots from the browser harnesses are artefacts of a run, not source.
+tools/browser/*.png

@@ -65,7 +65,7 @@ const realApplyGeometry = useStore.getState().applyGeometry;
 
 afterEach(() => {
   cleanup();
-  useStore.setState({ panels: [], focused: null, applyGeometry: realApplyGeometry });
+  useStore.setState({ panels: [], focused: null, maximized: null, applyGeometry: realApplyGeometry });
 });
 
 describe('panel grid', () => {
@@ -155,5 +155,68 @@ describe('panel grid', () => {
     // Every panel must survive; a drag must not drop or duplicate one.
     expect(useStore.getState().panels).toHaveLength(2);
     expect(useStore.getState().panels.map((p) => p.id).sort()).toEqual(['a', 'b']);
+  });
+});
+
+describe('maximizing a panel', () => {
+  /** The maximize control, which sits next to the panel's remove button. */
+  function maximizeButton(index = 0): Element {
+    return [...document.querySelectorAll('.panel-head button')].filter((b) =>
+      (b.getAttribute('title') ?? '').includes('aximize'),
+    )[index]!;
+  }
+
+  it('shows only the chosen panel, and leaves the grid behind', () => {
+    stubWidth(1200);
+    mount();
+    expect(document.querySelectorAll('.react-grid-item')).toHaveLength(2);
+
+    act(() => {
+      (maximizeButton() as HTMLElement).click();
+    });
+
+    // Out of the grid entirely: react-grid-layout sizes rows in fixed units and cannot fill
+    // the viewport, so a maximised panel is not a grid item at all.
+    expect(document.querySelectorAll('.react-grid-item')).toHaveLength(0);
+    expect(document.querySelectorAll('.maximized-host .panel')).toHaveLength(1);
+    expect(useStore.getState().maximized).toBe('a');
+    // Maximising is also a focus: the catalogue adds to the panel you are looking at.
+    expect(useStore.getState().focused).toBe('a');
+  });
+
+  it('comes back on Escape', () => {
+    stubWidth(1200);
+    mount();
+    act(() => {
+      (maximizeButton() as HTMLElement).click();
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(useStore.getState().maximized).toBeNull();
+    expect(document.querySelectorAll('.react-grid-item')).toHaveLength(2);
+  });
+
+  it('does not strand the view when the maximized panel is removed', () => {
+    stubWidth(1200);
+    mount();
+    act(() => {
+      (maximizeButton() as HTMLElement).click();
+    });
+    act(() => {
+      useStore.getState().removePanel('a');
+    });
+    expect(useStore.getState().maximized).toBeNull();
+  });
+
+  it('stays out of the saved layout', () => {
+    // It is where you are looking, not how the dashboard is laid out. In a permalink it would
+    // reopen someone else's dashboard zoomed into one panel.
+    stubWidth(1200);
+    mount();
+    act(() => {
+      (maximizeButton() as HTMLElement).click();
+    });
+    expect(JSON.stringify(useStore.getState().dashboard())).not.toContain('maximiz');
   });
 });

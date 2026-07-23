@@ -287,6 +287,25 @@ envelope reads as noise.
 
 Never discard full-resolution data — it lives in OPFS and is re-read on zoom.
 
+### uPlot wants `null` for gaps, not `NaN`
+
+The storage layer represents a gap as `NaN` — it has to, since a series is a `Float64Array`.
+uPlot does not accept that: a series whose **first** value is `NaN` comes back with
+`series.min === NaN`, which makes the shared y scale `NaN` and draws no line and no axis **for
+every series in the panel**. Verified in Chromium against the bundled uPlot:
+
+| column | `series.min` / `max` |
+|---|---|
+| `[10, 20, 30, 40]` | 10 / 40 |
+| `[NaN, 20, 30, 40]` | NaN / NaN — panel draws nothing |
+| `[10, NaN, 30, 40]` | 10 / 40 |
+| `[null, 20, 30, 40]` | 20 / 40 |
+
+So the conversion happens at the boundary, in `src/panels/plotData.ts`, and every column handed
+to uPlot goes through it. The bug is easy to miss because it depends on where bucket boundaries
+land: the same panel drew fine tiled and blank maximised, because the wider plot asked for more
+buckets and the capture's first sample stopped being averaged in with its neighbour.
+
 ## Stack
 
 Vite + React + TypeScript (strict) · fflate (zlib inflate + tar) · uPlot ·

@@ -8,6 +8,7 @@ import { axisFormatter, formatValue } from '../data/format.js';
 import type { Unit } from '../data/expr.js';
 import { fetchPanelData, unitOfMetric, type PanelSeries } from '../data/panelData.js';
 import { describeCrossHost } from '../dashboard/crossHost.js';
+import { plotColumn, timeColumn } from './plotData.js';
 import type { KnownCapture } from '../data/qualify.js';
 import type { Gap } from '../data/types.js';
 
@@ -139,6 +140,8 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const showAllSeries = useStore((s) => s.showAllSeries);
   const focusPanel = useStore((s) => s.focusPanel);
   const removePanel = useStore((s) => s.removePanel);
+  const toggleMaximized = useStore((s) => s.toggleMaximized);
+  const isMaximized = useStore((s) => s.maximized === panel.id);
   const renamePanel = useStore((s) => s.renamePanel);
 
   const gapsRef = useRef<readonly Gap[]>([]);
@@ -227,13 +230,14 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const data = useMemo<uPlot.AlignedData | null>(() => {
     // uPlot draws nothing useful from empty columns, so do not construct it at all.
     if (visible.length === 0 || visible[0]!.t.length === 0) return null;
-    const x = Array.from(visible[0]!.t, (ms) => ms / 1000); // uPlot time axis is seconds
-    const cols: number[][] = [x];
+    const cols: Array<Array<number | null>> = [timeColumn(visible[0]!.t)];
     for (const s of visible) {
-      cols.push(Array.from(s.mean));
+      // plotColumn, not Array.from: a leading NaN nulls the whole panel's y scale. See
+      // src/panels/plotData.ts.
+      cols.push(plotColumn(s.mean));
       if (showBand) {
-        cols.push(Array.from(s.min));
-        cols.push(Array.from(s.max));
+        cols.push(plotColumn(s.min));
+        cols.push(plotColumn(s.max));
       }
     }
     return cols as unknown as uPlot.AlignedData;
@@ -388,6 +392,14 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
             {hidden.length} hidden
           </button>
         )}
+        <button
+          className="link small"
+          title={isMaximized ? 'Back to the dashboard (Esc)' : 'Maximize this panel'}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => toggleMaximized(panel.id)}
+        >
+          {isMaximized ? '⤡' : '⤢'}
+        </button>
         <button
           className="link small"
           title="Remove panel"

@@ -81,6 +81,13 @@ interface State {
   showBand: boolean;
   /** Metric catalogue visibility; charts take the full width when hidden. */
   showCatalog: boolean;
+  /**
+   * Panel blown up to fill the chart area, or null.
+   *
+   * Deliberately not part of DashboardState: it is where you are looking right now, not how
+   * the dashboard is laid out, so it must not end up in a permalink or a saved dashboard.
+   */
+  maximized: string | null;
 
   /** Saved dashboards, most recently updated first. */
   library: SavedDashboard[];
@@ -121,6 +128,7 @@ interface State {
   setCursor(ms: number | null): void;
   setShowBand(on: boolean): void;
   toggleCatalog(): void;
+  toggleMaximized(id: string | null): void;
 
   saveCurrent(name?: string): void;
   saveAsNew(name: string): void;
@@ -189,6 +197,7 @@ export const useStore = create<State>((set, get) => ({
   cursor: null,
   showBand: false,
   showCatalog: true,
+  maximized: null,
   library: [],
   currentId: null,
 
@@ -430,7 +439,13 @@ export const useStore = create<State>((set, get) => ({
 
   removePanel(id: string) {
     const next = compact(get().panels.filter((p) => p.id !== id));
-    set({ panels: next, focused: get().focused === id ? (next[0]?.id ?? null) : get().focused });
+    set({
+      panels: next,
+      focused: get().focused === id ? (next[0]?.id ?? null) : get().focused,
+      // Closing the panel you are looking at should return you to the dashboard, not leave a
+      // maximised view of something that no longer exists.
+      maximized: get().maximized === id ? null : get().maximized,
+    });
     persist(next, get().range);
   },
 
@@ -556,6 +571,15 @@ export const useStore = create<State>((set, get) => ({
 
   toggleCatalog() {
     set({ showCatalog: !get().showCatalog });
+  },
+
+  toggleMaximized(id) {
+    // Maximising also focuses: the catalogue's "adding to" target should follow the panel you
+    // are actually working on.
+    set({
+      maximized: id === null || get().maximized === id ? null : id,
+      ...(id !== null ? { focused: id } : {}),
+    });
   },
 
   saveCurrent(name) {
