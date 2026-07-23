@@ -4,6 +4,94 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ftdc-lens</title>
+    <script>
+      /*
+       * Boot watchdog.
+       *
+       * Inline, and before the module graph loads, because that is the only place it can catch
+       * the failure it exists for: a module that throws while being imported. main.tsx never
+       * runs in that case, so the handlers inside it are never registered, and the page stays
+       * blank with the cause visible only in a console. "I see a blank page" is the hardest
+       * possible bug report -- indistinguishable from "still loading".
+       *
+       * So record every error from the first byte, and if nothing has mounted a few seconds
+       * later, say so on the page along with whatever was caught.
+       */
+      (function () {
+        var errors = [];
+        function record(what) {
+          errors.push(
+            what && what.message
+              ? what.name +
+                  ': ' +
+                  what.message +
+                  '\n' +
+                  String(what.stack || '')
+                    .split('\n')
+                    .slice(1, 4)
+                    .join('\n')
+              : String(what),
+          );
+        }
+
+        // Capture phase: resource load failures do not bubble.
+        window.addEventListener(
+          'error',
+          function (e) {
+            record(
+              e.error ||
+                (e.target && e.target.src ? 'failed to load ' + e.target.src : e.message || e),
+            );
+          },
+          true,
+        );
+        window.addEventListener('unhandledrejection', function (e) {
+          record(e.reason);
+        });
+        window.__ftdcBootErrors = errors;
+
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (!root || root.dataset.mounted === 'ok' || root.childElementCount > 0) return;
+
+          function esc(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+          }
+
+          root.innerHTML =
+            '<div style="font:13px ui-monospace,Menlo,monospace;color:#e6e9ef;background:#171a1f;' +
+            'padding:24px;margin:24px;border:1px solid #2a2f38;border-radius:8px;max-width:900px">' +
+            '<h2 style="margin:0 0 8px;font-size:15px">ftdc-lens did not start</h2>' +
+            '<p style="color:#8b94a3">The page loaded but the app never mounted. Nothing was ' +
+            'uploaded anywhere; this happened entirely in this tab.</p>' +
+            (errors.length
+              ? '<pre style="white-space:pre-wrap;color:#f2495c">' +
+                esc(errors.join('\n\n')) +
+                '</pre>'
+              : '<p style="color:#8b94a3">No error was raised, which usually means a stale ' +
+                'hot-reload session or a cached module. A hard reload clears it.</p>') +
+            '<p><button id="ftdc-reload" style="margin-right:8px">Hard reload</button>' +
+            '<button id="ftdc-clear">Clear saved layouts and reload</button></p></div>';
+
+          document.getElementById('ftdc-reload').onclick = function () {
+            window.location.reload();
+          };
+          // Captures are untouched: they live in OPFS, they are the expensive thing, and a
+          // wedged layout is no reason to make someone decode 42 hours of FTDC again.
+          document.getElementById('ftdc-clear').onclick = function () {
+            try {
+              localStorage.removeItem('ftdc-lens:layout');
+              localStorage.removeItem('ftdc-lens:dashboards');
+              localStorage.removeItem('ftdc-lens:current');
+            } catch (e) {
+              /* private browsing, or a disabled store: nothing to clear */
+            }
+            window.location.hash = '';
+            window.location.reload();
+          };
+        }, 5000);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
