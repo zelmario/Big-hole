@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 
-import { CAPTURE_ID, useStore } from '../store/useStore.js';
+import { useStore } from '../store/useStore.js';
 import type { PanelSpec } from '../dashboard/layout.js';
 import { axisFormatter, formatValue } from '../data/format.js';
-import { parseExpr, unitOf, type Unit } from '../data/expr.js';
-import type { SeriesPayload } from '../workers/protocol.js';
+import type { Unit } from '../data/expr.js';
+import { fetchPanelData, unitOfMetric, type PanelSeries } from '../data/panelData.js';
+import { describeCrossHost } from '../dashboard/crossHost.js';
+import type { KnownCapture } from '../data/qualify.js';
 import type { Gap } from '../data/types.js';
 
 /** Grafana's classic series palette, so a ported dashboard reads the same. */
@@ -38,24 +40,14 @@ function legendLabel(expression: string): string {
  * legend reads each series' own unit while the axis keeps the panel's. An explicit panel unit
  * still wins, since that is a deliberate statement about the whole panel.
  */
-function seriesUnit(panel: PanelSpec, metric: string): Unit {
-  if (panel.unit !== undefined) return panel.unit;
-  try {
-    return unitOf(parseExpr(metric));
-  } catch {
-    return 'count';
-  }
+function seriesUnit(panel: PanelSpec, metric: string, known: KnownCapture): Unit {
+  return panel.unit ?? unitOfMetric(metric, known);
 }
 
-function panelUnit(panel: PanelSpec): Unit {
+function panelUnit(panel: PanelSpec, known: KnownCapture): Unit {
   if (panel.unit !== undefined) return panel.unit;
   const first = panel.metrics[0];
-  if (first === undefined) return 'count';
-  try {
-    return unitOf(parseExpr(first));
-  } catch {
-    return 'count';
-  }
+  return first === undefined ? 'count' : unitOfMetric(first, known);
 }
 
 /**
@@ -127,7 +119,7 @@ function selectionPlugin(): uPlot.Plugin {
 export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const holder = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
-  const [series, setSeries] = useState<SeriesPayload[]>([]);
+  const [series, setSeries] = useState<PanelSeries[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 600, h: 160 });
@@ -137,7 +129,8 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const client = useStore((s) => s.client);
   const status = useStore((s) => s.status);
   const range = useStore((s) => s.range);
-  const summary = useStore((s) => s.summary);
+  const captures = useStore((s) => s.captures);
+  const known = useStore((s) => s.known);
   const focused = useStore((s) => s.focused);
   const showBand = useStore((s) => s.showBand);
   const setRange = useStore((s) => s.setRange);
@@ -149,13 +142,30 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const renamePanel = useStore((s) => s.renamePanel);
 
   const gapsRef = useRef<readonly Gap[]>([]);
-  gapsRef.current = summary?.gaps ?? [];
+  gapsRef.current = useStore((s) => s.gaps)();
 
-  const unit = panelUnit(panel);
+  // Only the visible captures are drawn, and the fetch has to re-run when that set changes --
+  // ticking a node off is a view change, not a reload.
+  const refs = useMemo(
+    () =>
+      captures
+        .filter((c) => c.visible)
+        .map((c) => ({
+          id: c.id,
+          label: c.label,
+          paths: c.paths,
+          cadenceMs: c.summary.cadenceMs,
+        })),
+    [captures],
+  );
+  const capturesKey = refs.map((c) => c.id).join(',');
+
+  const unit = panelUnit(panel, known);
   const isSection = panel.kind === 'section';
   const hidden = panel.hidden ?? [];
   const metricsKey = panel.metrics.join('');
   const hiddenKey = hidden.join('');
+  const note = describeCrossHost(panel.title);
 
   useEffect(() => {
     const el = holder.current;
@@ -167,7 +177,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   }, [isSection]);
 
   useEffect(() => {
-    if (isSection || status !== 'ready' || panel.metrics.length === 0) {
+    if (isSection || status !== 'ready' || panel.metrics.length === 0 || refs.length === 0) {
       setSeries([]);
       return;
     }
@@ -180,10 +190,12 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       ...(range !== null ? { from: range[0], to: range[1] } : {}),
     };
 
-    client
-      .series(CAPTURE_ID, panel.metrics, query)
+    fetchPanelData(client, panel.metrics, refs, query)
       .then((result) => {
-        if (!cancelled) setSeries(result);
+        if (cancelled) return;
+        setSeries(result.series);
+        // A node that failed is worth saying out loud; the others still drew.
+        setError(result.errors.length > 0 ? result.errors.join(' · ') : null);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -199,12 +211,12 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, status, metricsKey, range, size.w, isSection]);
+  }, [client, status, metricsKey, capturesKey, range, size.w, isSection]);
 
   // Hidden series are dropped before the plot is built rather than styled away, so the y-axis
   // rescales to what is actually shown -- which is the point of hiding a large series.
   const visible = useMemo(
-    () => series.filter((s) => !hidden.includes(s.path)),
+    () => series.filter((s) => !hidden.includes(s.key)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [series, hiddenKey],
   );
@@ -227,9 +239,13 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
     return cols as unknown as uPlot.AlignedData;
   }, [visible, showBand]);
 
-  /** Colour by position in the panel's full metric list, so hiding one does not recolour the rest. */
-  const colourOf = (path: string): string =>
-    PALETTE[Math.max(0, panel.metrics.indexOf(path)) % PALETTE.length]!;
+  /**
+   * Colour by position in the panel's full series list, so hiding one does not recolour the
+   * rest. The list is generated deterministically from (metric x capture), so a node keeps its
+   * colour across panels and across a reload.
+   */
+  const colourOf = (key: string): string =>
+    PALETTE[Math.max(0, series.findIndex((s) => s.key === key)) % PALETTE.length]!;
 
   useEffect(() => {
     if (holder.current === null || data === null || size.w === 0) return;
@@ -260,9 +276,9 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       series: [
         { label: 'time' },
         ...visible.flatMap((s) => {
-          const colour = colourOf(s.path);
+          const colour = colourOf(s.key);
           const line: uPlot.Series = {
-            label: s.path,
+            label: s.key,
             stroke: colour,
             width: 1,
             spanGaps: false,
@@ -271,8 +287,8 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
           return showBand
             ? [
                 line,
-                { label: `${s.path} min`, stroke: 'transparent', spanGaps: false },
-                { label: `${s.path} max`, stroke: 'transparent', spanGaps: false },
+                { label: `${s.key} min`, stroke: 'transparent', spanGaps: false },
+                { label: `${s.key} max`, stroke: 'transparent', spanGaps: false },
               ]
             : [line];
         }),
@@ -283,7 +299,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       bands: showBand
         ? visible.map((s, i) => ({
             series: [stride * i + 3, stride * i + 2] as [number, number],
-            fill: `${colourOf(s.path)}14`,
+            fill: `${colourOf(s.key)}14`,
           }))
         : [],
       hooks: {
@@ -355,6 +371,11 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
             {panel.title}
           </span>
         )}
+        {note !== null && (
+          <span className="muted small cross-host" title={note}>
+            ⇄
+          </span>
+        )}
         {loading && <span className="muted small">…</span>}
         <span className="spacer" />
         {hidden.length > 0 && (
@@ -378,8 +399,17 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       </div>
 
       {error !== null && <div className="small error">{error}</div>}
-      {panel.metrics.length > 0 && visible.length === 0 && !empty && (
+      {/* Only once something actually came back. Before M4 this doubled as the loading state
+          by accident; with several captures the first fetch takes long enough that every
+          panel on the dashboard claimed its series were hidden while they were still being
+          read. */}
+      {series.length > 0 && visible.length === 0 && !empty && (
         <div className="muted small pad">All series hidden — click a legend entry to show it.</div>
+      )}
+      {panel.metrics.length > 0 && series.length === 0 && !loading && error === null && (
+        <div className="muted small pad">
+          No node in this bundle reports {panel.metrics.length === 1 ? 'this metric' : 'these metrics'}.
+        </div>
       )}
       {empty && (
         <div className="muted small pad">
@@ -391,23 +421,30 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       {/* Legend below the plot, as in Grafana. Clicking toggles visibility; it does not
           remove the metric -- removal is done from the catalogue. */}
       <div className="legend" onMouseDown={(e) => e.stopPropagation()}>
-        {panel.metrics.map((m) => {
-          const s = series.find((x) => x.path === m);
-          const off = hidden.includes(m);
-          const idx = hoverIdx ?? (s ? s.mean.length - 1 : -1);
-          const value = s !== undefined && idx >= 0 && idx < s.mean.length ? s.mean[idx] : undefined;
+        {/* One entry per drawn series, not per panel metric: with several captures loaded a
+            single metric becomes one line per node, and each needs its own toggle. */}
+        {series.map((s) => {
+          const off = hidden.includes(s.key);
+          const idx = hoverIdx ?? s.mean.length - 1;
+          const value = idx >= 0 && idx < s.mean.length ? s.mean[idx] : undefined;
           return (
             <button
-              key={m}
+              key={s.key}
               className={off ? 'legend-item off' : 'legend-item'}
-              title={off ? `${m} — click to show` : `${m} — click to hide`}
-              onClick={() => toggleSeries(panel.id, m)}
+              title={off ? `${s.key} — click to show` : `${s.key} — click to hide`}
+              onClick={() => toggleSeries(panel.id, s.key)}
             >
-              <span className="legend-dash" style={{ background: off ? '#5a6472' : colourOf(m) }} />
-              <span className="legend-label">{legendLabel(m)}</span>
+              <span
+                className="legend-dash"
+                style={{ background: off ? '#5a6472' : colourOf(s.key) }}
+              />
+              <span className="legend-label">
+                {s.captureLabel !== '' && <b className="legend-host">{s.captureLabel}</b>}
+                {legendLabel(s.expression)}
+              </span>
               {value !== undefined && !off && (
                 <span className="legend-value">
-                  {formatValue(value, seriesUnit(panel, m))}
+                  {formatValue(value, seriesUnit(panel, s.expression, known))}
                 </span>
               )}
             </button>

@@ -26,22 +26,24 @@ function stamp(ms: number): string {
 }
 
 export function TimeRange(): ReactElement {
-  const summary = useStore((s) => s.summary);
+  // The union across every loaded node: the picker covers the whole investigation window,
+  // not one member's slice of it.
+  const bounds = useStore((s) => s.bounds)();
   const range = useStore((s) => s.range);
   const setRange = useStore((s) => s.setRange);
   const [open, setOpen] = useState(false);
 
-  if (summary === null) return <></>;
+  if (bounds === null) return <></>;
 
-  const full: [number, number] = [summary.startMs, summary.endMs];
+  const full: [number, number] = [bounds.startMs, bounds.endMs];
   const [from, to] = range ?? full;
   const span = to - from;
-  const captureSpan = summary.endMs - summary.startMs;
+  const captureSpan = bounds.endMs - bounds.startMs;
 
   /** Anchor a relative window to the end of the capture, clamped to what exists. */
   const applyPreset = (windowMs: number): void => {
     if (windowMs >= captureSpan) setRange(null);
-    else setRange([summary.endMs - windowMs, summary.endMs]);
+    else setRange([bounds.endMs - windowMs, bounds.endMs]);
     setOpen(false);
   };
 
@@ -53,8 +55,8 @@ export function TimeRange(): ReactElement {
       return;
     }
     setRange([
-      Math.max(summary.startMs, Math.round(centre - next / 2)),
-      Math.min(summary.endMs, Math.round(centre + next / 2)),
+      Math.max(bounds.startMs, Math.round(centre - next / 2)),
+      Math.min(bounds.endMs, Math.round(centre + next / 2)),
     ]);
   };
 
@@ -63,15 +65,15 @@ export function TimeRange(): ReactElement {
     let nextFrom = from + direction * step;
     let nextTo = to + direction * step;
     // Slide against the ends of the capture rather than scrolling off into empty space.
-    if (nextFrom < summary.startMs) {
-      nextTo += summary.startMs - nextFrom;
-      nextFrom = summary.startMs;
+    if (nextFrom < bounds.startMs) {
+      nextTo += bounds.startMs - nextFrom;
+      nextFrom = bounds.startMs;
     }
-    if (nextTo > summary.endMs) {
-      nextFrom -= nextTo - summary.endMs;
-      nextTo = summary.endMs;
+    if (nextTo > bounds.endMs) {
+      nextFrom -= nextTo - bounds.endMs;
+      nextTo = bounds.endMs;
     }
-    setRange([Math.round(Math.max(summary.startMs, nextFrom)), Math.round(nextTo)]);
+    setRange([Math.round(Math.max(bounds.startMs, nextFrom)), Math.round(nextTo)]);
   };
 
   return (
@@ -99,7 +101,7 @@ export function TimeRange(): ReactElement {
         <div className="tr-menu">
           <div className="tr-menu-head muted small">
             Relative to the end of the capture
-            <div>{stamp(summary.startMs)} → {stamp(summary.endMs)}</div>
+            <div>{stamp(bounds.startMs)} → {stamp(bounds.endMs)}</div>
           </div>
           <button
             className="tr-preset"

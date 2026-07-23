@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react';
 
+import { CaptureBar } from './ui/CaptureBar.js';
 import { DropZone } from './ui/DropZone.js';
 import { ErrorBoundary } from './ui/ErrorBoundary.js';
 import { TimeRange } from './ui/TimeRange.js';
@@ -15,8 +16,10 @@ function ms(d: number): string {
 
 export function App(): ReactElement {
   const status = useStore((s) => s.status);
-  const summary = useStore((s) => s.summary);
+  const captures = useStore((s) => s.captures);
+  const bounds = useStore((s) => s.bounds)();
   const cursor = useStore((s) => s.cursor);
+  const error = useStore((s) => s.error);
   const showBand = useStore((s) => s.showBand);
   const showCatalog = useStore((s) => s.showCatalog);
   const toggleCatalog = useStore((s) => s.toggleCatalog);
@@ -54,22 +57,31 @@ export function App(): ReactElement {
     <div className="app">
       <header>
         <h1>ftdc-lens</h1>
-        {summary && (
+        {bounds !== null && (
           <div className="summary">
-            <b>{summary.hostname ?? 'unknown host'}</b>
-            {summary.mongoVersion && <span className="muted"> · {summary.mongoVersion}</span>}
             <span className="muted">
-              {' '}· {summary.sampleCount.toLocaleString()} samples ·{' '}
-              {summary.pathCount.toLocaleString()} metrics ·{' '}
-              {(summary.cadenceMs / 1000).toFixed(1)}s cadence
+              {captures.length} node{captures.length === 1 ? '' : 's'} ·{' '}
+              {captures.reduce((n, c) => n + c.summary.sampleCount, 0).toLocaleString()} samples ·{' '}
+              {(bounds.cadenceMs / 1000).toFixed(1)}s cadence
             </span>
             <div className="muted small">
-              {ms(summary.startMs)} → {ms(summary.endMs)}
+              {ms(bounds.startMs)} → {ms(bounds.endMs)}
             </div>
-            {(summary.gaps.length > 0 || summary.restarts.length > 0) && (
+            {captures.some((c) => c.summary.gaps.length > 0 || c.summary.restarts.length > 0) && (
               <div className="small warn">
-                {summary.gaps.length > 0 && <>⚠ {summary.gaps.length} gap(s) — no samples collected </>}
-                {summary.restarts.length > 0 && <>⚠ {summary.restarts.length} restart(s)</>}
+                {/* Per node: "two gaps" across a replica set means something quite different
+                    depending on whether they are on one member or on all three. */}
+                {captures
+                  .filter((c) => c.summary.gaps.length > 0 || c.summary.restarts.length > 0)
+                  .map((c) => (
+                    <div key={c.id}>
+                      ⚠ {c.label}
+                      {c.summary.gaps.length > 0 && <> · {c.summary.gaps.length} gap(s)</>}
+                      {c.summary.restarts.length > 0 && (
+                        <> · {c.summary.restarts.length} restart(s)</>
+                      )}
+                    </div>
+                  ))}
               </div>
             )}
           </div>
@@ -90,12 +102,17 @@ export function App(): ReactElement {
             </label>
             <button onClick={addPanel}>+ panel</button>
             <button onClick={() => void share()}>share</button>
-            <button className="link" onClick={reset}>load another</button>
+            <button className="link" onClick={reset}>clear all</button>
           </>
         )}
       </header>
 
       {copied !== null && <div className="toast">{copied}</div>}
+
+      {status === 'ready' && <CaptureBar />}
+      {/* A folder that failed while others succeeded: the dashboard is up, but saying nothing
+          would leave a missing node looking like a node that has no data. */}
+      {status === 'ready' && error !== null && <div className="small warn pad">⚠ {error}</div>}
 
       {status === 'ready' ? (
         <main>

@@ -194,6 +194,38 @@ without Docker still runs green, but **CI should generate them**.
 A plain replica set does not reproduce role scoping — the prefix comes from the topology, not
 the release — which is why the sharded fixture is separate and necessary.
 
+## Multi-capture
+
+One capture per node. Files are grouped by the **directory** they sit in (`src/ingest/discover.ts`)
+— never merged — because every member's files are called `metrics.<timestamp>` and merging
+them produces one incoherent timeline rather than an error. Each capture gets its own worker,
+its own OPFS directory and its own id (`c0`, `c1`, …), minted once and never reused.
+
+A panel metric is host-agnostic and **fans out** to every loaded node that can resolve it
+(`src/data/panelData.ts`). A node missing the metric contributes no series rather than an
+empty one. Three rules, in order:
+
+| Written | Means |
+|---|---|
+| `serverStatus.mem.resident` | every visible node, one series each |
+| `c1:serverStatus.mem.resident` | that node only |
+| `diff(c0:…lastWriteDate, c1:…lastWriteDate)` | across nodes — what M4 exists for |
+
+A qualifier is only a qualifier when it names a **loaded** capture. FTDC paths contain dots,
+spaces, slashes, parentheses and `#` suffixes, so a purely syntactic rule would eventually
+misread a real path; resolution against the loaded set cannot.
+
+Cross-capture expressions **split at the highest single-capture subtree** (`planExpr`). Each
+part is evaluated by its own reader at full resolution — so `rate()` stays exact — and only the
+pointwise combination on top runs afterwards, on a shared clock. Alignment is
+**nearest-sample** with a staleness bound (`alignOnto`): carrying the previous value instead
+would bias every lag reading high by up to a full sample interval, and without the bound a node
+whose capture ends early holds its last value and fabricates a linear climb. Two nodes sampling
+1 s apart cannot resolve sub-second lag, which is why clock skew is charted next to it.
+
+With one capture loaded nothing is qualified at all, so single-capture layouts, permalinks and
+saved dashboards are byte-identical to what M3 produced.
+
 ## Storage
 
 A 3-node replica set over a week is roughly 600 MB on disk and **~36 GB decoded at full
@@ -302,6 +334,10 @@ Enforced mechanically, not by convention:
 - `npm run test` — Vitest
 - `npm run build` — production build
 - `npm run lint` — ESLint
+- `npm run verify:browser` — drag/resize in a real Chromium (jsdom cannot catch that class of bug)
+- `npm run verify:multi [bundle]` — load a two-node bundle into the real app and report what
+  drew; the bundle is a directory with one folder per node, each holding its own
+  `diagnostic.data`
 
 ## Working style
 

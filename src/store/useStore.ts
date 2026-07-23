@@ -12,6 +12,7 @@ import {
   type DashboardState,
   type PanelSpec,
 } from '../dashboard/layout.js';
+import { crossHostPanels } from '../dashboard/crossHost.js';
 import {
   deleteDashboard as removeSaved,
   getDashboard,
@@ -24,10 +25,12 @@ import {
   type SavedDashboard,
 } from '../dashboard/library.js';
 import { exprPaths, parseExpr } from '../data/expr.js';
+import { splitRef, type KnownCapture } from '../data/qualify.js';
+import type { CaptureRef } from '../data/panelData.js';
+import { groupCaptures, type SourceFile } from '../ingest/discover.js';
 import { FtdcClient } from '../workers/client.js';
 import type { CaptureSummary, IngestProgressMessage } from '../workers/protocol.js';
-
-const CAPTURE_ID = 'capture-0'; // single capture until M4
+import type { Gap } from '../data/types.js';
 
 export interface Progress {
   readonly file: string;
@@ -37,18 +40,36 @@ export interface Progress {
   readonly bytesWritten: number;
 }
 
+/** One loaded node. Several of these is the entire point of M4. */
+export interface CaptureState {
+  readonly id: string;
+  /** Hostname when the FTDC metadata carries one, otherwise the folder it came from. */
+  readonly label: string;
+  /** Directory the files came from, kept so two same-named hosts stay distinguishable. */
+  readonly source: string;
+  readonly summary: CaptureSummary;
+  readonly catalog: CatalogEntry[];
+  readonly paths: ReadonlySet<string>;
+  /** Highest `replSetGetStatus.myState` seen; 1 means this node was primary at some point. */
+  readonly maxState?: number;
+  /** Unchecked captures stay loaded but are not drawn -- cheaper than re-ingesting. */
+  readonly visible: boolean;
+}
+
 interface State {
   readonly client: FtdcClient;
   status: 'empty' | 'ingesting' | 'ready' | 'error';
   error: string | null;
-  progress: Progress | null;
-  summary: CaptureSummary | null;
-  catalog: CatalogEntry[];
+  /** Per-capture ingest progress, keyed by the folder being decoded. */
+  progress: Record<string, Progress>;
+  captures: CaptureState[];
+  /** Capture the metric catalogue lists, and that catalogue clicks are added for. */
+  activeId: string | null;
 
   panels: PanelSpec[];
   /** Panel that catalog clicks add to, and that renders with a highlight. */
   focused: string | null;
-  /** Visible window in epoch ms; null means the whole capture. */
+  /** Visible window in epoch ms; null means the whole of every loaded capture. */
   range: [number, number] | null;
   /** Shared time cursor in epoch ms, or null when the pointer is off-chart. */
   cursor: number | null;
@@ -66,7 +87,23 @@ interface State {
   /** Which saved dashboard the working layout came from, if any. */
   currentId: string | null;
 
-  ingest(files: File[]): Promise<void>;
+  ingest(sources: SourceFile[]): Promise<void>;
+  removeCapture(id: string): Promise<void>;
+  toggleCapture(id: string): void;
+  setActive(id: string): void;
+  /** Captures currently drawn, in load order. */
+  visibleCaptures(): CaptureState[];
+  /** What panelData needs: id, label, paths, cadence. */
+  refs(): CaptureRef[];
+  /** True for an id that names a loaded capture. */
+  known: KnownCapture;
+  /** Union bounds across visible captures, or null when nothing is loaded. */
+  bounds(): { startMs: number; endMs: number; cadenceMs: number } | null;
+  /** Gaps from every visible capture, for the shaded bands. */
+  gaps(): Gap[];
+  /** Every path any visible capture has. */
+  availablePaths(): Set<string>;
+
   addPanel(): void;
   removePanel(id: string): void;
   renamePanel(id: string, title: string): void;
@@ -98,10 +135,24 @@ interface State {
   reset(): void;
 }
 
-/** True when every raw path an expression needs exists in this capture. */
-function hasMetric(expression: string, available: ReadonlySet<string>): boolean {
+/**
+ * True when every raw path an expression needs exists somewhere it could be drawn.
+ *
+ * A capture-qualified path has to exist in that capture specifically; an unqualified one only
+ * has to exist in some loaded capture, because that is where it will fan out to.
+ */
+function hasMetric(
+  expression: string,
+  available: ReadonlySet<string>,
+  known: KnownCapture,
+  perCapture: ReadonlyMap<string, ReadonlySet<string>>,
+): boolean {
   try {
-    return exprPaths(parseExpr(expression)).every((p) => available.has(p));
+    return exprPaths(parseExpr(expression)).every((p) => {
+      const ref = splitRef(p, known);
+      if (ref.captureId === null) return available.has(ref.path);
+      return perCapture.get(ref.captureId)?.has(ref.path) ?? false;
+    });
   } catch {
     return false;
   }
@@ -111,13 +162,27 @@ function persist(panels: PanelSpec[], range: [number, number] | null): void {
   saveLayout({ v: LAYOUT_VERSION, panels, range });
 }
 
+/** Highest value a capture's `replSetGetStatus.myState` reached, if it reports one. */
+function maxStateOf(catalog: readonly CatalogEntry[]): number | undefined {
+  const entry = catalog.find((c) => c.path.endsWith('replSetGetStatus.myState'));
+  return entry?.max;
+}
+
+let captureCounter = 0;
+/** Never reused, so a stale `c1:` reference can never silently alias a different node. */
+function mintCaptureId(): string {
+  const id = `c${captureCounter}`;
+  captureCounter++;
+  return id;
+}
+
 export const useStore = create<State>((set, get) => ({
   client: new FtdcClient(),
   status: 'empty',
   error: null,
-  progress: null,
-  summary: null,
-  catalog: [],
+  progress: {},
+  captures: [],
+  activeId: null,
   panels: [],
   focused: null,
   range: null,
@@ -127,72 +192,222 @@ export const useStore = create<State>((set, get) => ({
   library: [],
   currentId: null,
 
-  async ingest(files: File[]) {
-    set({ status: 'ingesting', error: null, progress: null });
-    try {
-      const onProgress = (p: IngestProgressMessage) =>
-        set({
-          progress: {
-            file: p.file,
-            filesDone: p.filesDone,
-            filesTotal: p.filesTotal,
-            samples: p.samples,
-            bytesWritten: p.bytesWritten,
-          },
-        });
+  known: (id: string) => get().captures.some((c) => c.id === id),
 
-      const summary = await get().client.ingest(CAPTURE_ID, files, onProgress);
-      const catalog = await get().client.catalog(CAPTURE_ID);
-      const available = new Set(catalog.map((c) => c.path));
+  visibleCaptures() {
+    return get().captures.filter((c) => c.visible);
+  },
 
+  refs() {
+    return get()
+      .visibleCaptures()
+      .map((c) => ({
+        id: c.id,
+        label: c.label,
+        paths: c.paths,
+        cadenceMs: c.summary.cadenceMs,
+      }));
+  },
+
+  bounds() {
+    const captures = get().visibleCaptures();
+    if (captures.length === 0) return null;
+    // The union, not the intersection: a member whose capture starts later should show as
+    // starting later, not truncate everyone else's window.
+    return {
+      startMs: Math.min(...captures.map((c) => c.summary.startMs)),
+      endMs: Math.max(...captures.map((c) => c.summary.endMs)),
+      cadenceMs: Math.min(...captures.map((c) => c.summary.cadenceMs)),
+    };
+  },
+
+  gaps() {
+    return get()
+      .visibleCaptures()
+      .flatMap((c) => c.summary.gaps);
+  },
+
+  availablePaths() {
+    const out = new Set<string>();
+    for (const capture of get().visibleCaptures()) for (const p of capture.paths) out.add(p);
+    return out;
+  },
+
+  async ingest(sources: SourceFile[]) {
+    const groups = groupCaptures(sources);
+    if (groups.length === 0) {
+      set({ status: get().captures.length > 0 ? 'ready' : 'error', error: 'no metrics.* files found' });
+      return;
+    }
+
+    const first = get().captures.length === 0;
+    set({ status: 'ingesting', error: null, progress: {} });
+
+    const failures: string[] = [];
+
+    // One capture per worker, decoded concurrently. Sequential ingest would make a three-node
+    // replica set take three times as long for no reason -- the files are independent and so
+    // are their OPFS directories.
+    const results = await Promise.all(
+      groups.map(async (group): Promise<CaptureState | null> => {
+        const id = mintCaptureId();
+        try {
+          const onProgress = (p: IngestProgressMessage) =>
+            set((s) => ({
+              progress: {
+                ...s.progress,
+                [group.label]: {
+                  file: p.file,
+                  filesDone: p.filesDone,
+                  filesTotal: p.filesTotal,
+                  samples: p.samples,
+                  bytesWritten: p.bytesWritten,
+                },
+              },
+            }));
+
+          const summary = await get().client.ingest(id, group.files, onProgress);
+          const catalog = await get().client.catalog(id);
+          const maxState = maxStateOf(catalog);
+          return {
+            id,
+            label: summary.hostname ?? group.label,
+            source: group.key,
+            summary,
+            catalog,
+            paths: new Set(catalog.map((c) => c.path)),
+            ...(maxState !== undefined ? { maxState } : {}),
+            visible: true,
+          };
+        } catch (err) {
+          // One bad folder must not sink the other nodes: a bundle routinely contains a
+          // member whose diagnostic.data was collected mid-write.
+          failures.push(`${group.label}: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
+        }
+      }),
+    );
+
+    const added = results.filter((c): c is CaptureState => c !== null);
+    if (added.length === 0) {
+      set({
+        status: first ? 'error' : 'ready',
+        error: failures.join('; ') || 'nothing could be decoded',
+        progress: {},
+      });
+      return;
+    }
+
+    // Two members of the same replica set can report the same hostname when the bundle was
+    // collected from containers. Keep the folder alongside so they stay tellable apart.
+    const seenLabels = new Map<string, number>();
+    for (const capture of [...get().captures, ...added]) {
+      seenLabels.set(capture.label, (seenLabels.get(capture.label) ?? 0) + 1);
+    }
+    const captures = [
+      ...get().captures,
+      ...added.map((c) =>
+        (seenLabels.get(c.label) ?? 0) > 1
+          ? { ...c, label: `${c.label} (${c.source.split('/').filter(Boolean).pop() ?? c.id})` }
+          : c,
+      ),
+    ];
+
+    set({ captures });
+
+    const available = get().availablePaths();
+    const perCapture = new Map(captures.map((c) => [c.id, c.paths] as const));
+    const known: KnownCapture = (id) => perCapture.has(id);
+
+    let panels: PanelSpec[];
+    let currentId = get().currentId;
+
+    if (first) {
       // A permalink beats the last-open dashboard, which beats the autosaved working layout,
       // which beats the built-in default. An explicitly shared link is the strongest
       // statement of intent.
-      const library = listDashboards();
-      const currentId = getCurrentId();
+      const savedId = getCurrentId();
       const shared = fromHash(window.location.hash);
       const saved =
         shared ??
-        (currentId !== null ? (getDashboard(currentId)?.state ?? null) : null) ??
+        (savedId !== null ? (getDashboard(savedId)?.state ?? null) : null) ??
         loadLayout();
 
       let state: DashboardState;
       if (saved !== null) {
-        // Drop metrics this capture does not have; a layout built against another server
-        // version should degrade, not produce empty charts.
-        const panels = saved.panels
+        // Drop metrics no loaded capture has; a layout built against another server version
+        // should degrade, not produce empty charts.
+        const kept = saved.panels
           .map((p) =>
             p.kind === 'section'
               ? p
-              : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available)) },
+              : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available, known, perCapture)) },
           )
           .filter((p) => p.kind === 'section' || p.metrics.length > 0);
         state =
-          panels.length > 0
-            ? { v: LAYOUT_VERSION, panels, range: saved.range }
+          kept.length > 0
+            ? { v: LAYOUT_VERSION, panels: kept, range: saved.range }
             : defaultDashboard(available);
       } else {
         state = defaultDashboard(available);
       }
-
-      set({
-        status: 'ready',
-        summary,
-        catalog,
-        library,
-        currentId: shared === null ? currentId : null,
-        panels: state.panels,
-        focused: state.panels[0]?.id ?? null,
-        range: state.range,
-        progress: null,
-      });
-    } catch (err) {
-      set({
-        status: 'error',
-        error: err instanceof Error ? err.message : String(err),
-        progress: null,
-      });
+      panels = state.panels;
+      currentId = shared === null ? savedId : null;
+      set({ library: listDashboards(), range: state.range });
+    } else {
+      // Adding a node to a dashboard that is already up: every unqualified panel metric picks
+      // the new capture up on its next fetch, so the layout is left alone.
+      panels = get().panels;
     }
+
+    // Cross-host panels can only exist now, and only once.
+    const hasCrossHost = panels.some((p) => p.title.startsWith('Across hosts'));
+    if (captures.length > 1 && !hasCrossHost) {
+      const maxY = panels.reduce((m, p) => Math.max(m, p.y + p.h), 0);
+      panels = [...panels, ...crossHostPanels(captures, maxY)];
+    }
+
+    set({
+      status: 'ready',
+      error: failures.length > 0 ? failures.join('; ') : null,
+      panels,
+      currentId,
+      focused: get().focused ?? panels[0]?.id ?? null,
+      activeId: get().activeId ?? captures[0]?.id ?? null,
+      progress: {},
+    });
+    persist(panels, get().range);
+  },
+
+  async removeCapture(id: string) {
+    const captures = get().captures.filter((c) => c.id !== id);
+    // Drop panels that referred to this capture explicitly -- a cross-host lag panel with one
+    // side gone is not a lag panel. Unqualified metrics simply stop fanning out to it.
+    const panels = get()
+      .panels.map((p) =>
+        p.kind === 'section' ? p : { ...p, metrics: p.metrics.filter((m) => !m.includes(`${id}:`)) },
+      )
+      .filter((p) => p.kind === 'section' || p.metrics.length > 0);
+
+    set({
+      captures,
+      panels,
+      status: captures.length === 0 ? 'empty' : 'ready',
+      activeId: get().activeId === id ? (captures[0]?.id ?? null) : get().activeId,
+      range: null,
+    });
+    persist(panels, null);
+    await get().client.drop(id);
+  },
+
+  toggleCapture(id: string) {
+    set({
+      captures: get().captures.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)),
+    });
+  },
+
+  setActive(id: string) {
+    set({ activeId: id });
   },
 
   addPanel() {
@@ -305,26 +520,26 @@ export const useStore = create<State>((set, get) => ({
       return;
     }
 
-    const summary = get().summary;
+    const bounds = get().bounds();
     let [from, to] = range;
     if (to < from) [from, to] = [to, from];
 
-    if (summary !== null) {
-      // Keep the window inside the capture, and never narrower than a handful of samples.
-      // Zooming repeatedly would otherwise land on a span shorter than the sample interval,
-      // which yields zero points and a blank panel with nothing to explain it.
-      const floor = Math.max(summary.cadenceMs * 4, 1000);
+    if (bounds !== null) {
+      // Keep the window inside the loaded captures, and never narrower than a handful of
+      // samples. Zooming repeatedly would otherwise land on a span shorter than the sample
+      // interval, which yields zero points and a blank panel with nothing to explain it.
+      const floor = Math.max(bounds.cadenceMs * 4, 1000);
       if (to - from < floor) {
         const centre = (from + to) / 2;
         from = centre - floor / 2;
         to = centre + floor / 2;
       }
-      from = Math.max(summary.startMs, from);
-      to = Math.min(summary.endMs, to);
+      from = Math.max(bounds.startMs, from);
+      to = Math.min(bounds.endMs, to);
       if (to - from < floor) {
         // Clamping against an end can re-narrow the window; push it back off that end.
-        if (from <= summary.startMs) to = Math.min(summary.endMs, from + floor);
-        else from = Math.max(summary.startMs, to - floor);
+        if (from <= bounds.startMs) to = Math.min(bounds.endMs, from + floor);
+        else from = Math.max(bounds.startMs, to - floor);
       }
     }
 
@@ -360,12 +575,16 @@ export const useStore = create<State>((set, get) => ({
   openDashboard(id) {
     const entry = getDashboard(id);
     if (entry === null) return;
-    // Drop metrics this capture lacks, exactly as on ingest: a dashboard built against
+    // Drop metrics no loaded capture has, exactly as on ingest: a dashboard built against
     // another server version should degrade rather than draw empty panels.
-    const available = new Set(get().catalog.map((c) => c.path));
+    const available = get().availablePaths();
+    const perCapture = new Map(get().captures.map((c) => [c.id, c.paths] as const));
+    const known: KnownCapture = (cid) => perCapture.has(cid);
     const panels = entry.state.panels
       .map((p) =>
-        p.kind === 'section' ? p : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available)) },
+        p.kind === 'section'
+          ? p
+          : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available, known, perCapture)) },
       )
       .filter((p) => p.kind === 'section' || p.metrics.length > 0);
 
@@ -394,10 +613,17 @@ export const useStore = create<State>((set, get) => ({
   },
 
   restoreDefault() {
-    const state = defaultDashboard(new Set(get().catalog.map((c) => c.path)));
+    const state = defaultDashboard(get().availablePaths());
+    const panels = [
+      ...state.panels,
+      ...crossHostPanels(
+        get().captures,
+        state.panels.reduce((m, p) => Math.max(m, p.y + p.h), 0),
+      ),
+    ];
     setCurrentId(null);
-    set({ panels: state.panels, focused: state.panels[0]?.id ?? null, currentId: null, range: null });
-    persist(state.panels, null);
+    set({ panels, focused: panels[0]?.id ?? null, currentId: null, range: null });
+    persist(panels, null);
   },
 
   applyImported(name, state) {
@@ -417,8 +643,10 @@ export const useStore = create<State>((set, get) => ({
   },
 
   reset() {
-    set({ status: 'empty', summary: null, catalog: [], range: null, error: null });
+    const ids = get().captures.map((c) => c.id);
+    set({ status: 'empty', captures: [], activeId: null, range: null, error: null });
+    // Bytes go with it: leaving OPFS full of captures nobody asked to keep is the kind of
+    // thing that quietly fills a disk.
+    for (const id of ids) void get().client.drop(id);
   },
 }));
-
-export { CAPTURE_ID };

@@ -13,8 +13,7 @@ import './ui/styles.css';
 useStore.setState({
   status: 'ready',
   focused: 'a',
-  catalog: [],
-  summary: null,
+  captures: [],
   panels: [
     { id: 'a', kind: 'chart', title: 'Panel A', metrics: [], x: 0, y: 0, w: 6, h: 6 },
     { id: 'b', kind: 'chart', title: 'Panel B', metrics: [], x: 6, y: 0, w: 6, h: 6 },

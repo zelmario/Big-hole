@@ -32,7 +32,7 @@ const panels: PanelSpec[] = [
 ];
 
 function mount(): void {
-  useStore.setState({ status: 'ready', panels, focused: 'a', catalog: [], summary: null });
+  useStore.setState({ status: 'ready', panels, focused: 'a', captures: [] });
   render(<Grid />);
 }
 
@@ -75,7 +75,7 @@ describe('panel grid', () => {
     // new object -- an infinite loop that hung the tab. Every other test still passed.
     stubWidth(1200);
     const applyGeometry = vi.fn();
-    useStore.setState({ status: 'ready', panels, focused: 'a', catalog: [], summary: null, applyGeometry });
+    useStore.setState({ status: 'ready', panels, focused: 'a', captures: [], applyGeometry });
 
     let renders = 0;
     function Counted(): ReactElement {

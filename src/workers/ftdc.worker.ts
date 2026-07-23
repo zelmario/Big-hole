@@ -161,6 +161,20 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         post({ kind: 'series', id, series }, transfer);
         break;
       }
+
+      case 'drop': {
+        // Release the sync access handle before removing the directory: OPFS will not delete
+        // a file another handle still holds open, and it fails silently enough to look like
+        // the capture came back from the dead on the next ingest.
+        const open = readers.get(request.captureId);
+        if (open !== undefined) {
+          await open.close();
+          readers.delete(request.captureId);
+        }
+        await store.removeDir(request.captureId);
+        post({ kind: 'dropped', id });
+        break;
+      }
     }
   } catch (err) {
     post({ kind: 'error', id, message: err instanceof Error ? err.message : String(err) });

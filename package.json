@@ -19,7 +19,8 @@
     "fixtures:versions": "bash tools/fixtures/versions.sh",
     "fixtures:sharded": "bash tools/fixtures/sharded.sh",
     "units": "vite-node tools/units.ts",
-    "verify:browser": "bash tools/browser/verify.sh"
+    "verify:browser": "bash tools/browser/verify.sh",
+    "verify:multi": "bash tools/browser/verify-multi.sh"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

@@ -190,3 +190,24 @@ header { align-items: center; flex-wrap: wrap; }
 .panel-title-text { font-size: 12px; font-weight: 600; padding: 2px 4px; border-radius: 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: grab; }
 .panel-title-text:hover { background: #0f1115; }
+
+/* ---- M4: multiple captures ---- */
+.capture-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.capture-chip { display: flex; align-items: center; gap: 6px; padding: 2px 6px;
+  border: 1px solid var(--line); border-radius: 6px; background: #1b1f26; }
+.capture-chip.active { border-color: var(--accent); }
+/* Hidden, not unloaded: the bytes stay in OPFS so ticking it back on is instant. */
+.capture-chip.off { opacity: .5; }
+.capture-name { background: none; border: 0; color: var(--fg); font-size: 12px;
+  cursor: pointer; padding: 2px 0; text-align: left; }
+.badge { background: var(--accent); color: #0b0d10; border-radius: 3px; font-size: 10px;
+  font-weight: 700; padding: 0 4px; margin-left: 4px; }
+.capture-select { width: 100%; background: #1b1f26; color: var(--fg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font-size: 12px; }
+/* Which node a series came from has to be readable before the metric name is. */
+.legend-host { color: var(--accent); margin-right: 6px; font-weight: 600; }
+.cross-host { cursor: help; }
+.node-progress { margin-bottom: 10px; }
+.node-progress .bar { margin: 4px 0; }
+.pad { padding: 6px 16px; }

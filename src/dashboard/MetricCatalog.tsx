@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { qualifyPath } from '../data/qualify.js';
 
 /**
  * Searchable metric picker.
@@ -9,13 +10,24 @@ import { useStore } from '../store/useStore.js';
  * metrics_to_get.txt and rebuilding a container is exactly what this replaces. Flat metrics
  * are hidden by default because a large fraction of FTDC never changes and would otherwise
  * bury the useful paths.
+ *
+ * With several nodes loaded the list is one node's -- metric *names* barely differ between
+ * members of a replica set, so a merged list would be three copies of the same thing. A click
+ * still adds the metric for every node, because "show me this on all three" is the question
+ * being asked almost every time. Shift-click pins it to the node being listed, which is how a
+ * cross-host expression gets written.
  */
 export function MetricCatalog(): ReactElement {
-  const catalog = useStore((s) => s.catalog);
+  const captures = useStore((s) => s.captures);
+  const activeId = useStore((s) => s.activeId);
+  const setActive = useStore((s) => s.setActive);
   const panels = useStore((s) => s.panels);
   const focused = useStore((s) => s.focused);
   const toggle = useStore((s) => s.toggleMetric);
   const status = useStore((s) => s.status);
+
+  const active = captures.find((c) => c.id === activeId) ?? captures[0];
+  const catalog = active?.catalog ?? [];
 
   const target = panels.find((p) => p.id === focused) ?? panels[0];
   const selected = target?.metrics ?? [];
@@ -35,7 +47,7 @@ export function MetricCatalog(): ReactElement {
       .slice(0, 400);
   }, [catalog, term, showFlat, selected]);
 
-  if (status !== 'ready') return <></>;
+  if (status !== 'ready' || active === undefined) return <></>;
 
   const varying = catalog.filter((c) => !c.flat).length;
 
@@ -44,6 +56,20 @@ export function MetricCatalog(): ReactElement {
       <div className="catalog-target muted small">
         adding to <b>{target?.title ?? 'no panel'}</b>
       </div>
+      {captures.length > 1 && (
+        <select
+          className="capture-select"
+          value={active.id}
+          onChange={(e) => setActive(e.target.value)}
+          title="Which node's metric list to show"
+        >
+          {captures.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label} ({c.catalog.length.toLocaleString()} metrics)
+            </option>
+          ))}
+        </select>
+      )}
       <input
         value={term}
         onChange={(e) => setTerm(e.target.value)}
@@ -57,10 +83,19 @@ export function MetricCatalog(): ReactElement {
 
       <ul className="metric-list">
         {matches.map((entry) => {
-          const on = selected.includes(entry.path);
+          const pinned = qualifyPath(active.id, entry.path);
+          const on = selected.includes(entry.path) || selected.includes(pinned);
           return (
             <li key={entry.path}>
-              <button className={on ? 'metric on' : 'metric'} onClick={() => toggle(entry.path)}>
+              <button
+                className={on ? 'metric on' : 'metric'}
+                title={
+                  captures.length > 1
+                    ? `Click: all nodes · Shift-click: ${active.label} only`
+                    : entry.path
+                }
+                onClick={(e) => toggle(e.shiftKey && captures.length > 1 ? pinned : entry.path)}
+              >
                 <span className="metric-path">{entry.path}</span>
                 <span className="muted small">
                   {entry.type}
