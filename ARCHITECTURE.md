@@ -240,6 +240,42 @@ whose capture ends early holds its last value and fabricates a linear climb. Two
 With one capture loaded nothing is qualified at all, so single-capture layouts, permalinks and
 saved dashboards are byte-identical to what M3 produced.
 
+## Log correlation
+
+`src/logs/` turns a mongod log into two things and keeps nothing else: a few hundred
+**markers** on the shared time axis, and **`logs.*` series** in the metric catalogue. A support
+bundle's log is routinely 73 MB and can be gigabytes; holding lines resident would break the
+same promise the storage layer keeps for metrics.
+
+The hard part is volume, not parsing. One real 24-hour customer log holds:
+
+| | |
+|---|---|
+| 19,220 | connection accepted / ended |
+| 18,485 | TLS warnings |
+| 11,552 | slow queries |
+| **10** | oplog fetcher errors |
+| **10** | sync source changes |
+
+Annotating everything erases the twenty lines that explain the incident. So each rule in
+`src/logs/classify.ts` declares `annotate` (rare and specific — elections, sync-source changes,
+restarts, oplog truncation) or `count` (high volume, meaningful in aggregate — becomes
+`logs.slowQuery.count`, `logs.slowQuery.p95Ms`, …). A density guard demotes an `annotate` class
+that fires more than `ANNOTATION_LIMIT` times, because a rule that is rare on one server is not
+rare on another and being wrong should degrade the display rather than destroy it.
+
+Rules match on **`id`**, the stable numeric statement identifier, not on message text — MongoDB
+rewords messages between releases and the id survives it. Timestamps carry the server's UTC
+offset, so events land on the same absolute axis as FTDC without asking anyone what timezone
+the host was in.
+
+Log series are ordinary metric paths (`src/logs/logSource.ts` routes them), so panels, the
+catalogue and the expression layer need no special case. What is *not* allowed is mixing a log
+path and an FTDC path inside one expression: different clocks, so it is refused by name rather
+than silently joined.
+
+Logs are not persisted with the capture — re-opening a node from OPFS starts without them.
+
 ## Storage
 
 A 3-node replica set over a week is roughly 600 MB on disk and **~36 GB decoded at full

@@ -37,6 +37,61 @@ export function isFtdcFile(name: string): boolean {
   return base.startsWith('metrics.');
 }
 
+/**
+ * A mongod log, by name.
+ *
+ * Deliberately permissive about what surrounds `.log`: real bundles contain `mongod.log`,
+ * `mongodb.log`, `mongodb.log-202607210201`, `mongod-a1_mongodb.log` and worse. Anything
+ * that turns out not to be a mongod log is rejected on content when it is parsed, which is a
+ * more reliable test than the filename ever is.
+ */
+export function isLogFile(name: string): boolean {
+  const base = (name.split('/').pop() ?? name).toLowerCase();
+  if (base.endsWith('.gz') || base.endsWith('.zip')) return false;
+  return /\.log(\.|-|$)/.test(base);
+}
+
+/**
+ * Attach log files to the node they belong to.
+ *
+ * A bundle puts a member's log next to its diagnostic.data, or a directory or two above it, so
+ * the log goes to the capture with the longest shared path prefix. With one capture loaded
+ * every log belongs to it, which is the common case and needs no cleverness.
+ */
+export function groupLogs(
+  sources: readonly SourceFile[],
+  groups: readonly CaptureGroup[],
+): Map<string, File[]> {
+  const out = new Map<string, File[]>();
+  if (groups.length === 0) return out;
+
+  const segments = (path: string): string[] => path.split('/').filter(Boolean);
+
+  for (const source of sources) {
+    if (!isLogFile(source.path)) continue;
+
+    let best = groups[0]!;
+    let bestShared = -1;
+    for (const group of groups) {
+      const a = segments(group.key);
+      const b = segments(source.path);
+      let shared = 0;
+      while (shared < a.length && shared < b.length && a[shared] === b[shared]) shared++;
+      if (shared > bestShared) {
+        bestShared = shared;
+        best = group;
+      }
+    }
+
+    const list = out.get(best.key);
+    if (list === undefined) out.set(best.key, [source.file]);
+    else list.push(source.file);
+  }
+
+  for (const list of out.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
 function dirname(path: string): string {
   const at = path.lastIndexOf('/');
   return at < 0 ? '' : path.slice(0, at);

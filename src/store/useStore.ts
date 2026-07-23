@@ -26,11 +26,14 @@ import {
 } from '../dashboard/library.js';
 import { exprPaths, parseExpr } from '../data/expr.js';
 import { splitRef, type KnownCapture } from '../data/qualify.js';
-import type { CaptureRef } from '../data/panelData.js';
-import { groupCaptures, type SourceFile } from '../ingest/discover.js';
+import type { CaptureRef, SeriesSource } from '../data/panelData.js';
+import { groupCaptures, groupLogs, isLogFile, type SourceFile } from '../ingest/discover.js';
+import { withLogs } from '../logs/logSource.js';
+import type { LogAnalysis } from '../logs/analyze.js';
 import { FtdcClient } from '../workers/client.js';
 import type { CaptureSummary, IngestProgressMessage } from '../workers/protocol.js';
 import type { Gap } from '../data/types.js';
+import type { LogEvent } from '../logs/analyze.js';
 
 export interface Progress {
   readonly file: string;
@@ -52,6 +55,8 @@ export interface CaptureState {
   readonly paths: ReadonlySet<string>;
   /** Highest `replSetGetStatus.myState` seen; 1 means this node was primary at some point. */
   readonly maxState?: number;
+  /** Parsed mongod log for this node, once one has been dropped. */
+  readonly logs?: LogAnalysis;
   /** Unchecked captures stay loaded but are not drawn -- cheaper than re-ingesting. */
   readonly visible: boolean;
 }
@@ -116,6 +121,21 @@ interface State {
   visibleCaptures(): CaptureState[];
   /** What panelData needs: id, label, paths, cadence. */
   refs(): CaptureRef[];
+  /**
+   * Series source for panels: log paths from memory, everything else from the worker pool.
+   * Recreated per call so a log dropped mid-session is picked up without remounting anything.
+   */
+  source(): SeriesSource;
+  /** Annotations from every visible capture, filtered, oldest first. */
+  events(): Array<LogEvent & { captureId: string; captureLabel: string }>;
+  /** Event class to show, or '' for all. Filters the list AND the chart markers together. */
+  eventKind: string;
+  eventTerm: string;
+  setEventFilter(kind: string, term: string): void;
+  /** Every class present, with counts, ignoring the current filter. */
+  eventKinds(): Array<{ kind: string; label: string; n: number }>;
+  /** Attach logs to a capture that is already open. */
+  addLogs(captureId: string, files: File[]): Promise<void>;
   /** True for an id that names a loaded capture. */
   known: KnownCapture;
   /** Union bounds across visible captures, or null when nothing is loaded. */
@@ -312,6 +332,8 @@ export const useStore = create<State>((set, get) => ({
   captures: [],
   activeId: null,
   recent: [],
+  eventKind: '',
+  eventTerm: '',
   panels: [],
   focused: null,
   range: null,
@@ -326,6 +348,72 @@ export const useStore = create<State>((set, get) => ({
 
   visibleCaptures() {
     return get().captures.filter((c) => c.visible);
+  },
+
+  source() {
+    const byId = new Map(get().captures.map((c) => [c.id, c.logs]));
+    return withLogs(get().client, (id) => byId.get(id));
+  },
+
+  events() {
+    const { eventKind, eventTerm } = get();
+    const needles = eventTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    return get()
+      .visibleCaptures()
+      .flatMap((c) =>
+        (c.logs?.events ?? []).map((e) => ({
+          ...e,
+          captureId: c.id,
+          captureLabel: c.label,
+        })),
+      )
+      // Filtering here rather than in the list is what makes the markers follow it: a panel
+      // asks the store for events, so narrowing to "oplog fetcher error" clears 235 checkpoint
+      // lines off every chart at the same time.
+      .filter((e) => eventKind === '' || e.kind === eventKind)
+      .filter((e) => {
+        if (needles.length === 0) return true;
+        const hay = `${e.label} ${e.message} ${e.detail} ${e.captureLabel}`.toLowerCase();
+        return needles.every((n) => hay.includes(n));
+      })
+      .sort((a, b) => a.tMs - b.tMs);
+  },
+
+  eventKinds() {
+    const counts = new Map<string, { label: string; n: number }>();
+    for (const capture of get().visibleCaptures()) {
+      for (const e of capture.logs?.events ?? []) {
+        const seen = counts.get(e.kind);
+        counts.set(e.kind, { label: e.label, n: (seen?.n ?? 0) + 1 });
+      }
+    }
+    return [...counts]
+      .map(([kind, v]) => ({ kind, ...v }))
+      .sort((a, b) => b.n - a.n);
+  },
+
+  setEventFilter(kind, term) {
+    set({ eventKind: kind, eventTerm: term });
+  },
+
+  async addLogs(captureId: string, files: File[]) {
+    if (files.length === 0) return;
+    try {
+      const analysis = await get().client.logs(captureId, files);
+      set({
+        captures: get().captures.map((c) =>
+          c.id === captureId
+            ? {
+                ...c,
+                logs: analysis,
+                paths: new Set([...c.paths, ...Object.keys(analysis.series)]),
+              }
+            : c,
+        ),
+      });
+    } catch (err) {
+      set({ error: `log parse failed: ${err instanceof Error ? err.message : String(err)}` });
+    }
   },
 
   refs() {
@@ -373,6 +461,7 @@ export const useStore = create<State>((set, get) => ({
     const first = get().captures.length === 0;
     set({ status: 'ingesting', error: null, progress: {} });
 
+    const logsByGroup = groupLogs(sources, groups);
     const failures: string[] = [];
 
     // One capture per worker, decoded concurrently. Sequential ingest would make a three-node
@@ -407,14 +496,29 @@ export const useStore = create<State>((set, get) => ({
           const summary = await get().client.ingest(id, group.files, onProgress);
           const catalog = await get().client.catalog(id);
           const maxState = maxStateOf(catalog);
+          // Logs are parsed after the metrics they annotate, on the same worker, so a huge
+          // mongod.log cannot delay the charts appearing.
+          const logFiles = logsByGroup.get(group.key) ?? [];
+          let logs: LogAnalysis | undefined;
+          if (logFiles.length > 0) {
+            try {
+              logs = await get().client.logs(id, logFiles);
+            } catch (err) {
+              failures.push(`${group.label} logs: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
           return {
             id,
             label: summary.hostname ?? group.label,
             source: group.key,
             summary,
             catalog,
-            paths: new Set(catalog.map((c) => c.path)),
+            // Log-derived series are metrics this node has, as far as every panel is
+            // concerned. Keeping one set means resolution, dashboard pruning and the
+            // degradation check all agree about what is available.
+            paths: new Set([...catalog.map((c) => c.path), ...Object.keys(logs?.series ?? {})]),
             ...(maxState !== undefined ? { maxState } : {}),
+            ...(logs !== undefined ? { logs } : {}),
             visible: true,
           };
         } catch (err) {
@@ -478,6 +582,8 @@ export const useStore = create<State>((set, get) => ({
             catalog,
             paths: new Set(catalog.map((c) => c.path)),
             ...(maxState !== undefined ? { maxState } : {}),
+            // Logs are not persisted with the capture, so a re-opened node starts without
+            // them; drop the mongod.log again to get its annotations back.
             visible: true,
           };
         } catch (err) {

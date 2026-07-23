@@ -21,7 +21,8 @@
     "units": "vite-node tools/units.ts",
     "verify:browser": "bash tools/browser/verify.sh",
     "verify:multi": "bash tools/browser/verify-multi.sh",
-    "coverage": "vite-node tools/coverage.ts"
+    "coverage": "vite-node tools/coverage.ts",
+    "logscan": "vite-node tools/logscan.ts"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

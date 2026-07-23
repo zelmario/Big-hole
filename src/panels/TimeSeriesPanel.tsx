@@ -11,6 +11,7 @@ import { describeCrossHost } from '../dashboard/crossHost.js';
 import { legendLabel, plotColumn, timeColumn } from './plotData.js';
 import type { KnownCapture } from '../data/qualify.js';
 import type { Gap } from '../data/types.js';
+import type { LogEvent } from '../logs/analyze.js';
 
 /** Grafana's classic series palette, so a ported dashboard reads the same. */
 const PALETTE = [
@@ -53,6 +54,58 @@ function gapPlugin(gaps: () => readonly Gap[]): uPlot.Plugin {
           const x1 = u.valToPos(gap.toMs / 1000, 'x', true);
           if (x1 < u.bbox.left || x0 > u.bbox.left + u.bbox.width) continue;
           ctx.fillRect(x0, u.bbox.top, Math.max(1, x1 - x0), u.bbox.height);
+        }
+        ctx.restore();
+      },
+    },
+  };
+}
+
+/**
+ * Draw log events on the time axis.
+ *
+ * This is the whole point of correlating logs with FTDC: an election, a sync-source change or a
+ * restart is a vertical line through every chart, so "the cache dropped at 03:41" and "the
+ * oplog fetcher timed out at 03:41" stop being two separate observations.
+ *
+ * Markers are drawn per pixel column, not per event -- a log with 300 annotations over 24
+ * hours puts several in the same pixel at full zoom, and stroking each one separately is both
+ * slower and darker than the data behind it. Colour is by severity, since that is what decides
+ * whether something is worth interrupting your reading for.
+ */
+function annotationPlugin(events: () => ReadonlyArray<LogEvent>): uPlot.Plugin {
+  const colour = (severity: string): string =>
+    severity === 'F' || severity === 'E' ? '#f2495c' : severity === 'W' ? '#ff9830' : '#8ab8ff';
+
+  return {
+    hooks: {
+      draw: (u: uPlot) => {
+        const list = events();
+        if (list.length === 0) return;
+        const ctx = u.ctx;
+        ctx.save();
+        ctx.lineWidth = 1;
+
+        const drawn = new Set<number>();
+        for (const event of list) {
+          const x = Math.round(u.valToPos(event.tMs / 1000, 'x', true));
+          if (x < u.bbox.left || x > u.bbox.left + u.bbox.width) continue;
+          // One stroke per pixel column, strongest severity wins.
+          const key = x;
+          if (drawn.has(key)) continue;
+          drawn.add(key);
+
+          ctx.strokeStyle = colour(event.severity);
+          ctx.globalAlpha = 0.55;
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, u.bbox.top);
+          ctx.lineTo(x + 0.5, u.bbox.top + u.bbox.height);
+          ctx.stroke();
+
+          // A tick at the top edge, so markers stay findable when the plot is busy.
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = colour(event.severity);
+          ctx.fillRect(x - 1, u.bbox.top, 3, 4);
         }
         ctx.restore();
       },
@@ -112,6 +165,8 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const [editingTitle, setEditingTitle] = useState(false);
 
   const client = useStore((s) => s.client);
+  // Log series live in memory and metrics live in OPFS; the panel should not know which.
+  const source = useStore((s) => s.source)();
   const status = useStore((s) => s.status);
   const range = useStore((s) => s.range);
   const captures = useStore((s) => s.captures);
@@ -130,6 +185,20 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
 
   const gapsRef = useRef<readonly Gap[]>([]);
   gapsRef.current = useStore((s) => s.gaps)();
+
+  const captureLogs = useStore((s) => s.captures.map((c) => (c.logs === undefined ? '' : c.id)).join(','));
+  const logsKey = captureLogs;
+  // Subscribing to the filter, not just calling s.events(): the selector `(s) => s.events`
+  // returns a function whose identity never changes, so zustand had no reason to re-render
+  // this panel when the filter moved. The list narrowed and every chart kept its old markers.
+  const eventKind = useStore((s) => s.eventKind);
+  const eventTerm = useStore((s) => s.eventTerm);
+  const events = useStore((s) => s.events)();
+  const eventsRef = useRef<ReadonlyArray<LogEvent & { captureId: string }>>([]);
+  eventsRef.current = events;
+  // The plugin reads the ref at draw time, and nothing else asks uPlot to draw. Without this,
+  // narrowing the event filter updated the list while every chart kept its old markers.
+  const eventsKey = `${eventKind}|${eventTerm}|${events.length}|${events[0]?.tMs ?? 0}`;
 
   // Only the visible captures are drawn, and the fetch has to re-run when that set changes --
   // ticking a node off is a view change, not a reload.
@@ -177,7 +246,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       ...(range !== null ? { from: range[0], to: range[1] } : {}),
     };
 
-    fetchPanelData(client, panel.metrics, refs, query)
+    fetchPanelData(source, panel.metrics, refs, query)
       .then((result) => {
         if (cancelled) return;
         setSeries(result.series);
@@ -198,7 +267,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, status, metricsKey, capturesKey, range, size.w, isSection]);
+  }, [client, status, metricsKey, capturesKey, logsKey, range, size.w, isSection]);
 
   // Hidden series are dropped before the plot is built rather than styled away, so the y-axis
   // rescales to what is actually shown -- which is the point of hiding a large series.
@@ -270,7 +339,11 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
           },
         },
       ],
-      plugins: [gapPlugin(() => gapsRef.current), selectionPlugin()],
+      plugins: [
+        gapPlugin(() => gapsRef.current),
+        annotationPlugin(() => eventsRef.current),
+        selectionPlugin(),
+      ],
       series: [
         { label: 'time' },
         ...visible.flatMap((s) => {
@@ -328,6 +401,10 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       plot.current = null;
     };
   }, [data, visible, size.w, size.h, unit, showBand, setCursor, setRange]);
+
+  useEffect(() => {
+    plot.current?.redraw();
+  }, [eventsKey]);
 
   if (isSection) {
     return (

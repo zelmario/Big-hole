@@ -2,6 +2,8 @@ import { useMemo, useState, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
 import { qualifyPath } from '../data/qualify.js';
+import { logMetricLabel } from '../logs/analyze.js';
+import type { CatalogEntry } from '../data/reader.js';
 
 /**
  * Searchable metric picker.
@@ -27,7 +29,25 @@ export function MetricCatalog(): ReactElement {
   const status = useStore((s) => s.status);
 
   const active = captures.find((c) => c.id === activeId) ?? captures[0];
-  const catalog = active?.catalog ?? [];
+  // Log-derived series sit in the same list as decoded metrics, deliberately: from a panel's
+  // point of view `logs.slowQuery.p95Ms` is a metric, and having to look somewhere else for it
+  // would defeat the point of putting logs on the same axis.
+  const catalog = useMemo(() => {
+    const base = active?.catalog ?? [];
+    const logs = active?.logs;
+    if (logs === undefined) return base;
+    const derived: CatalogEntry[] = Object.entries(logs.series).map(([path, series]) => {
+      const finite = Array.from(series.v).filter(Number.isFinite);
+      return {
+        path,
+        type: 'double' as CatalogEntry['type'],
+        min: finite.length > 0 ? Math.min(...finite) : 0,
+        max: finite.length > 0 ? Math.max(...finite) : 0,
+        flat: finite.length > 0 && Math.min(...finite) === Math.max(...finite),
+      };
+    });
+    return [...derived, ...base];
+  }, [active]);
 
   const target = panels.find((p) => p.id === focused) ?? panels[0];
   const selected = target?.metrics ?? [];
@@ -96,9 +116,12 @@ export function MetricCatalog(): ReactElement {
                 }
                 onClick={(e) => toggle(e.shiftKey && captures.length > 1 ? pinned : entry.path)}
               >
-                <span className="metric-path">{entry.path}</span>
+                <span className="metric-path">
+                  {entry.path.startsWith('logs.') && <span className="from-log">log</span>}
+                  {entry.path}
+                </span>
                 <span className="muted small">
-                  {entry.type}
+                  {entry.path.startsWith('logs.') ? logMetricLabel(entry.path) : entry.type}
                   {entry.flat ? ' · flat' : ` · ${fmt(entry.min)} – ${fmt(entry.max)}`}
                 </span>
               </button>

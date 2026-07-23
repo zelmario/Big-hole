@@ -13,6 +13,7 @@
  * plain request/response pair.
  */
 
+import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
 import type {
   CaptureSummary,
@@ -83,6 +84,10 @@ export class FtdcClient {
         this.pending.delete(msg.id);
         entry.resolve(msg.captures as never);
         return;
+      case 'logs':
+        this.pending.delete(msg.id);
+        entry.resolve(msg.analysis as never);
+        return;
       case 'dropped':
         this.pending.delete(msg.id);
         entry.resolve(undefined as never);
@@ -140,6 +145,11 @@ export class FtdcClient {
       paths,
       query,
     });
+  }
+
+  /** Parse mongod logs for a capture. Routed to that capture's worker, like everything else. */
+  logs(captureId: string, files: File[]): Promise<LogAnalysis> {
+    return this.send<LogAnalysis>(this.route(captureId), { kind: 'logs', captureId, files });
   }
 
   /** Every capture already in OPFS, newest first. Reads manifests only. */

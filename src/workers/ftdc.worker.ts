@@ -8,6 +8,7 @@
 /// <reference lib="webworker" />
 
 import { decodeFTDC, readMetadata } from '../ftdc/index.js';
+import { analyzeLines } from '../logs/analyze.js';
 import { OpfsFileStore } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
 import { CaptureReader } from '../data/reader.js';
@@ -161,6 +162,35 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         ]);
 
         post({ kind: 'series', id, series }, transfer);
+        break;
+      }
+
+      case 'logs': {
+        // Streamed, not read whole: a support bundle's mongod.log runs to tens of megabytes and
+        // there is no reason to hold the text and the parsed objects at once.
+        const lines: string[] = [];
+        for (const file of request.files) {
+          const stream = file.stream().pipeThrough(new TextDecoderStream());
+          const readerStream = stream.getReader();
+          let carry = '';
+          for (;;) {
+            const { done, value } = await readerStream.read();
+            if (done) break;
+            const text = carry + value;
+            const parts = text.split('\n');
+            // The last piece may be half a line; it is completed by the next chunk.
+            carry = parts.pop() ?? '';
+            for (const part of parts) lines.push(part);
+          }
+          if (carry.length > 0) lines.push(carry);
+        }
+
+        const analysis = analyzeLines(lines);
+        const transfer: Transferable[] = Object.values(analysis.series).flatMap((s) => [
+          s.t.buffer,
+          s.v.buffer,
+        ]);
+        post({ kind: 'logs', id, analysis }, transfer);
         break;
       }
 

@@ -7,6 +7,7 @@ import { TimeRange } from './ui/TimeRange.js';
 import { DashboardMenu } from './ui/DashboardMenu.js';
 import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
+import { EventList } from './logs/EventList.js';
 import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
 
@@ -29,6 +30,11 @@ export function App(): ReactElement {
   const reset = useStore((s) => s.reset);
 
   const [copied, setCopied] = useState<string | null>(null);
+  const [tab, setTab] = useState<'metrics' | 'events'>('metrics');
+  // Depends on the loaded logs and on the filter, both of which have to be subscribed to for
+  // the tab label to move; `(s) => s.events` alone is a stable function reference.
+  useStore((s) => s.eventKind);
+  const eventCount = useStore((s) => s.captures.reduce((n, c) => n + (c.logs?.events.length ?? 0), 0));
 
   async function share(): Promise<void> {
     const link = toPermalink(dashboard(), window.location.href);
@@ -119,12 +125,30 @@ export function App(): ReactElement {
           <div className={showCatalog ? 'sidebar' : 'sidebar collapsed'}>
             <button
               className="catalog-toggle"
-              title={showCatalog ? 'Hide metric catalog' : 'Show metric catalog'}
+              title={showCatalog ? 'Hide sidebar' : 'Show sidebar'}
               onClick={toggleCatalog}
             >
-              {showCatalog ? '⯇ metrics' : '⯈'}
+              {showCatalog ? '⯇' : '⯈'}
             </button>
-            {showCatalog && <MetricCatalog />}
+            {showCatalog && (
+              <>
+                <div className="sidebar-tabs">
+                  <button
+                    className={tab === 'metrics' ? 'tab on' : 'tab'}
+                    onClick={() => setTab('metrics')}
+                  >
+                    metrics
+                  </button>
+                  <button
+                    className={tab === 'events' ? 'tab on' : 'tab'}
+                    onClick={() => setTab('events')}
+                  >
+                    events{eventCount > 0 && ` (${eventCount})`}
+                  </button>
+                </div>
+                {tab === 'metrics' ? <MetricCatalog /> : <EventList />}
+              </>
+            )}
           </div>
           <section className="charts">
             <ErrorBoundary>

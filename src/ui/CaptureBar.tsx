@@ -22,7 +22,10 @@ export function CaptureBar(): ReactElement {
   const toggleCapture = useStore((s) => s.toggleCapture);
   const removeCapture = useStore((s) => s.removeCapture);
   const ingest = useStore((s) => s.ingest);
+  const addLogs = useStore((s) => s.addLogs);
   const input = useRef<HTMLInputElement>(null);
+  const logInput = useRef<HTMLInputElement>(null);
+  const logTarget = useRef<string | null>(null);
 
   return (
     <div className="capture-bar">
@@ -58,6 +61,20 @@ export function CaptureBar(): ReactElement {
           </button>
           <button
             className="link small"
+            title={
+              capture.logs === undefined
+                ? 'Attach this node\'s mongod.log'
+                : `${capture.logs.events.length} log events — attach another log`
+            }
+            onClick={() => {
+              logTarget.current = capture.id;
+              logInput.current?.click();
+            }}
+          >
+            {capture.logs === undefined ? '+ log' : `☰ ${capture.logs.events.length}`}
+          </button>
+          <button
+            className="link small"
             title="Remove this node"
             onClick={() => void removeCapture(capture.id)}
           >
@@ -69,6 +86,18 @@ export function CaptureBar(): ReactElement {
       <button className="link small" onClick={() => input.current?.click()}>
         + node
       </button>
+      <input
+        ref={logInput}
+        type="file"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          const target = logTarget.current;
+          if (target !== null && files.length > 0) void addLogs(target, files);
+          e.target.value = '';
+        }}
+      />
       <input
         ref={input}
         type="file"

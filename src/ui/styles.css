@@ -171,8 +171,11 @@ header { align-items: center; flex-wrap: wrap; }
 .catalog { flex: 0 0 380px; }
 
 /* ---- left rail: catalog + its toggle ---- */
-.sidebar { display: flex; flex-direction: column; min-height: 0;
-  border-right: 1px solid var(--line); }
+/* The width belongs to the rail, not to whatever is inside it. It used to come from .catalog,
+   so switching the tab to the event list left the rail unconstrained and a long log message
+   pushed the charts off screen. */
+.sidebar { display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  flex: 0 0 380px; border-right: 1px solid var(--line); }
 .sidebar.collapsed { flex: 0 0 auto; }
 .catalog-toggle { margin: 8px 8px 0; background: #262c36; border: 1px solid var(--line);
   color: var(--fg); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer;
@@ -233,3 +236,32 @@ header { align-items: center; flex-wrap: wrap; }
 /* A start-up failure has to be readable, so the stack is not hidden behind a console. */
 .fatal-stack { white-space: pre-wrap; text-align: left; max-width: 700px; margin: 8px auto;
   opacity: .75; }
+
+/* ---- M5: log events ---- */
+.sidebar-tabs { display: flex; gap: 4px; padding: 8px 8px 0; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+  font-size: 12px; padding: 4px 8px; cursor: pointer; }
+.tab.on { color: var(--fg); border-bottom-color: var(--accent); }
+.events { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1;
+  padding: 8px; gap: 8px; }
+.events.empty { padding: 16px; line-height: 1.5; }
+.events-head { display: flex; gap: 6px; min-width: 0; }
+.events-head .search { min-width: 0; flex: 1 1 auto; }
+.events-head select { background: #1b1f26; color: var(--fg); border: 1px solid var(--line);
+  border-radius: 6px; font-size: 12px; }
+.events ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.event { display: flex; gap: 8px; width: 100%; text-align: left; background: none; border: 0;
+  color: var(--fg); font-size: 11px; padding: 3px 4px; border-radius: 4px; cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; align-items: baseline; }
+.event:hover { background: #232830; }
+.event-time { flex: 0 0 auto; color: var(--muted); }
+.event-host { flex: 0 0 auto; color: var(--accent); }
+.event-label { flex: 0 0 auto; font-weight: 600; }
+/* The detail is the part that varies; let it take what is left and ellipsize. */
+.event-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.event.sev-warn .event-label { color: var(--warn); }
+.event.sev-error .event-label { color: var(--err); }
+/* Log-derived metrics sit in the same catalogue as decoded ones; the badge says which. */
+.from-log { background: #2a3550; color: #8ab8ff; border-radius: 3px; font-size: 9px;
+  padding: 0 4px; margin-right: 6px; text-transform: uppercase; letter-spacing: .04em; }

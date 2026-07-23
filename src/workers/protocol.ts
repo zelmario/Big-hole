@@ -8,6 +8,7 @@
  * Series come back as transferable Float64Arrays -- the buffers are moved, not copied.
  */
 
+import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
 import type { CaptureManifest, Gap } from '../data/types.js';
 
@@ -27,6 +28,18 @@ export interface SeriesRequest {
   readonly captureId: string;
   readonly paths: string[];
   readonly query: SeriesQuery;
+}
+
+/**
+ * Parse mongod logs and attach them to a capture.
+ *
+ * Parsing happens in the worker for the same reason decoding does: a support bundle's log is
+ * routinely tens of megabytes, and the main thread should not be holding still for it.
+ */
+export interface LogsRequest {
+  readonly kind: 'logs';
+  readonly captureId: string;
+  readonly files: File[];
 }
 
 /**
@@ -50,6 +63,7 @@ export type Request =
   | IngestRequest
   | CatalogRequest
   | SeriesRequest
+  | LogsRequest
   | CapturesRequest
   | DropRequest;
 
@@ -93,6 +107,7 @@ export type Response =
   | { readonly kind: 'catalog'; readonly id: number; readonly entries: CatalogEntry[] }
   | { readonly kind: 'series'; readonly id: number; readonly series: SeriesPayload[] }
   | { readonly kind: 'captures'; readonly id: number; readonly captures: CaptureSummary[] }
+  | { readonly kind: 'logs'; readonly id: number; readonly analysis: LogAnalysis }
   | { readonly kind: 'dropped'; readonly id: number }
   | { readonly kind: 'error'; readonly id: number; readonly message: string };
 
