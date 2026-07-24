@@ -175,8 +175,14 @@ header { align-items: center; flex-wrap: wrap; }
    so switching the tab to the event list left the rail unconstrained and a long log message
    pushed the charts off screen. */
 .sidebar { display: flex; flex-direction: column; min-height: 0; min-width: 0;
-  flex: 0 0 380px; border-right: 1px solid var(--line); }
-.sidebar.collapsed { flex: 0 0 auto; }
+  flex: 0 0 380px; }
+/* Collapsed there is no resizer, so the sidebar carries the divider itself. */
+.sidebar.collapsed { flex: 0 0 auto; border-right: 1px solid var(--line); }
+/* Drag handle on the sidebar's right edge -- it also *is* the divider when expanded, so the
+   line and the grab surface are the same 5px and never double up. */
+.sidebar-resizer { flex: 0 0 5px; cursor: col-resize; border-left: 1px solid var(--line);
+  background: transparent; transition: background .12s; }
+.sidebar-resizer:hover, .sidebar-resizer:active { background: var(--accent); }
 .catalog-toggle { margin: 8px 8px 0; background: #262c36; border: 1px solid var(--line);
   color: var(--fg); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer;
   white-space: nowrap; align-self: flex-start; }
@@ -281,13 +287,19 @@ header { align-items: center; flex-wrap: wrap; }
 .logview { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1;
   padding: 8px; gap: 6px; }
 .logview.empty { padding: 16px; line-height: 1.55; }
-.logview-head { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.logview-head { display: flex; gap: 6px 8px; align-items: center; min-width: 0; flex-wrap: wrap; }
 .logview-head .search { min-width: 0; flex: 1 1 auto; }
+/* An active toggle (e.g. "● following") reads as engaged, not as a plain link. */
+.logview-head .link.on { color: var(--accent); font-weight: 600; }
 .logview-note { display: flex; gap: 8px; align-items: center; }
 .logview-lines { flex: 1; overflow: auto; min-height: 0; font-family: ui-monospace,
   SFMono-Regular, Menlo, monospace; }
 .logline { display: flex; gap: 6px; align-items: baseline; font-size: 10px; line-height: 1.5;
-  padding: 1px 4px; border-left: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+  padding: 1px 4px; border-left: 2px solid transparent; cursor: pointer; white-space: nowrap;
+  /* Render only the rows on screen. Thousands of lines then cost what a screenful does -- the
+     browser skips layout and paint for the rest, and `auto` remembers each row's real size so
+     the scrollbar and the follow-mode scroll maths stay accurate. */
+  content-visibility: auto; contain-intrinsic-size: auto 400px auto 17px; }
 .logline:hover { background: #232830; }
 /* A notable line -- the ones that used to be the "events" -- stands out of the stream. */
 .logline.important { border-left-color: #8ab8ff; background: rgba(138,184,255,.05); }
@@ -301,20 +313,19 @@ header { align-items: center; flex-wrap: wrap; }
   font-size: 9px; padding: 0 4px; text-transform: uppercase; letter-spacing: .04em; }
 .logline.sev-warn .logline-badge { background: #3a2f1a; color: var(--warn); }
 .logline.sev-error .logline-badge { background: #3a1f22; color: var(--err); }
-.logline-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Its natural width, not the leftover space: a long line runs past the pane and the list
+   scrolls sideways to it, rather than being clipped with an ellipsis. */
+.logline-msg { flex: 0 0 auto; }
 .logline.sev-warn .logline-time { color: var(--warn); }
 .logline.sev-error .logline-time { color: var(--err); }
 .tab-pins { color: #f2cc0c; }
 
-/* ---- M5: log viewer — expand, parse bar, reveal ---- */
-.logline { flex-direction: column; align-items: stretch; }
-.logline-row { display: flex; gap: 6px; align-items: baseline; overflow: hidden;
-  text-overflow: ellipsis; }
-.logline.open { background: #20252e; white-space: normal; }
-/* The full line, wrapped, when a row is expanded. */
-.logline-full { white-space: pre-wrap; word-break: break-word; padding: 4px 0 6px 4px;
-  line-height: 1.5; color: var(--fg); }
-.logline-attr { color: var(--muted); margin-top: 3px; }
+/* ---- M5: log viewer — parse bar, reveal, sideways scroll ---- */
+/* Each line keeps its full width and does not wrap; the list (overflow:auto) scrolls
+   horizontally to read a long JSON command doc, the way `less -S` chops long lines. min-width
+   100% keeps a short line full-bleed so the hover/selection/notable highlight spans the pane. */
+.logline { flex-direction: column; align-items: stretch; width: max-content; min-width: 100%; }
+.logline-row { display: flex; gap: 6px; align-items: baseline; }
 /* Flash the line a chart double-click scrolled to. */
 .logline.flash { animation: logflash 1.6s ease-out; }
 @keyframes logflash {
@@ -329,3 +340,57 @@ header { align-items: center; flex-wrap: wrap; }
 @keyframes barslide { to { left: 100%; } }
 .tab-loading { color: #8ab8ff; animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .3; } }
+
+/* ---- help overlay ---- */
+.help-btn { width: 26px; height: 26px; flex: 0 0 auto; border-radius: 50%; margin-left: 8px;
+  background: #262c36; border: 1px solid var(--line); color: var(--fg); cursor: pointer;
+  font-weight: 700; font-size: 13px; line-height: 1; }
+.help-btn:hover { background: #2f3641; border-color: var(--accent); }
+/* Above the log window (z 60) -- help can be opened from anywhere, including over it. */
+.help-scrim { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.6);
+  display: flex; padding: 4vh 3vw; }
+.help { display: flex; flex-direction: column; flex: 1; min-height: 0; max-width: 780px;
+  margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden; }
+.help-bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  border-bottom: 1px solid var(--line); }
+.help-title { font-weight: 600; font-size: 14px; }
+.help-body { overflow: auto; padding: 4px 20px 20px; line-height: 1.55; }
+.help-lede { font-size: 14px; margin: 14px 0 4px; }
+.help-body section { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 14px; }
+.help-body h3 { font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--accent); margin: 12px 0 6px; }
+.help-body ul { margin: 0; padding-left: 18px; }
+.help-body li { margin: 5px 0; }
+.help-body code { background: #0f1115; border: 1px solid var(--line); border-radius: 4px;
+  padding: 0 4px; font-size: 12px; }
+.kbd { display: inline-block; background: #1b1f26; border: 1px solid var(--line);
+  border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-family: ui-monospace,
+  SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: var(--fg); }
+.help-keys { border-collapse: collapse; margin: 4px 0; }
+.help-keys td { padding: 4px 14px 4px 0; vertical-align: top; }
+.help-keys td:first-child { white-space: nowrap; }
+.help-foot { margin: 18px 0 2px; }
+
+/* ---- full-screen log window: a `less` for the mongod log ---- */
+/* The sidebar strip is too narrow to read the log; this is the room to read it in. Above the
+   maximised panel's z-index (30) so it covers everything, dimming the dashboard behind it. */
+.logwindow-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55);
+  display: flex; padding: 3vh 3vw; }
+.logwindow { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0;
+  max-width: 1600px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden; }
+.logwindow-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  border-bottom: 1px solid var(--line); }
+.logwindow-title { font-weight: 600; font-size: 13px; }
+.logwindow-keys { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* Roomier than the cramped sidebar -- the whole reason the window exists. */
+.logwindow .logview { padding: 4px 10px 10px; }
+.logwindow .logline { font-size: 12px; line-height: 1.6;
+  /* Taller rows in the window; a matching intrinsic height keeps the skipped-row estimate close. */
+  contain-intrinsic-size: auto 900px auto 21px; }
+.logwindow .logline-comp { flex-basis: 90px; }
+/* The keyboard-selected row: a steady highlight distinct from hover and from the flash.
+   (The sideways-scroll behaviour is now the log's default -- see `.logline` above -- so the
+   window only adds its bigger type and the selection highlight.) */
+.logwindow .logline.sel { background: #2b3444; border-left-color: #8ab8ff; }

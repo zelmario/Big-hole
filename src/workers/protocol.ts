@@ -82,6 +82,17 @@ export interface CapturesRequest {
   readonly kind: 'captures';
 }
 
+/**
+ * Re-attach a capture's persisted log after a reload, rebuilding its annotations.
+ *
+ * The raw log was copied into OPFS when it was first attached, so this reads it back rather than
+ * asking the user to re-drop the mongod.log. Returns a `logs` response like a fresh attach.
+ */
+export interface RestoreLogsRequest {
+  readonly kind: 'restoreLogs';
+  readonly captureId: string;
+}
+
 /** Close the reader and delete the capture's bytes. Used when a capture is removed. */
 export interface DropRequest {
   readonly kind: 'drop';
@@ -95,6 +106,7 @@ export type Request =
   | LogsRequest
   | LogRangeRequest
   | CapturesRequest
+  | RestoreLogsRequest
   | DropRequest;
 
 export interface IngestProgressMessage {
@@ -119,6 +131,12 @@ export interface CaptureSummary {
   readonly gaps: Gap[];
   readonly restarts: number[];
   readonly skipped: string[];
+  /**
+   * A log was persisted with this capture and can be restored on reopen. Absent/false when the
+   * capture has no stored log. Not carried in the manifest -- it is an existence check on the
+   * log sidecar, done where the recent list is built.
+   */
+  readonly hasLog?: boolean;
 }
 
 /** One series, flattened for structured cloning. */

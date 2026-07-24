@@ -65,6 +65,14 @@ export class NodeFileStore implements FileStore {
     };
   }
 
+  async openBlob(path: string): Promise<Blob> {
+    const fs = await this.fs();
+    const buf = await fs.readFile(await this.full(path));
+    // A whole-file read: the Node backend is for tests and tooling, where files are small and
+    // there is no lazy-slice OPFS handle to mirror. Node's global Blob supports slice/stream.
+    return new Blob([buf]);
+  }
+
   async writeText(path: string, text: string): Promise<void> {
     await this.ensureDir(path);
     const fs = await this.fs();

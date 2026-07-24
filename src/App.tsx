@@ -8,6 +8,8 @@ import { DashboardMenu } from './ui/DashboardMenu.js';
 import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
 import { LogView } from './logs/LogView.js';
+import { LogWindow } from './logs/LogWindow.js';
+import { Help } from './ui/Help.js';
 import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
 
@@ -24,10 +26,13 @@ export function App(): ReactElement {
   const showBand = useStore((s) => s.showBand);
   const showCatalog = useStore((s) => s.showCatalog);
   const toggleCatalog = useStore((s) => s.toggleCatalog);
+  const sidebarWidth = useStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useStore((s) => s.setSidebarWidth);
   const setShowBand = useStore((s) => s.setShowBand);
   const addPanel = useStore((s) => s.addPanel);
   const dashboard = useStore((s) => s.dashboard);
   const reset = useStore((s) => s.reset);
+  const toggleHelp = useStore((s) => s.toggleHelp);
 
   const [copied, setCopied] = useState<string | null>(null);
   const tab = useStore((s) => s.sidebarTab);
@@ -35,6 +40,28 @@ export function App(): ReactElement {
   const hasLogs = useStore((s) => s.hasLogs)();
   const pinCount = useStore((s) => s.pins.length);
   const logLoading = useStore((s) => Object.keys(s.logProgress).length > 0);
+
+  // Drag the sidebar's right edge to widen it. Listeners live on window so the drag survives
+  // the pointer leaving the 5px handle, and body selection is suppressed so it does not paint
+  // a text selection across the app mid-drag. Clamped so it can neither vanish nor swallow the
+  // charts.
+  function startResize(e: React.MouseEvent): void {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMove = (ev: MouseEvent): void => {
+      const w = Math.max(240, Math.min(window.innerWidth * 0.8, startW + ev.clientX - startX));
+      setSidebarWidth(w);
+    };
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.userSelect = '';
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
 
   async function share(): Promise<void> {
     const link = toPermalink(dashboard(), window.location.href);
@@ -111,6 +138,9 @@ export function App(): ReactElement {
             <button className="link" onClick={reset}>clear all</button>
           </>
         )}
+        <button className="help-btn" title="Help" aria-label="Help" onClick={() => toggleHelp(true)}>
+          ?
+        </button>
       </header>
 
       {copied !== null && <div className="toast">{copied}</div>}
@@ -122,7 +152,10 @@ export function App(): ReactElement {
 
       {status === 'ready' ? (
         <main>
-          <div className={showCatalog ? 'sidebar' : 'sidebar collapsed'}>
+          <div
+            className={showCatalog ? 'sidebar' : 'sidebar collapsed'}
+            style={showCatalog ? { flex: `0 0 ${sidebarWidth}px` } : undefined}
+          >
             <button
               className="catalog-toggle"
               title={showCatalog ? 'Hide sidebar' : 'Show sidebar'}
@@ -152,6 +185,13 @@ export function App(): ReactElement {
               </>
             )}
           </div>
+          {showCatalog && (
+            <div
+              className="sidebar-resizer"
+              title="Drag to resize the sidebar"
+              onMouseDown={startResize}
+            />
+          )}
           <section className="charts">
             <ErrorBoundary>
               <Grid />
@@ -163,6 +203,9 @@ export function App(): ReactElement {
           <DropZone />
         </main>
       )}
+
+      {status === 'ready' && <LogWindow />}
+      <Help />
     </div>
   );
 }

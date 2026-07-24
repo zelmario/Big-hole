@@ -12,6 +12,7 @@ import { LogAnalyzer } from '../logs/analyze.js';
 import { emptyStats, parseLine } from '../logs/parse.js';
 import { classify } from '../logs/classify.js';
 import { rangeFor } from '../logs/locate.js';
+import { hasStoredLog, persistAndAnalyze, restoreLog, type LogProgress } from '../logs/logStore.js';
 import { OpfsFileStore } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
 import { CaptureReader } from '../data/reader.js';
@@ -30,10 +31,12 @@ const readers = new Map<string, CaptureReader>();
 /**
  * Log files per capture, kept as handles rather than contents.
  *
- * A File is a reference to bytes on disk; holding one costs nothing and makes "show me the log
- * around this moment" a positioned read instead of a reason to keep 2.5 GB in memory.
+ * A Blob is a reference to bytes on disk; holding one costs nothing and makes "show me the log
+ * around this moment" a positioned read instead of a reason to keep 2.5 GB in memory. A fresh
+ * attach holds the dropped `File`s; a reopen holds the OPFS `Blob`s the log was persisted to --
+ * both slice and stream identically, so the viewer never knows which it has.
  */
-const logFiles = new Map<string, File[]>();
+const logFiles = new Map<string, Blob[]>();
 
 function post(message: Response, transfer: Transferable[] = []): void {
   (self as unknown as Worker).postMessage(message, transfer);
@@ -246,68 +249,59 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
       }
 
       case 'logs': {
-        // Streamed into the analyzer, never collected. Real bundles carry mongo_log_36h.log at
-        // 2.58 GB; holding those lines as JS strings is an out-of-memory crash, not a slow
-        // parse. Memory here is the accumulators only, a few MB whatever the file size.
-        const analyzer = new LogAnalyzer();
-        let bytes = 0;
-        let lines = 0;
-        let done = 0;
-        let skipped = 0;
-        // Held, not read: clicking an event later reads the raw lines straight from disk.
+        // Copy the window into OPFS and build the annotations in one streaming pass. Nothing is
+        // collected -- real bundles carry mongo_log_36h.log at 2.58 GB, and holding those lines
+        // as JS strings is an out-of-memory crash, not a slow parse. Memory stays a few MB.
+        //
+        // Held, not read: clicking an event later reads the raw lines straight from disk. The
+        // dropped File is what's held for this session; the OPFS copy is what a later reopen
+        // will hold instead (see restoreLogs).
         logFiles.set(request.captureId, request.files);
+        const onProgress: LogProgress = (p) =>
+          post({
+            kind: 'progress',
+            id,
+            file: p.file,
+            filesDone: p.filesDone,
+            filesTotal: p.filesTotal,
+            samples: p.lines,
+            bytesWritten: p.bytes,
+          });
 
-        for (const file of request.files) {
-          // Only the part covering the capture. On a 36-hour log beside a 4-hour capture this
-          // is the difference between reading 2.5 GB and reading a few hundred megabytes.
-          const range = await rangeFor(file, request.fromMs, request.toMs);
-          skipped += file.size - (range.to - range.from);
-          if (range.to <= range.from) {
-            done++;
-            continue;
-          }
-          const reader = file
-            .slice(range.from, range.to)
-            .stream()
-            .pipeThrough(new TextDecoderStream())
-            .getReader();
-          let carry = '';
-          for (;;) {
-            const chunk = await reader.read();
-            if (chunk.done) break;
-            bytes += chunk.value.length;
-            const parts = (carry + chunk.value).split('\n');
-            // The last piece may be half a line; the next chunk completes it.
-            carry = parts.pop() ?? '';
-            for (const part of parts) {
-              analyzer.push(part);
-              lines++;
-            }
-            // A 2.5 GB log takes a while. Say so, or it looks like a hang.
-            if (lines % 200_000 < parts.length) {
-              post({
-                kind: 'progress',
-                id,
-                file: file.name,
-                filesDone: done,
-                filesTotal: request.files.length,
-                samples: lines,
-                bytesWritten: bytes,
-              });
-            }
-          }
-          if (carry.length > 0) analyzer.push(carry);
-          done++;
-        }
+        const analysis = await persistAndAnalyze(
+          store,
+          request.captureId,
+          request.files,
+          request.fromMs,
+          request.toMs,
+          onProgress,
+        );
+        const transfer: Transferable[] = Object.values(analysis.series).flatMap((s) => [
+          s.t.buffer,
+          s.v.buffer,
+        ]);
+        post({ kind: 'logs', id, analysis }, transfer);
+        break;
+      }
 
-        const analysis = analyzer.finish();
-        if (skipped > 0) {
-          // eslint-disable-next-line no-console
-          console.info(
-            `ftdc-lens: indexed ${(bytes / 1e6).toFixed(0)} MB of log, skipped ` +
-              `${(skipped / 1e6).toFixed(0)} MB outside the capture window`,
-          );
-        }
+      case 'restoreLogs': {
+        // The reopen counterpart to 'logs': read the persisted log back from OPFS, hold its
+        // Blobs for the viewer, and rebuild the annotations. Reuses the same 'logs' response.
+        const onProgress: LogProgress = (p) =>
+          post({
+            kind: 'progress',
+            id,
+            file: p.file,
+            filesDone: p.filesDone,
+            filesTotal: p.filesTotal,
+            samples: p.lines,
+            bytesWritten: p.bytes,
+          });
+        const restored = await restoreLog(store, request.captureId, onProgress);
+        // Null only if the sidecar vanished between listing and reopen; a capture asked to
+        // restore had one when the recent list was built. Fall back to empty rather than throw.
+        logFiles.set(request.captureId, restored?.files ?? []);
+        const analysis = restored?.analysis ?? new LogAnalyzer().finish();
         const transfer: Transferable[] = Object.values(analysis.series).flatMap((s) => [
           s.t.buffer,
           s.v.buffer,
@@ -327,7 +321,9 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
             const manifest = JSON.parse(
               await store.readText(`${dir}/manifest.json`),
             ) as CaptureManifest;
-            found.push(summarise(manifest, []));
+            // A separate existence check on the log sidecar, not a manifest field: the log is
+            // attached after ingest, so the manifest was already written when it arrived.
+            found.push({ ...summarise(manifest, []), hasLog: await hasStoredLog(store, dir) });
           } catch (err) {
             // A capture killed mid-ingest genuinely has no manifest, and skipping it is right.
             // Anything else here means a readable capture is being hidden, which looks exactly

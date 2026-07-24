@@ -114,6 +114,40 @@ function pinPlugin(pins: () => ReadonlyArray<Pin>): uPlot.Plugin {
 }
 
 /**
+ * Shade the time span of the log lines currently on screen.
+ *
+ * The log is a stream on the same axis as the metrics, so "these are the lines I am reading"
+ * is a window in time -- drawing it here makes the connection literal: scroll the log and the
+ * band glides across every chart to the same minutes. In follow mode the charts pan to keep it
+ * roughly centred, with metric context on either side; otherwise the charts hold still and the
+ * band marks the slice being read within the wider view.
+ */
+function logSpanPlugin(span: () => readonly [number, number] | null): uPlot.Plugin {
+  return {
+    hooks: {
+      draw: (u: uPlot) => {
+        const s = span();
+        if (s === null) return;
+        const left = u.bbox.left;
+        const right = u.bbox.left + u.bbox.width;
+        const x0 = Math.max(left, Math.min(right, u.valToPos(s[0] / 1000, 'x', true)));
+        const x1 = Math.max(left, Math.min(right, u.valToPos(s[1] / 1000, 'x', true)));
+        if (x1 < left || x0 > right) return;
+        const ctx = u.ctx;
+        ctx.save();
+        ctx.fillStyle = 'rgba(138, 184, 255, 0.10)';
+        ctx.fillRect(x0, u.bbox.top, Math.max(1, x1 - x0), u.bbox.height);
+        // Crisp edges, so the window has boundaries rather than fading into the plot.
+        ctx.fillStyle = 'rgba(138, 184, 255, 0.4)';
+        ctx.fillRect(x0, u.bbox.top, 1, u.bbox.height);
+        ctx.fillRect(Math.max(x0 + 1, x1 - 1), u.bbox.top, 1, u.bbox.height);
+        ctx.restore();
+      },
+    },
+  };
+}
+
+/**
  * Show what a drag will zoom to.
  *
  * uPlot already renders a selection element while dragging, but its default fill is
@@ -198,6 +232,12 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   pinsRef.current = pins;
   // The plugin reads the ref at draw time; nothing else asks uPlot to redraw when a pin lands.
   const pinsKey = pins.map((p) => p.tMs).join(',');
+
+  // The shaded log-view window, same ref-plus-redraw pattern as pins.
+  const logViewSpan = useStore((s) => s.logViewSpan);
+  const logSpanRef = useRef<readonly [number, number] | null>(logViewSpan);
+  logSpanRef.current = logViewSpan;
+  const logSpanKey = logViewSpan === null ? '' : `${logViewSpan[0]}-${logViewSpan[1]}`;
 
   // Only the visible captures are drawn, and the fetch has to re-run when that set changes --
   // ticking a node off is a view change, not a reload.
@@ -339,6 +379,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
         },
       ],
       plugins: [
+        logSpanPlugin(() => logSpanRef.current),
         gapPlugin(() => gapsRef.current),
         pinPlugin(() => pinsRef.current),
         selectionPlugin(),
@@ -403,7 +444,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
 
   useEffect(() => {
     plot.current?.redraw();
-  }, [pinsKey]);
+  }, [pinsKey, logSpanKey]);
 
   if (isSection) {
     return (

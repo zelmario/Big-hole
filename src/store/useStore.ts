@@ -97,6 +97,23 @@ interface State {
   showBand: boolean;
   /** Metric catalogue visibility; charts take the full width when hidden. */
   showCatalog: boolean;
+  /** Sidebar width in px, dragged by the resizer on its right edge. Session state, like the toggle. */
+  sidebarWidth: number;
+  setSidebarWidth(px: number): void;
+  /**
+   * "Zoom the log": the log leads the dashboard instead of following it. Scrolling the log pans
+   * the charts to the span of the lines on screen. Off by default -- the log follows the charts.
+   * Session view state, not layout, so it stays out of permalinks and saved dashboards.
+   */
+  logFollow: boolean;
+  toggleLogFollow(on?: boolean): void;
+  /**
+   * Time span of the log lines currently on screen, or null when no log is being read. The
+   * panels shade it, so you can see where in the charts the lines you are looking at fall --
+   * following or not. Pure view state, out of permalinks and saved dashboards.
+   */
+  logViewSpan: [number, number] | null;
+  setLogViewSpan(span: [number, number] | null): void;
   /**
    * Panel blown up to fill the chart area, or null.
    *
@@ -104,6 +121,18 @@ interface State {
    * the dashboard is laid out, so it must not end up in a permalink or a saved dashboard.
    */
   maximized: string | null;
+  /**
+   * The log opened as a full-screen window -- a `less` for the mongod log, since the sidebar
+   * strip is too narrow to read a slow-query command doc. Like `maximized`, this is where you
+   * are looking, not how the dashboard is laid out, so it stays out of permalinks and saved
+   * dashboards.
+   */
+  logFullscreen: boolean;
+  /** Open (`true`), close (`false`), or flip the full-screen log window. */
+  toggleLogFullscreen(on?: boolean): void;
+  /** The help overlay. View state, never persisted. */
+  showHelp: boolean;
+  toggleHelp(on?: boolean): void;
   /** Which sidebar panel is showing. In the store so revealing a log line can switch to it. */
   sidebarTab: 'metrics' | 'log';
   setSidebarTab(tab: 'metrics' | 'log'): void;
@@ -316,10 +345,15 @@ function adopt(
             : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available, known, perCapture)) },
         )
         .filter((p) => p.kind === 'section' || p.metrics.length > 0);
-      state =
-        kept.length > 0
-          ? { v: LAYOUT_VERSION, panels: kept, range: saved.range }
-          : defaultDashboard(available);
+      // Sections are always kept, so "kept is non-empty" is not enough: a layout whose every
+      // chart resolved to nothing -- metrics qualified to a capture that is not loaded, or built
+      // against a different server version -- would otherwise leave a dashboard of bare section
+      // headings, which is what it looks like when "nothing shows up". Fall back to the default
+      // built from what this capture actually has.
+      const hasChart = kept.some((p) => p.kind === 'chart');
+      state = hasChart
+        ? { v: LAYOUT_VERSION, panels: kept, range: saved.range }
+        : defaultDashboard(available);
     } else {
       state = defaultDashboard(available);
     }
@@ -372,7 +406,12 @@ export const useStore = create<State>((set, get) => ({
   cursor: null,
   showBand: false,
   showCatalog: true,
+  sidebarWidth: 380,
+  logFollow: false,
+  logViewSpan: null,
   maximized: null,
+  logFullscreen: false,
+  showHelp: false,
   library: [],
   currentId: null,
 
@@ -413,8 +452,12 @@ export const useStore = create<State>((set, get) => ({
       }),
     );
 
-    const lines = results.flatMap((r) => r.lines).sort((a, b) => a.tMs - b.tMs);
-    return { lines, truncated: results.some((r) => r.truncated) };
+    const merged = results.flatMap((r) => r.lines).sort((a, b) => a.tMs - b.tMs);
+    // Each node was capped at maxLines; cap the merge too, so a three-node bundle shows the same
+    // bounded number of lines as one node rather than three times as many.
+    const cap = opts.maxLines ?? merged.length;
+    const truncated = results.some((r) => r.truncated) || merged.length > cap;
+    return { lines: merged.slice(0, cap), truncated };
   },
 
   togglePin(pin) {
@@ -655,16 +698,36 @@ export const useStore = create<State>((set, get) => ({
           // build, not a decode.
           const catalog = await get().client.catalog(id);
           const maxState = maxStateOf(catalog);
+          // The log was persisted alongside the metrics, so a reopen brings it back too --
+          // re-read from OPFS and rebuild the annotations, rather than asking for the file
+          // again. Cheap: only the capture window was stored.
+          let logs: LogAnalysis | undefined;
+          if (summary.hasLog === true) {
+            try {
+              logs = await get().client.restoreLogs(id, (p) =>
+                set((st) => ({
+                  logProgress: { ...st.logProgress, [id]: { bytes: p.bytesWritten, lines: p.samples } },
+                })),
+              );
+            } catch (err) {
+              failures.push(`${summary.hostname ?? id} logs: ${err instanceof Error ? err.message : String(err)}`);
+            } finally {
+              set((st) => {
+                const next = { ...st.logProgress };
+                delete next[id];
+                return { logProgress: next };
+              });
+            }
+          }
           return {
             id,
             label: summary.hostname ?? id,
             source: '',
             summary,
             catalog,
-            paths: new Set(catalog.map((c) => c.path)),
+            paths: new Set([...catalog.map((c) => c.path), ...Object.keys(logs?.series ?? {})]),
             ...(maxState !== undefined ? { maxState } : {}),
-            // Logs are not persisted with the capture, so a re-opened node starts without
-            // them; drop the mongod.log again to get its annotations back.
+            ...(logs !== undefined ? { logs } : {}),
             visible: true,
           };
         } catch (err) {
@@ -883,6 +946,26 @@ export const useStore = create<State>((set, get) => ({
 
   toggleCatalog() {
     set({ showCatalog: !get().showCatalog });
+  },
+
+  setSidebarWidth(px) {
+    set({ sidebarWidth: px });
+  },
+
+  toggleLogFollow(on) {
+    set({ logFollow: on ?? !get().logFollow });
+  },
+
+  setLogViewSpan(span) {
+    set({ logViewSpan: span });
+  },
+
+  toggleLogFullscreen(on) {
+    set({ logFullscreen: on ?? !get().logFullscreen });
+  },
+
+  toggleHelp(on) {
+    set({ showHelp: on ?? !get().showHelp });
   },
 
   toggleMaximized(id) {

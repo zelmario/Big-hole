@@ -28,6 +28,16 @@ export interface ReadableFile {
 export interface FileStore {
   createWritable(path: string): Promise<WritableFile>;
   openReadable(path: string): Promise<ReadableFile>;
+  /**
+   * Read a whole file back as a `Blob`, for the log path's lazy `slice`/`stream` reads.
+   *
+   * Deliberately a `Blob`, not a {@link ReadableFile}: the log viewer reads a window by
+   * `blob.slice(from, to).stream()`, and an OPFS file handle's `getFile()` returns exactly that
+   * -- so a restored log is byte-for-byte the same shape as the dropped `File` it replaces. Not
+   * via `openReadable`, whose sync access handle is exclusive and would collide with concurrent
+   * reads (see {@link readText}).
+   */
+  openBlob(path: string): Promise<Blob>;
   writeText(path: string, text: string): Promise<void>;
   readText(path: string): Promise<string>;
   exists(path: string): Promise<boolean>;
@@ -153,6 +163,18 @@ export class OpfsFileStore implements FileStore {
         access.close();
       },
     };
+  }
+
+  async openBlob(path: string): Promise<Blob> {
+    try {
+      const { dir, name } = await this.resolve(path, false);
+      const handle = await dir.getFileHandle(name);
+      // getFile() is a plain, non-exclusive read (like readText), and the File it returns is a
+      // Blob whose slice/stream read lazily from OPFS -- no bytes are pulled into memory here.
+      return await handle.getFile();
+    } catch (err) {
+      throw new FileStoreError('openBlob', path, err);
+    }
   }
 
   async writeText(path: string, text: string): Promise<void> {

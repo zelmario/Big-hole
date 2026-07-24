@@ -201,6 +201,24 @@ export class FtdcClient {
     });
   }
 
+  /**
+   * Re-attach a capture's persisted log after a reload.
+   *
+   * Reads the raw log back from OPFS and rebuilds its annotations -- the reopen counterpart to
+   * {@link logs}. Routed to the capture's worker, which then holds the restored bytes for the
+   * viewer's positioned reads, exactly as a fresh attach would.
+   */
+  restoreLogs(
+    captureId: string,
+    onProgress?: (p: IngestProgressMessage) => void,
+  ): Promise<LogAnalysis> {
+    return this.send<LogAnalysis>(
+      this.route(captureId),
+      { kind: 'restoreLogs', captureId },
+      onProgress,
+    );
+  }
+
   /** Every capture already in OPFS, newest first. Reads manifests only. */
   captures(): Promise<CaptureSummary[]> {
     return this.send<CaptureSummary[]>(this.worker(0), { kind: 'captures' });

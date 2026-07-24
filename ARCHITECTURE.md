@@ -274,7 +274,15 @@ catalogue and the expression layer need no special case. What is *not* allowed i
 path and an FTDC path inside one expression: different clocks, so it is refused by name rather
 than silently joined.
 
-Logs are not persisted with the capture — re-opening a node from OPFS starts without them.
+The raw log is persisted alongside the capture, so a reload brings it back. Attaching one
+copies the window it covers into OPFS (`<captureId>/log.N` + a `logs.json` sidecar) in the same
+streaming pass that builds the annotations — bounded memory, and only the capture's own span, so
+a 36-hour log beside a 4-hour capture costs a few hundred MB, not the whole file. On reopen the
+bytes are read back from OPFS as a `Blob` (`src/logs/logStore.ts`) and the annotations rebuilt;
+an OPFS file *is* a `Blob`, so the viewer's positioned reads work unchanged. The `File` a browser
+hands us on drop is revoked on reload, which is why the bytes — not the handle — are what's kept.
+Round-trip verified in `tests/logStore.test.ts`. OPFS is local disk, never a network surface, so
+the privacy promise is intact.
 
 ## Storage
 
