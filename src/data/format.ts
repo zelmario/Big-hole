@@ -46,6 +46,22 @@ function duration(ms: number): string {
   return `${(ms / 86_400_000).toFixed(1)} d`;
 }
 
+/**
+ * Decimals for a percentage, scaled to how small it is.
+ *
+ * A fixed precision cannot serve this unit. The same axis draws a cache-dirty ratio pinned near
+ * 100% and a CPU chart that lives under half a percent, and one decimal turns the second into a
+ * column of "0.0%" -- which does not read as "small", it reads as "nothing is happening". On an
+ * idle-looking node, telling 0.04% from 0.004% is often the whole question.
+ */
+function percentDigits(v: number): number {
+  const a = Math.abs(v);
+  if (a >= 100) return 0;
+  if (a >= 0.1 || a === 0) return 1;
+  if (a >= 0.01) return 2;
+  return 3;
+}
+
 export function formatValue(v: number, unit: Unit): string {
   if (!Number.isFinite(v)) return '—';
 
@@ -55,7 +71,7 @@ export function formatValue(v: number, unit: Unit): string {
     case 'bytes/s':
       return bytes(v, '/s');
     case 'percent':
-      return `${v.toFixed(v >= 100 ? 0 : 1)}%`;
+      return `${v.toFixed(percentDigits(v))}%`;
     case 'ms':
       return duration(v);
     case 'us':
@@ -67,6 +83,37 @@ export function formatValue(v: number, unit: Unit): string {
     default:
       return count(v);
   }
+}
+
+/**
+ * Decimals needed for consecutive ticks to read as different numbers.
+ *
+ * Derived from the tick SPACING, not from the values. uPlot chooses where the ticks go; the
+ * formatter's only remaining job is to render them distinguishably, and a hard-coded precision
+ * cannot, because one unit has to serve a chart pinned at 100% and one living under half a
+ * percent. Round the second to whole numbers and every tick on the axis prints "0%" -- not an
+ * imprecise axis but an empty one, which is worse than no axis at all because it looks like a
+ * reading.
+ *
+ * uPlot's linear ticks step by 1, 2 or 5 times a power of ten, so `ceil(-log10(step))` lands on
+ * exactly the digits that step needs. Capped, because a degenerate scale must not produce a
+ * fifteen-digit label.
+ */
+function tickDigits(ticks: readonly number[], max = 6): number {
+  let step = Infinity;
+  for (let i = 1; i < ticks.length; i++) {
+    const gap = Math.abs(ticks[i]! - ticks[i - 1]!);
+    if (gap > 0 && gap < step) step = gap;
+  }
+  // One tick, or every tick identical: there is no spacing to read, and falling back to whole
+  // numbers would round the only label on the axis -- a lone 0.5 rendering as "1". Use the
+  // value's own magnitude instead, which is the same question asked of a different number.
+  if (!Number.isFinite(step)) {
+    const peak = Math.max(...ticks.map(Math.abs));
+    if (!Number.isFinite(peak) || peak === 0) return 0;
+    return Math.min(max, Math.max(0, Math.ceil(-Math.log10(peak))));
+  }
+  return Math.min(max, Math.max(0, Math.ceil(-Math.log10(step))));
 }
 
 /**
@@ -92,7 +139,10 @@ export function axisFormatter(unit: Unit): (ticks: number[]) => string[] {
       return ticks.map((t) => `${(t / div).toFixed(i === 0 ? 0 : 1)} ${suffix}`);
     }
 
-    if (unit === 'percent') return ticks.map((t) => `${t.toFixed(0)}%`);
+    if (unit === 'percent') {
+      const digits = tickDigits(ticks);
+      return ticks.map((t) => `${t.toFixed(digits)}%`);
+    }
     if (unit === 'ms') return ticks.map((t) => duration(t));
     if (unit === 'us') return ticks.map((t) => duration(t / 1000));
     if (unit === 'seconds') return ticks.map((t) => duration(t * 1000));
@@ -105,9 +155,10 @@ export function axisFormatter(unit: Unit): (ticks: number[]) => string[] {
       i++;
     }
     const suffix = `${DECIMAL[i]}${unit === 'per-sec' ? '/s' : ''}`;
-    return ticks.map((t) => {
-      const x = t / div;
-      return `${Number.isInteger(x) ? x : x.toFixed(1)}${suffix}`;
-    });
+    const scaled = ticks.map((t) => t / div);
+    // Same reasoning as percentages: a fixed one decimal turns an axis of small rates into a
+    // stack of "0.0/s". Integers still print bare, because the digit count comes from the step.
+    const digits = tickDigits(scaled);
+    return scaled.map((x) => `${x.toFixed(digits)}${suffix}`);
   };
 }

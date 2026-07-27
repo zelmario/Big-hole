@@ -5,6 +5,7 @@ import {
   LAYOUT_VERSION,
   compact,
   defaultDashboard,
+  dropEmptySections,
   fromHash,
   loadLayout,
   panelId,
@@ -184,8 +185,18 @@ interface State {
   logLines(
     fromMs: number,
     toMs: number,
-    opts?: { maxLines?: number; importantOnly?: boolean; query?: string },
-  ): Promise<{ lines: Array<LogViewLine & { captureId: string; captureLabel: string }>; truncated: boolean }>;
+    opts?: {
+      maxLines?: number;
+      importantOnly?: boolean;
+      query?: string;
+      /** Fill from the start of the window (default) or its end -- see LogPage. */
+      end?: 'head' | 'tail';
+    },
+  ): Promise<{
+    lines: Array<LogViewLine & { captureId: string; captureLabel: string }>;
+    hasBefore: boolean;
+    hasAfter: boolean;
+  }>;
   /**
    * User-pinned markers, epoch ms. Double-clicking a log line pins one; the panels draw it.
    * View state, not layout -- deliberately out of the permalink and saved dashboards.
@@ -257,6 +268,28 @@ function hasMetric(
   } catch {
     return false;
   }
+}
+
+/**
+ * True when a chart compares two named captures -- the shape `crossHostPanels` produces.
+ *
+ * Structural rather than by title, so a renamed panel and a hand-written cross-host expression
+ * both count, and a title that merely mentions a host does not.
+ */
+function isCrossHost(panel: PanelSpec, known: KnownCapture): boolean {
+  if (panel.kind !== 'chart') return false;
+  return panel.metrics.some((m) => {
+    try {
+      const ids = new Set(
+        exprPaths(parseExpr(m))
+          .map((p) => splitRef(p, known).captureId)
+          .filter((id): id is string => id !== null),
+      );
+      return ids.size > 1;
+    } catch {
+      return false;
+    }
+  });
 }
 
 function persist(panels: PanelSpec[], range: [number, number] | null): void {
@@ -338,13 +371,18 @@ function adopt(
     if (saved !== null) {
       // Drop metrics no loaded capture has; a layout built against another server version
       // should degrade, not produce empty charts.
-      const kept = saved.panels
-        .map((p) =>
-          p.kind === 'section'
-            ? p
-            : { ...p, metrics: p.metrics.filter((m) => hasMetric(m, available, known, perCapture)) },
-        )
-        .filter((p) => p.kind === 'section' || p.metrics.length > 0);
+      const kept = dropEmptySections(
+        saved.panels
+          .map((p) =>
+            p.kind === 'section'
+              ? p
+              : {
+                  ...p,
+                  metrics: p.metrics.filter((m) => hasMetric(m, available, known, perCapture)),
+                },
+          )
+          .filter((p) => p.kind === 'section' || p.metrics.length > 0),
+      );
       // Sections are always kept, so "kept is non-empty" is not enough: a layout whose every
       // chart resolved to nothing -- metrics qualified to a capture that is not loaded, or built
       // against a different server version -- would otherwise leave a dashboard of bare section
@@ -366,8 +404,10 @@ function adopt(
     panels = get().panels;
   }
 
-  // Cross-host panels can only exist now, and only once.
-  const hasCrossHost = panels.some((p) => p.title.startsWith('Across hosts'));
+  // Cross-host panels can only exist now, and only once. Asked of the charts, not of the
+  // heading: the heading is what survives when the charts were dropped, so keying off it made
+  // a layout that had *lost* its cross-host panels the one case that could never rebuild them.
+  const hasCrossHost = panels.some((p) => isCrossHost(p, known));
   if (captures.length > 1 && !hasCrossHost) {
     const maxY = panels.reduce((m, p) => Math.max(m, p.y + p.h), 0);
     panels = [...panels, ...crossHostPanels(captures, maxY)];
@@ -436,14 +476,16 @@ export const useStore = create<State>((set, get) => ({
     const withLog = get()
       .visibleCaptures()
       .filter((c) => c.logs !== undefined);
-    if (withLog.length === 0) return { lines: [], truncated: false };
+    if (withLog.length === 0) {
+      return { lines: [], hasBefore: false, hasAfter: false };
+    }
 
     const results = await Promise.all(
       withLog.map(async (capture) => {
-        const { lines, truncated } = await get().client.logLines(capture.id, fromMs, toMs, opts);
+        const page = await get().client.logLines(capture.id, fromMs, toMs, opts);
         return {
-          truncated,
-          lines: lines.map((line) => ({
+          ...page,
+          lines: page.lines.map((line) => ({
             ...line,
             captureId: capture.id,
             captureLabel: capture.label,
@@ -454,10 +496,17 @@ export const useStore = create<State>((set, get) => ({
 
     const merged = results.flatMap((r) => r.lines).sort((a, b) => a.tMs - b.tMs);
     // Each node was capped at maxLines; cap the merge too, so a three-node bundle shows the same
-    // bounded number of lines as one node rather than three times as many.
+    // bounded number of lines as one node rather than three times as many. Trim from the end the
+    // reader is paging away from: dropping the tail of a backwards page would discard exactly the
+    // lines that join onto what is already on screen.
     const cap = opts.maxLines ?? merged.length;
-    const truncated = results.some((r) => r.truncated) || merged.length > cap;
-    return { lines: merged.slice(0, cap), truncated };
+    const over = merged.length > cap;
+    const tail = opts.end === 'tail';
+    return {
+      lines: over ? (tail ? merged.slice(-cap) : merged.slice(0, cap)) : merged,
+      hasBefore: results.some((r) => r.hasBefore) || (over && tail),
+      hasAfter: results.some((r) => r.hasAfter) || (over && !tail),
+    };
   },
 
   togglePin(pin) {

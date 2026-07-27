@@ -24,6 +24,13 @@ import type {
   SeriesPayload,
 } from './protocol.js';
 
+/** One page of log lines, with whether the window holds more on either side of it. */
+export interface LogPage {
+  readonly lines: LogViewLine[];
+  readonly hasBefore: boolean;
+  readonly hasAfter: boolean;
+}
+
 type Pending = {
   resolve: (value: never) => void;
   reject: (err: Error) => void;
@@ -91,7 +98,11 @@ export class FtdcClient {
         return;
       case 'logRange':
         this.pending.delete(msg.id);
-        entry.resolve({ lines: msg.lines, truncated: msg.truncated } as never);
+        entry.resolve({
+          lines: msg.lines,
+          hasBefore: msg.hasBefore,
+          hasAfter: msg.hasAfter,
+        } as never);
         return;
       case 'dropped':
         this.pending.delete(msg.id);
@@ -181,16 +192,21 @@ export class FtdcClient {
   /**
    * Raw log lines within a window, read positionally from the file on disk.
    *
-   * The log viewer's only data source. `truncated` is true when the window held more than
-   * `maxLines`, so the viewer can say "zoom in" rather than pretend it showed everything.
+   * The log viewer's only data source. `hasBefore`/`hasAfter` report what the window holds
+   * outside the page returned, which is what lets the viewer page rather than stop at the cap.
    */
   logLines(
     captureId: string,
     fromMs: number,
     toMs: number,
-    opts: { maxLines?: number; importantOnly?: boolean; query?: string } = {},
-  ): Promise<{ lines: LogViewLine[]; truncated: boolean }> {
-    return this.send<{ lines: LogViewLine[]; truncated: boolean }>(this.route(captureId), {
+    opts: {
+      maxLines?: number;
+      importantOnly?: boolean;
+      query?: string;
+      end?: 'head' | 'tail';
+    } = {},
+  ): Promise<LogPage> {
+    return this.send<LogPage>(this.route(captureId), {
       kind: 'logRange',
       captureId,
       fromMs,
@@ -198,6 +214,7 @@ export class FtdcClient {
       maxLines: opts.maxLines ?? 500,
       importantOnly: opts.importantOnly ?? false,
       query: opts.query ?? '',
+      end: opts.end ?? 'head',
     });
   }
 

@@ -115,6 +115,11 @@ export function Help(): ReactElement | null {
                 <b>Zoom the log</b>: the log leads instead of following. Scroll it and the charts
                 pan to the lines on screen; a shaded band marks that window on every panel.
               </li>
+              <li>
+                <b>Scroll to load more</b>. The list holds a few thousand lines at a time and
+                slides: reach either end and the next lines load while the far end is dropped.
+                <b> more ↑↓</b> in the header says which way there is still log to read.
+              </li>
             </ul>
           </section>
 

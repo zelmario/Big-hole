@@ -13,7 +13,8 @@ import { analyzeLines, logMetricLabel } from '../src/logs/analyze.js';
 import { classify, RULES } from '../src/logs/classify.js';
 import { attrOf, durationOf, emptyStats, looksLikeMongodLog, parseLine } from '../src/logs/parse.js';
 import { logExpressionKind } from '../src/logs/logSource.js';
-import { groupLogs, isLogFile, type SourceFile } from '../src/ingest/discover.js';
+import { dropOverlap, pageSize, type OverlapLine } from '../src/logs/paging.js';
+import { groupLogs, isFtdcFile, isLogFile, type SourceFile } from '../src/ingest/discover.js';
 
 /** Real lines, copied from a customer capture with hostnames left as they were. */
 const REAL = {
@@ -182,6 +183,24 @@ describe('finding logs in a bundle', () => {
     expect(isLogFile('metrics.2026-07-20T00-00-00Z-00000')).toBe(false);
     // Compressed logs would need inflating first; claiming them would fail at parse time.
     expect(isLogFile('mongod.log.gz')).toBe(false);
+    // An NTFS alternate data stream, which a capture that came through Windows carries one of
+    // per file. Rejected here already, because ':' is none of the separators `.log` may precede.
+    expect(isLogFile('mongo_log_36h.log:Zone.Identifier')).toBe(false);
+  });
+
+  /**
+   * A capture downloaded on Windows and read from WSL brings one `<name>:Zone.Identifier` stub
+   * per file -- a 26-byte `[ZoneTransfer]` marker. They begin with `metrics.` like the real
+   * files, so taking them as FTDC means half the folder fails to decode and the skipped list
+   * fills with non-files, hiding any capture that is genuinely corrupt.
+   */
+  it('ignores Windows alternate data streams beside the metrics files', () => {
+    expect(isFtdcFile('metrics.2026-07-15T00-35-59Z-00000')).toBe(true);
+    expect(isFtdcFile('metrics.interim')).toBe(true);
+    expect(isFtdcFile('metrics.2026-07-15T00-35-59Z-00000:Zone.Identifier')).toBe(false);
+    expect(isFtdcFile('metrics.interim:Zone.Identifier')).toBe(false);
+    // A directory prefix is stripped before the check, so the stream suffix is still caught.
+    expect(isFtdcFile('node1/diagnostic.data/metrics.x:Zone.Identifier')).toBe(false);
   });
 
   it('attaches each log to the node it sits closest to', () => {
@@ -204,5 +223,68 @@ describe('finding logs in a bundle', () => {
     const groups = [{ key: 'diagnostic.data', label: 'n', files: [] as File[] }];
     const logs = groupLogs([source('logs/mongod.log')], groups);
     expect(logs.get('diagnostic.data')).toHaveLength(1);
+  });
+});
+
+/* ------------------------------------------------------- paging the buffer ---- */
+
+/**
+ * The seam between one page of the log viewer's buffer and the next.
+ *
+ * A page boundary is requested inclusively -- a millisecond holds many lines and "strictly
+ * after" would skip whatever fell past the cap -- so the boundary instant always comes back
+ * twice and the duplicate has to be removed without removing anything real.
+ */
+describe('joining log pages', () => {
+  const line = (tMs: number, msg: string, attr = ''): OverlapLine & { id: string } => ({
+    captureId: 'c0',
+    tMs,
+    msg,
+    attr,
+    id: `${tMs}/${msg}/${attr}`,
+  });
+
+  it('removes the lines the buffer already holds', () => {
+    const held = [line(100, 'a'), line(100, 'b')];
+    const page = [line(100, 'a'), line(100, 'b'), line(101, 'c')];
+    expect(dropOverlap(page, held).map((l) => l.id)).toEqual(['101/c/']);
+  });
+
+  /**
+   * The case a Set gets wrong, and gets wrong silently. A log repeats itself verbatim inside one
+   * millisecond -- three connections accepted at once differ only past the port, and `attr` is
+   * truncated before the viewer ever sees it. Keying on content would delete the two extra
+   * copies as duplicates and quietly shorten a burst, which is usually the thing being read.
+   */
+  it('keeps repeated lines the buffer does not hold, counting rather than matching', () => {
+    const held = [line(100, 'connection accepted')];
+    const page = [
+      line(100, 'connection accepted'),
+      line(100, 'connection accepted'),
+      line(100, 'connection accepted'),
+    ];
+    expect(dropOverlap(page, held)).toHaveLength(2);
+  });
+
+  it('leaves a page alone when the buffer holds nothing at the boundary', () => {
+    const page = [line(100, 'a'), line(101, 'b')];
+    expect(dropOverlap(page, [])).toHaveLength(2);
+  });
+
+  it('distinguishes lines that differ only by node', () => {
+    const held = [{ ...line(100, 'a'), captureId: 'c0' }];
+    const page = [
+      { ...line(100, 'a'), captureId: 'c0' },
+      { ...line(100, 'a'), captureId: 'c1' },
+    ];
+    expect(dropOverlap(page, held).map((l) => l.captureId)).toEqual(['c1']);
+  });
+
+  it('replaces a third of the buffer per page, with a floor for small ones', () => {
+    expect(pageSize(3000)).toBe(1000);
+    expect(pageSize(10000)).toBe(3333);
+    // Two thirds of what was on screen has to survive, but a tiny buffer would page one line at
+    // a time; the floor keeps a scroll from turning into a round trip per row.
+    expect(pageSize(120)).toBe(200);
   });
 });

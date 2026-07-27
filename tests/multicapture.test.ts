@@ -36,6 +36,7 @@ import {
   type SeriesSource,
 } from '../src/data/panelData.js';
 import { crossHostPanels, referenceCapture } from '../src/dashboard/crossHost.js';
+import { dropEmptySections } from '../src/dashboard/layout.js';
 import { legendLabel, plotColumn, timeColumn } from '../src/panels/plotData.js';
 import { discoverFixtures } from './oracle.js';
 
@@ -309,6 +310,52 @@ describe('cross-host panels', () => {
     expect(lag?.metrics[0]).toBe(
       'diff(c0:shard.serverStatus.repl.lastWrite.lastWriteDate, c1:shard.serverStatus.repl.lastWrite.lastWriteDate)',
     );
+  });
+
+  /**
+   * The bug this section shipped twice.
+   *
+   * A heading has no metrics, so nothing that filters unresolvable metrics can ever remove it.
+   * Reloading a layout whose `diff(c0:…, c1:…)` charts name a capture that is not loaded left
+   * "Across hosts — 2 nodes, reference X" standing over nothing, which reads exactly like a
+   * section that failed to draw. Worse, the store then took that heading as proof the panels
+   * already existed and declined to rebuild them, so it never recovered.
+   */
+  it('leaves no heading behind when its charts are dropped', () => {
+    const panels = crossHostPanels([
+      { id: 'c0', label: 'a', paths, maxState: 1 },
+      { id: 'c1', label: 'b', paths, maxState: 2 },
+    ]);
+    expect(panels.some((p) => p.kind === 'section')).toBe(true);
+
+    // Only c0 came back -- every cross-host metric names a capture that is not loaded.
+    const survivors = panels.filter(
+      (p) => p.kind === 'section' || p.metrics.every((m) => !m.includes('c1:')),
+    );
+    expect(dropEmptySections(survivors)).toEqual([]);
+  });
+
+  it('keeps a heading whose charts survived', () => {
+    const panels = crossHostPanels([
+      { id: 'c0', label: 'a', paths, maxState: 1 },
+      { id: 'c1', label: 'b', paths, maxState: 2 },
+    ]);
+    expect(dropEmptySections(panels)).toEqual(panels);
+  });
+
+  /**
+   * Array order is not visual order: a layout that has been dragged comes back in whatever
+   * order the grid committed. Deciding "beneath" by position is the only thing that holds.
+   */
+  it('decides what a heading owns by grid position, not array order', () => {
+    const chart = { id: 'chart', kind: 'chart' as const, title: 'c', metrics: ['x'], x: 0, y: 5, w: 24, h: 8 };
+    const heading = { id: 'head', kind: 'section' as const, title: 'h', metrics: [], x: 0, y: 4, w: 24, h: 1 };
+    const orphan = { id: 'tail', kind: 'section' as const, title: 't', metrics: [], x: 0, y: 20, w: 24, h: 1 };
+
+    expect(dropEmptySections([chart, orphan, heading]).map((p) => p.id)).toEqual([
+      'chart',
+      'head',
+    ]);
   });
 });
 

@@ -274,6 +274,22 @@ catalogue and the expression layer need no special case. What is *not* allowed i
 path and an FTDC path inside one expression: different clocks, so it is refused by name rather
 than silently joined.
 
+The viewer's line buffer is a **sliding window, not a cap**. It holds a few thousand lines
+(`src/logs/LogView.tsx`); reaching either edge loads the next page and drops the same number off
+the far end, so the whole log is reachable by scrolling while resident cost stays bounded — the
+same bargain the metric store makes. A line costs up to 12 KB of strings, so a 150k-line log held
+whole is well over a gigabyte.
+
+Two things make the seam work. Paging **backwards** asks the reader for the *end* of a sub-range
+(`end: 'tail'`), which grows a slice backwards from the window's end rather than scanning a
+36-hour log from its start on every scroll-up. And the boundary is requested **inclusively** —
+one millisecond holds dozens of lines and "strictly after" would skip whatever fell past the cap —
+so the overlap is removed by **count, not by key** (`src/logs/paging.ts`). Logs repeat themselves
+verbatim within a millisecond; a `Set` would delete the extra copies as duplicates and silently
+shorten exactly the bursts an investigation is reading. Verified end to end against a real 73 MB /
+150k-line log by `npm run verify:logpage`, which asserts the window advances, holds the reader's
+scroll position across a load, walks back to the log's true first line, and never exceeds its cap.
+
 The raw log is persisted alongside the capture, so a reload brings it back. Attaching one
 copies the window it covers into OPFS (`<captureId>/log.N` + a `logs.json` sidecar) in the same
 streaming pass that builds the annotations — bounded memory, and only the capture's own span, so
@@ -415,6 +431,9 @@ Enforced mechanically, not by convention:
 - `npm run verify:multi [bundle]` — load a two-node bundle into the real app and report what
   drew; the bundle is a directory with one folder per node, each holding its own
   `diagnostic.data`
+- `npm run verify:logpage [bundle]` — scroll a log longer than the viewer's buffer and check it
+  pages both ways without losing the reader's place or a line; needs a node folder holding a
+  `diagnostic.data` and a real log beside it
 
 ## Working style
 

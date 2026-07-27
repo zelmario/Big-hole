@@ -76,51 +76,69 @@ async function ingest(id: number, captureId: string, files: File[]): Promise<voi
   let mongoVersion: string | undefined;
   let done = 0;
 
-  for (const file of candidates) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+  try {
+    for (const file of candidates) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
 
-    if (hostname === undefined) {
-      try {
-        const meta = readMetadata(bytes);
-        hostname = meta?.hostname;
-        mongoVersion = meta?.version;
-      } catch {
-        // metadata is a nicety; a file without it still decodes
+      if (hostname === undefined) {
+        try {
+          const meta = readMetadata(bytes);
+          hostname = meta?.hostname;
+          mongoVersion = meta?.version;
+        } catch {
+          // metadata is a nicety; a file without it still decodes
+        }
       }
+
+      try {
+        for (const chunk of decodeFTDC(bytes)) await writer.addChunk(chunk);
+      } catch (err) {
+        // One unreadable file must not sink the capture -- real diagnostic.data directories
+        // contain lock files and partially written data.
+        skipped.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      done++;
+      const p = writer.progress;
+      post({
+        kind: 'progress',
+        id,
+        file: file.name,
+        filesDone: done,
+        filesTotal: candidates.length,
+        samples: p.samples,
+        bytesWritten: p.bytesWritten,
+      });
     }
 
-    try {
-      for (const chunk of decodeFTDC(bytes)) await writer.addChunk(chunk);
-    } catch (err) {
-      // One unreadable file must not sink the capture -- real diagnostic.data directories
-      // contain lock files and partially written data.
-      skipped.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-
-    done++;
-    const p = writer.progress;
-    post({
-      kind: 'progress',
-      id,
-      file: file.name,
-      filesDone: done,
-      filesTotal: candidates.length,
-      samples: p.samples,
-      bytesWritten: p.bytesWritten,
-    });
-  }
-
-  const manifest = await writer.finish();
-
-  post({
-    kind: 'ingested',
-    id,
-    summary: {
-      ...summarise(manifest, skipped),
+    // Into the manifest, not just the reply: the reply names this node for as long as the tab
+    // lives, the manifest names it for every session after.
+    const manifest = await writer.finish({
       ...(hostname !== undefined ? { hostname } : {}),
       ...(mongoVersion !== undefined ? { mongoVersion } : {}),
-    },
-  });
+    });
+
+    post({
+      kind: 'ingested',
+      id,
+      summary: {
+        ...summarise(manifest, skipped),
+        ...(hostname !== undefined ? { hostname } : {}),
+        ...(mongoVersion !== undefined ? { mongoVersion } : {}),
+      },
+    });
+  } catch (err) {
+    // Ingest that fails part-way has already written most of its columns -- a 42-hour node is
+    // 1.5 GB on disk before the manifest is due. Leaving that behind is worse than the failure
+    // itself: with no manifest the recent list skips it, so nothing in the UI can reach it to
+    // drop it, and it still counts against the origin's quota. Since running out of quota is
+    // the commonest reason to get here at all, the wreckage of one attempt is precisely what
+    // makes the next attempt fail. Clean it up before reporting.
+    await store.removeDir(captureId).catch(() => {
+      // Best effort; the original failure is the one worth propagating.
+    });
+    throw err;
+  }
 }
 
 async function reader(captureId: string): Promise<CaptureReader> {
@@ -186,26 +204,31 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         const held = logFiles.get(request.captureId) ?? [];
         const { fromMs, toMs, maxLines, importantOnly } = request;
         const query = request.query.toLowerCase();
-        const out: LogViewLine[] = [];
-        let truncated = false;
+        const wantTail = request.end === 'tail';
         // Never read more than this scanning for notable lines in a wide window; past it the
         // viewer says so and asks for a narrower one.
         const SCAN_BUDGET = 256 * 1024 * 1024;
+        // Reverse paging reads backwards from the window's end, growing the slice until it holds
+        // a full page. Starting small keeps the common case -- a dense log, one page back -- to a
+        // few megabytes; doubling keeps a sparse filter from needing many round trips.
+        const REVERSE_FIRST = 4 * 1024 * 1024;
 
-        for (const file of held) {
-          if (out.length >= maxLines) break;
-          const range = await rangeFor(file, fromMs, toMs);
-          if (range.to <= range.from) continue;
-          const end = Math.min(range.to, range.from + SCAN_BUDGET);
-          if (end < range.to) truncated = true;
-
+        /** Every matching line in a byte slice, in file order. `cap` bounds head reads only. */
+        const scan = async (
+          file: Blob,
+          fromByte: number,
+          toByte: number,
+          cap: number,
+        ): Promise<{ lines: LogViewLine[]; stopped: boolean }> => {
+          const found: LogViewLine[] = [];
           const reader = file
-            .slice(range.from, end)
+            .slice(fromByte, toByte)
             .stream()
             .pipeThrough(new TextDecoderStream())
             .getReader();
           let carry = '';
           const stats = emptyStats();
+          let stopped = false;
 
           read: for (;;) {
             const chunk = await reader.read();
@@ -221,7 +244,7 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
               if (importantOnly && !important) continue;
 
               const at = raw.indexOf('"attr":');
-              out.push({
+              found.push({
                 tMs: line.tMs,
                 severity: line.s,
                 component: line.c,
@@ -234,17 +257,66 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
                 label: important ? (rule?.label ?? '') : '',
                 important,
               });
-              if (out.length >= maxLines) {
-                truncated = true;
+              if (found.length >= cap) {
+                stopped = true;
                 break read;
               }
             }
           }
           await reader.cancel();
+          return { lines: found, stopped };
+        };
+
+        const out: LogViewLine[] = [];
+        let hasBefore = false;
+        let hasAfter = false;
+
+        for (const file of held) {
+          const range = await rangeFor(file, fromMs, toMs);
+          if (range.to <= range.from) continue;
+
+          if (wantTail) {
+            // Grow a slice backwards from the end of the window until it yields a full page, or
+            // until it covers the window. Re-reading what the previous attempt already read costs
+            // at most twice the final slice, which is far less than scanning a 36-hour log from
+            // its start every time the reader scrolls up one screen.
+            let span = REVERSE_FIRST;
+            for (;;) {
+              const start = Math.max(range.from, range.to - span);
+              const { lines } = await scan(file, start, range.to, Number.POSITIVE_INFINITY);
+              const enough = lines.length >= maxLines;
+              if (enough || start === range.from || span >= SCAN_BUDGET) {
+                // Lines earlier than this page exist if we dropped some, or if the slice never
+                // reached the start of the window.
+                if (lines.length > maxLines || start > range.from) hasBefore = true;
+                out.push(...(lines.length > maxLines ? lines.slice(-maxLines) : lines));
+                break;
+              }
+              span *= 4;
+            }
+          } else {
+            const end = Math.min(range.to, range.from + SCAN_BUDGET);
+            if (end < range.to) hasAfter = true;
+            const { lines, stopped } = await scan(file, range.from, end, maxLines);
+            if (stopped) hasAfter = true;
+            out.push(...lines);
+          }
         }
 
         out.sort((a, b) => a.tMs - b.tMs);
-        post({ kind: 'logRange', id, lines: out, truncated });
+        // Several files under one capture are read independently, so the merge can exceed a page.
+        // Trim from the end the reader is paging away from, and say so.
+        let lines = out;
+        if (lines.length > maxLines) {
+          if (wantTail) {
+            hasBefore = true;
+            lines = lines.slice(-maxLines);
+          } else {
+            hasAfter = true;
+            lines = lines.slice(0, maxLines);
+          }
+        }
+        post({ kind: 'logRange', id, lines, hasBefore, hasAfter });
         break;
       }
 

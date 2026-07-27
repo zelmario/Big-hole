@@ -277,6 +277,54 @@ describe('FileStore contract', () => {
   });
 });
 
+/**
+ * A capture has to know which node it is after the tab that ingested it has gone.
+ *
+ * Hostname and version come out of the FTDC metadata document while decoding, so they are not
+ * known when the writer is created. They used to be attached only to the reply the worker
+ * posted, never to the manifest -- so a capture showed its hostname when it was first dropped
+ * in and came back as "c4" when it was reopened from OPFS. It looks like the tool forgetting
+ * which server it is looking at, and on a replica set it makes the nodes indistinguishable.
+ */
+describe('capture identity survives a reload', () => {
+  it('writes the decoded hostname and version into the manifest', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-identity-'));
+    try {
+      const store = new NodeFileStore(dir);
+      const writer = await CaptureWriter.create(store, {
+        captureId: 'c0',
+        sourceFile: 'metrics.2026-07-20T00-00-00Z-00000',
+      });
+      await writer.finish({ hostname: 'node1.example.com', mongoVersion: '8.0.19-7' });
+
+      // Read it back the way a later session does, rather than trusting the return value.
+      const manifest = JSON.parse(await store.readText('c0/manifest.json')) as {
+        hostname?: string;
+        mongoVersion?: string;
+      };
+      expect(manifest.hostname).toBe('node1.example.com');
+      expect(manifest.mongoVersion).toBe('8.0.19-7');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves them out when the capture carried no metadata', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-identity-none-'));
+    try {
+      const store = new NodeFileStore(dir);
+      const writer = await CaptureWriter.create(store, { captureId: 'c0', sourceFile: 'm' });
+      await writer.finish();
+      const manifest = JSON.parse(await store.readText('c0/manifest.json')) as {
+        hostname?: string;
+      };
+      expect(manifest.hostname).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('time range clamping', () => {
   // Zooming repeatedly used to land on a window shorter than the sample interval, which
   // resolves to zero points and a blank panel with nothing to explain it.

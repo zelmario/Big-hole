@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseExpr, scaleOfPath, unitOf, unitOfPath, evaluate } from '../src/data/expr.js';
-import { formatValue } from '../src/data/format.js';
+import { axisFormatter, formatValue } from '../src/data/format.js';
 import { DEFAULT_TEMPLATES } from '../src/dashboard/defaultDashboard.js';
 
 describe('unit inference', () => {
@@ -130,6 +130,65 @@ describe('formatting', () => {
     [1024 * 1024, 'bytes/s', '1.00 MiB/s'],
   ] as const)('%s as %s -> %s', (value, unit, expected) => {
     expect(formatValue(value, unit)).toBe(expected);
+  });
+
+  /**
+   * A percentage far below 1 is a real reading, not a rounding artefact.
+   *
+   * An idle-looking node is exactly where the difference between 0.04% and 0.004% is the
+   * question being asked, and one fixed decimal renders both as "0.0%".
+   */
+  it('keeps small percentages legible in the legend', () => {
+    expect(formatValue(0.04, 'percent')).toBe('0.04%');
+    expect(formatValue(0.004, 'percent')).toBe('0.004%');
+    expect(formatValue(0, 'percent')).toBe('0.0%');
+    expect(formatValue(99.5, 'percent')).toBe('99.5%');
+    expect(formatValue(100, 'percent')).toBe('100%');
+  });
+});
+
+/**
+ * Axis ticks have to read as different numbers from each other.
+ *
+ * The bug this covers: percentage ticks were rendered at a fixed zero decimals, so a CPU chart
+ * whose whole range sat under half a percent drew twenty ticks all reading "0%". That is worse
+ * than an unlabelled axis -- it looks like a measurement, and it says the machine is doing
+ * nothing when the chart above it is full of spikes.
+ */
+describe('axis ticks', () => {
+  it('takes its precision from the tick spacing, not the unit', () => {
+    expect(axisFormatter('percent')([0, 0.05, 0.1, 0.15, 0.2])).toEqual([
+      '0.00%',
+      '0.05%',
+      '0.10%',
+      '0.15%',
+      '0.20%',
+    ]);
+  });
+
+  it('does not add decimals a normal percentage axis has no use for', () => {
+    expect(axisFormatter('percent')([0, 20, 40, 60, 80, 100])).toEqual([
+      '0%',
+      '20%',
+      '40%',
+      '60%',
+      '80%',
+      '100%',
+    ]);
+    expect(axisFormatter('percent')([0, 0.5, 1])).toEqual(['0.0%', '0.5%', '1.0%']);
+  });
+
+  it('applies the same rule to small rates, which collapsed the same way', () => {
+    expect(axisFormatter('per-sec')([0, 0.2, 0.4])).toEqual(['0.0/s', '0.2/s', '0.4/s']);
+    // Whole numbers still print bare -- the digit count comes from the step, which is 1000 here.
+    expect(axisFormatter('per-sec')([0, 1000, 2000])).toEqual(['0k/s', '1k/s', '2k/s']);
+  });
+
+  it('survives a degenerate scale rather than emitting a fifteen-digit label', () => {
+    // A lone tick has no spacing to read, but rounding the only label on the axis to "1%" is
+    // exactly the failure this whole change is about, so it falls back to the value's magnitude.
+    expect(axisFormatter('percent')([0.5])).toEqual(['0.5%']);
+    expect(axisFormatter('percent')([1, 1, 1])).toEqual(['1%', '1%', '1%']);
   });
 });
 

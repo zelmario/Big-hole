@@ -259,7 +259,20 @@ export class CaptureWriter {
     };
   }
 
-  async finish(): Promise<CaptureManifest> {
+  /**
+   * Identity the caller only learns while decoding.
+   *
+   * Hostname and version live in the FTDC metadata document, so they are not known when the
+   * writer is created -- and the manifest is the only place a later session can read them from.
+   * Without this the label survives exactly as long as the tab does: a capture shows its
+   * hostname when it is first ingested and comes back as "c4" when it is reopened, which reads
+   * as the tool having forgotten which node it is looking at.
+   */
+  async finish(identity: { hostname?: string; mongoVersion?: string } = {}): Promise<CaptureManifest> {
+    // Whatever decoding turned up wins; the create-time options remain the fallback.
+    const hostname = identity.hostname ?? this.opts.hostname;
+    const mongoVersion = identity.mongoVersion ?? this.opts.mongoVersion;
+
     const times = this.times.subarray(0, this.sampleCount);
     await this.timeFile.append(
       new Uint8Array(times.buffer, times.byteOffset, times.byteLength),
@@ -274,8 +287,8 @@ export class CaptureWriter {
       version: MANIFEST_VERSION,
       captureId: this.opts.captureId,
       sourceFile: this.opts.sourceFile,
-      ...(this.opts.hostname !== undefined ? { hostname: this.opts.hostname } : {}),
-      ...(this.opts.mongoVersion !== undefined ? { mongoVersion: this.opts.mongoVersion } : {}),
+      ...(hostname !== undefined ? { hostname } : {}),
+      ...(mongoVersion !== undefined ? { mongoVersion } : {}),
       sampleCount: this.sampleCount,
       startMs: this.sampleCount > 0 ? times[0]! : 0,
       endMs: this.sampleCount > 0 ? times[this.sampleCount - 1]! : 0,

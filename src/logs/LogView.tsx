@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { dropOverlap, pageSize } from './paging.js';
 import type { LogViewLine } from '../workers/protocol.js';
 
 /**
@@ -27,12 +35,18 @@ function stamp(ms: number): string {
   return new Date(ms).toISOString().replace('T', ' ').slice(0, 23);
 }
 
-// How many lines a window loads. Generous, because zooming out to see more of the log is the
+// How many lines the buffer holds. Generous, because zooming out to see more of the log is the
 // whole point -- and affordable, because `content-visibility: auto` on each row means the
 // browser lays out and paints only the handful on screen, whatever the count (see styles.css).
-// Still a bounded read: past this the note says the window holds more.
+//
+// It is a cap on what is RESIDENT, not on what is reachable: hitting either edge loads the next
+// page and drops the same number of lines off the far end, so the buffer slides through the
+// window instead of stopping at an arbitrary line. That is what the cap has to be, because a
+// line costs up to 12 KB of strings -- a 24-hour log held whole is hundreds of megabytes, which
+// is the same promise the metric store keeps by not holding series resident.
 const MAX_LINES = 3000;
 const MAX_LINES_FULL = 10000;
+
 
 export function LogView({
   fullscreen = false,
@@ -63,8 +77,11 @@ export function LogView({
   const [importantOnly, setImportantOnly] = useState(false);
   const [query, setQuery] = useState('');
   const [lines, setLines] = useState<ViewLine[]>([]);
-  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Whether the window holds lines outside the resident buffer, on each side.
+  const [hasBefore, setHasBefore] = useState(false);
+  const [hasAfter, setHasAfter] = useState(false);
+  const [paging, setPaging] = useState<'up' | 'down' | null>(null);
   // Keyboard selection, only meaningful in the full-screen window. The highlighted row the
   // arrow/j-k keys move, expand and page around.
   const [selected, setSelected] = useState<number | null>(null);
@@ -76,6 +93,10 @@ export function LogView({
   const pendingScrollMs = useRef<number | null>(null);
   // rAF gate: scroll fires far faster than a chart needs to repaint.
   const followTick = useRef(false);
+  // One page load at a time, and the pixels to add to scrollTop once it has rendered so the
+  // lines under the reader's eye do not move (see the layout effect below).
+  const pagingLock = useRef(false);
+  const scrollAdjust = useRef(0);
 
   // "Zoom the log" only makes sense beside the charts, so it is a sidebar behaviour; the
   // full-screen window covers the charts and never drives them.
@@ -95,6 +116,9 @@ export function LogView({
   // Re-read whenever the window, the filter, or the set of loaded logs changes. Debounced,
   // because dragging the time range fires setRange continuously and each read is a worker round
   // trip -- there is no point issuing one per pixel of the drag.
+  // A follow buffer spans the whole capture, so it needs the larger budget too.
+  const bufferCap = fullscreen || followActive ? MAX_LINES_FULL : MAX_LINES;
+
   useEffect(() => {
     if (!hasLogs || to <= from) {
       setLines([]);
@@ -104,15 +128,16 @@ export function LogView({
     setLoading(true);
     const timer = setTimeout(() => {
       void logLines(from, to, {
-        // A follow buffer spans the whole capture, so it needs the larger budget too.
-        maxLines: fullscreen || followActive ? MAX_LINES_FULL : MAX_LINES,
+        maxLines: bufferCap,
         importantOnly,
         query,
       })
         .then((result) => {
           if (cancelled) return;
           setLines(result.lines);
-          setTruncated(result.truncated);
+          // A fresh window starts at its beginning, so there is nothing before it yet.
+          setHasBefore(false);
+          setHasAfter(result.hasAfter);
           // Keep the highlighted row in range as the window shifts under it, rather than
           // pointing past the end of a shorter result.
           setSelected((s) => (s === null ? null : Math.min(s, result.lines.length - 1)));
@@ -130,6 +155,83 @@ export function LogView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasLogs, from, to, importantOnly, query, logsKey, fullscreen, followActive]);
+
+  /**
+   * Load the next page at one edge of the buffer and drop the same number of lines off the other.
+   *
+   * The request is a sub-range of the window the viewer is already showing, anchored on the line
+   * at the edge -- forwards from the last line held, or backwards to the first. Backwards asks
+   * the reader for the END of that sub-range (`end: 'tail'`), which is why scrolling up does not
+   * cost a scan from the start of a 36-hour log.
+   */
+  async function loadPage(dir: 'up' | 'down'): Promise<void> {
+    const el = list.current;
+    if (pagingLock.current || loading || el === null || lines.length === 0) return;
+    if (dir === 'up' ? !hasBefore : !hasAfter) return;
+
+    pagingLock.current = true;
+    setPaging(dir);
+    try {
+      // Rows are a uniform height, which the follow-mode mapping already relies on.
+      const rowH = el.scrollHeight / lines.length;
+      const anchor = dir === 'up' ? lines[0]!.tMs : lines[lines.length - 1]!.tMs;
+      const held = lines.filter((l) => l.tMs === anchor);
+      const size = pageSize(bufferCap);
+
+      const ask = async (shift: number) =>
+        dir === 'up'
+          ? logLines(from, anchor + shift, { maxLines: size, importantOnly, query, end: 'tail' })
+          : logLines(anchor + shift, to, { maxLines: size, importantOnly, query, end: 'head' });
+
+      let page = await ask(0);
+      let fresh = dropOverlap(page.lines, held);
+      // A page's worth of lines sharing one millisecond would otherwise wedge here, the boundary
+      // filter removing everything the request returned. Stepping past the instant loses those
+      // duplicates rather than the reader's ability to scroll.
+      if (fresh.length === 0 && page.lines.length > 0) {
+        page = await ask(dir === 'up' ? -1 : 1);
+        fresh = page.lines;
+      }
+
+      if (fresh.length === 0) {
+        if (dir === 'up') setHasBefore(false);
+        else setHasAfter(false);
+        return;
+      }
+
+      const joined = dir === 'up' ? [...fresh, ...lines] : [...lines, ...fresh];
+      const over = Math.max(0, joined.length - bufferCap);
+
+      if (dir === 'up') {
+        setLines(over > 0 ? joined.slice(0, joined.length - over) : joined);
+        setHasBefore(page.hasBefore);
+        if (over > 0) setHasAfter(true);
+        // Everything that was on screen moved down by the lines inserted above it.
+        scrollAdjust.current = fresh.length * rowH;
+        setSelected((s) => (s === null ? null : s + fresh.length));
+      } else {
+        setLines(over > 0 ? joined.slice(over) : joined);
+        setHasAfter(page.hasAfter);
+        if (over > 0) setHasBefore(true);
+        scrollAdjust.current = -over * rowH;
+        setSelected((s) => (s === null ? null : Math.max(0, s - over)));
+      }
+    } catch {
+      // A failed page leaves the buffer as it was; the next scroll tries again.
+    } finally {
+      pagingLock.current = false;
+      setPaging(null);
+    }
+  }
+
+  // Hold the reader's place across a page load. Must be layout, not effect: the browser would
+  // otherwise paint one frame with the buffer shifted, which reads as the log jumping.
+  useLayoutEffect(() => {
+    if (scrollAdjust.current !== 0 && list.current !== null) {
+      list.current.scrollTop += scrollAdjust.current;
+    }
+    scrollAdjust.current = 0;
+  }, [lines]);
 
   // Scroll to the line nearest a revealed instant (double-click on a chart). Runs after the
   // lines for the new window have loaded, since revealLogAt also moved the range.
@@ -249,6 +351,16 @@ export function LogView({
   // scroll fires per pixel. The buffer is pinned to the whole capture (not `range`), so setting
   // `range` here cannot refetch it -- that is what breaks the feedback loop.
   function onListScroll(): void {
+    // Page before the reader reaches the very edge, so the next lines are usually already there.
+    // Ahead of the follow-mode gate below, because the full-screen window is exactly where a
+    // long log gets read and it does not drive the charts.
+    const el = list.current;
+    if (el !== null) {
+      const NEAR_EDGE_PX = 600;
+      if (el.scrollTop < NEAR_EDGE_PX) void loadPage('up');
+      else if (el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_EDGE_PX) void loadPage('down');
+    }
+
     if (fullscreen || followTick.current) return;
     followTick.current = true;
     requestAnimationFrame(() => {
@@ -348,7 +460,12 @@ export function LogView({
       {hasLogs && (
         <div className="logview-note muted small">
           {loading ? 'reading…' : `${lines.length} line${lines.length === 1 ? '' : 's'}`}
-          {truncated && ' (window has more — zoom in)'}
+          {/* The buffer is a window, so say which way there is more of it rather than the old
+              "zoom in" -- scrolling now reaches it. */}
+          {!loading && (hasBefore || hasAfter) && (
+            <span className="muted"> · more {hasBefore ? (hasAfter ? '↑↓' : '↑') : '↓'}</span>
+          )}
+          {paging !== null && <span className="muted"> · loading {paging === 'up' ? '↑' : '↓'}</span>}
           {followActive ? ' · scroll to pan the charts' : range === null && ' · whole capture'}
           {pins.length > 0 && (
             <button className="link small" onClick={clearPins}>

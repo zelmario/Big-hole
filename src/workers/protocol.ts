@@ -69,6 +69,15 @@ export interface LogRangeRequest {
   readonly importantOnly: boolean;
   /** Case-insensitive substring filter, applied to the whole raw line. */
   readonly query: string;
+  /**
+   * Which end of the window to fill from.
+   *
+   * `head` takes the first `maxLines` -- a fresh window, and paging forwards. `tail` takes the
+   * LAST `maxLines`, which is how the viewer pages backwards: it asks for the window ending at
+   * the line it currently holds first. Without it, scrolling up could only be served by reading
+   * the window from its start and throwing most of it away.
+   */
+  readonly end?: 'head' | 'tail';
 }
 
 /**
@@ -160,8 +169,14 @@ export type Response =
       readonly kind: 'logRange';
       readonly id: number;
       readonly lines: LogViewLine[];
-      /** True when the window held more lines than were returned. */
-      readonly truncated: boolean;
+      /**
+       * Whether matching lines exist outside what was returned, on each side. This is what makes
+       * the viewer's buffer a window onto the log rather than the whole of it: reaching either
+       * edge is a question the reader can answer, so scrolling can load the next page instead of
+       * stopping dead at an arbitrary cap.
+       */
+      readonly hasBefore: boolean;
+      readonly hasAfter: boolean;
     }
   | { readonly kind: 'dropped'; readonly id: number }
   | { readonly kind: 'error'; readonly id: number; readonly message: string };

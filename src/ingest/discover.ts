@@ -31,9 +31,19 @@ export interface CaptureGroup {
   readonly files: File[];
 }
 
-/** Files mongod writes into diagnostic.data that are not FTDC. */
+/**
+ * Files mongod writes into diagnostic.data that are not FTDC.
+ *
+ * The `:Zone.Identifier` exclusion is not hypothetical tidiness. A capture that reaches an
+ * engineer through Windows -- downloaded from a ticket, unpacked on the desktop, read from WSL --
+ * carries one NTFS alternate-data-stream file per real file, named `<original>:Zone.Identifier`.
+ * They begin with `metrics.` like everything else in the folder, so half of what gets dropped is
+ * a 26-byte `[ZoneTransfer]` stub. Each one then fails to decode and lands in the skipped list,
+ * which buries any genuinely corrupt file among a dozen non-files.
+ */
 export function isFtdcFile(name: string): boolean {
   const base = name.split('/').pop() ?? name;
+  if (base.includes(':')) return false;
   return base.startsWith('metrics.');
 }
 

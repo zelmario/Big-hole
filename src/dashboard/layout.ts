@@ -269,6 +269,37 @@ function expandOne(expression: string, available: ReadonlySet<string>): string[]
  * server, a different storage engine, or a standalone with no replSetGetStatus still gets a
  * working dashboard.
  */
+/**
+ * Drop section headings with nothing beneath them.
+ *
+ * A heading is the one panel kind that survives every filter -- it has no metrics to fail to
+ * resolve -- so anything that removes charts can leave one stranded, and a bare heading is
+ * indistinguishable from a section that failed to draw. Every producer of a panel list has to
+ * run this, not just `defaultDashboard`.
+ *
+ * "Beneath" is decided by grid position, never array order: a layout that has been through a
+ * drag or a resize comes back in whatever order the grid committed, so the array says nothing
+ * about what the user sees. A heading owns the rows from its own down to the next heading's.
+ */
+export function dropEmptySections(panels: readonly PanelSpec[]): PanelSpec[] {
+  const order = [...panels].sort((a, b) => a.y - b.y || a.x - b.x);
+  const stranded = new Set<string>();
+
+  for (let i = 0; i < order.length; i++) {
+    if (order[i]!.kind !== 'section') continue;
+    let owns = false;
+    for (let j = i + 1; j < order.length && order[j]!.kind !== 'section'; j++) {
+      if (order[j]!.kind === 'chart') {
+        owns = true;
+        break;
+      }
+    }
+    if (!owns) stranded.add(order[i]!.id);
+  }
+
+  return panels.filter((p) => !stranded.has(p.id));
+}
+
 export function defaultDashboard(available: ReadonlySet<string>): DashboardState {
   const panels: PanelSpec[] = [];
   const prefixes = detectRolePrefixes(available);
@@ -283,13 +314,7 @@ export function defaultDashboard(available: ReadonlySet<string>): DashboardState
     panels.push({ ...template, id: panelId(), metrics });
   }
 
-  // Drop a section heading that ended up with nothing beneath it.
-  const kept = panels.filter((p, i) => {
-    if (p.kind !== 'section') return true;
-    const next = panels.slice(i + 1).find((q) => q.kind === 'section');
-    const until = next === undefined ? panels.length : panels.indexOf(next);
-    return panels.slice(i + 1, until).some((q) => q.kind === 'chart');
-  });
+  const kept = dropEmptySections(panels);
 
   if (kept.filter((p) => p.kind === 'chart').length === 0) {
     return {
