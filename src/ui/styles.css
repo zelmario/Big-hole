@@ -394,3 +394,39 @@ header { align-items: center; flex-wrap: wrap; }
    (The sideways-scroll behaviour is now the log's default -- see `.logline` above -- so the
    window only adds its bigger type and the selection highlight.) */
 .logwindow .logline.sel { background: #2b3444; border-left-color: #8ab8ff; }
+
+/* --- M6 checks -------------------------------------------------------------
+   A finding is a lead, not an alarm: everything it says is printed, because a
+   line you have to click to understand is one you learn to ignore. The whole
+   row is the click target, and it zooms the dashboard to the episode. */
+.insights { display: flex; flex-direction: column; min-height: 0; }
+.findings { overflow: auto; padding: 0 8px 8px; }
+
+.finding {
+  border: 1px solid #232833; border-left-width: 3px; border-radius: 6px;
+  padding: 7px 9px; margin-bottom: 8px; cursor: pointer; background: #12151b;
+}
+.finding:hover { background: #171b23; border-color: #2f3644; }
+.finding.sev-critical { border-left-color: var(--err); }
+.finding.sev-warning  { border-left-color: var(--warn); }
+.finding.sev-info     { border-left-color: var(--accent); }
+
+.finding-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.finding-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.finding-dot.sev-critical { background: var(--err); }
+.finding-dot.sev-warning  { background: var(--warn); }
+.finding-dot.sev-info     { background: var(--accent); }
+.finding-host {
+  margin-left: auto; font-size: 11px; color: var(--muted);
+  border: 1px solid #2a2f38; border-radius: 4px; padding: 0 5px;
+}
+
+.finding-when { margin-bottom: 4px; }
+.finding-what { margin-bottom: 3px; }
+.finding-check { margin-bottom: 3px; }
+/* The resolved expression, so a finding can be checked against the chart it
+   came from -- and so a rename that made it resolve elsewhere is visible. */
+.finding-metric { font-family: ui-monospace, monospace; font-size: 10px; opacity: .55; word-break: break-all; }
+
+.tab-bad  { color: var(--err); font-weight: 700; }
+.tab-warn { color: var(--warn); font-weight: 700; }

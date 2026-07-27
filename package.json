@@ -24,7 +24,8 @@
     "coverage": "vite-node tools/coverage.ts",
     "logscan": "vite-node tools/logscan.ts",
     "verify:logpage": "bash tools/browser/verify-logpage.sh",
-    "verify:togglenode": "bash tools/browser/verify-togglenode.sh"
+    "verify:togglenode": "bash tools/browser/verify-togglenode.sh",
+    "checks": "vite-node tools/checks.ts"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

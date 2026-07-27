@@ -116,6 +116,13 @@ export function Help(): ReactElement | null {
                 pan to the lines on screen; a shaded band marks that window on every panel.
               </li>
               <li>
+                <b>checks</b> runs the usual first questions over the whole capture the moment it
+                loads — ticket exhaustion, dirty cache, queue buildup, flow control, page
+                faulting. Each finding says what happened, for how long, and what to look at
+                next; click one to zoom the dashboard to its worst stretch. An empty list means
+                none of those fired, not that the server was healthy in every respect.
+              </li>
+              <li>
                 <b>Scroll to load more</b>. The list holds a few thousand lines at a time and
                 slides: reach either end and the next lines load while the far end is dropped.
                 <b> more ↑↓</b> in the header says which way there is still log to read.

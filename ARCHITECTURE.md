@@ -300,6 +300,40 @@ hands us on drop is revoked on reload, which is why the bytes — not the handle
 Round-trip verified in `tests/logStore.test.ts`. OPFS is local disk, never a network surface, so
 the privacy promise is intact.
 
+## Pathology checks (M6)
+
+`src/insights/` runs the handful of checks every engineer runs first — did the ticket pool
+empty, did the cache go dirty, did the queues build — automatically, on load, over the whole
+capture. Rules live in `src/insights/rules.ts` as **data**: a metric, a comparison, a threshold
+and a duration. All behaviour is in `detect.ts`, so the rule file stays editable by someone who
+knows MongoDB rather than this codebase.
+
+Three properties matter more than the rule list, which will always be incomplete:
+
+- **Conservative under downsampling.** Findings are read off the min/max envelope, not full
+  resolution — a dozen rules at full resolution over 42 hours would cost more than the dashboard
+  does. That is only sound if the envelope cannot *manufacture* a finding, so each test reads
+  the column that makes it pessimistic: `<=` reads the bucket's **max** (the whole bucket stayed
+  at or below), `>=` reads its **min**. Downsampling can hide a short episode; it can never
+  invent one. A detector that cries wolf gets switched off, and then it catches nothing at all.
+- **Never keyed to a version.** Rules name metrics the way dashboard templates do and resolve
+  through the same `expandMetric`, so aliases and role prefixes apply. `tests/versions.test.ts`
+  asserts every rule resolves on every captured version — a rule whose metric was renamed
+  reports "nothing found", which is indistinguishable from a healthy server.
+- **Episodes aggregate.** A saturating ticket pool flaps. One finding per (rule, node) carries
+  the episode count, the total time in state, and the worst stretch to jump to.
+
+A gap breaks a run rather than spanning it: the collector stopping for five hours must not be
+read as five hours of whatever the metric was doing when it stopped.
+
+```bash
+npm run checks -- <dir> [more dirs]   # run every rule over real captures and print what fired
+```
+
+Calibrated against real bundles — silent on a healthy 42 h sharded 8.0 node and on 4.4/8.0
+fixtures, and on the 67.7 h 7.0.34 dirty-cache capture (7.0.34, 67.7 h, known dirty-cache incident) it reports dirty cache
+at or above the 20% eviction trigger for 6h 45m across 174 episodes, peaking at 22.8%.
+
 ## Storage
 
 A 3-node replica set over a week is roughly 600 MB on disk and **~36 GB decoded at full

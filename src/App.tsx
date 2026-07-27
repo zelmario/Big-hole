@@ -9,6 +9,7 @@ import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
 import { LogView } from './logs/LogView.js';
 import { LogWindow } from './logs/LogWindow.js';
+import { Insights } from './insights/Insights.js';
 import { Help } from './ui/Help.js';
 import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
@@ -40,6 +41,9 @@ export function App(): ReactElement {
   const hasLogs = useStore((s) => s.hasLogs)();
   const pinCount = useStore((s) => s.pins.length);
   const logLoading = useStore((s) => Object.keys(s.logProgress).length > 0);
+  const analyzing = useStore((s) => s.analyzing);
+  const findingCount = useStore((s) => s.findings?.length ?? 0);
+  const worstSeverity = useStore((s) => s.findings?.[0]?.severity ?? null);
 
   // Drag the sidebar's right edge to widen it. Listeners live on window so the drag survives
   // the pointer leaving the 5px handle, and body selection is suppressed so it does not paint
@@ -180,8 +184,28 @@ export function App(): ReactElement {
                     {logLoading && <span className="tab-loading"> ●</span>}
                     {pinCount > 0 && <span className="tab-pins"> {pinCount}📌</span>}
                   </button>
+                  <button
+                    className={tab === 'insights' ? 'tab on' : 'tab'}
+                    onClick={() => setTab('insights')}
+                  >
+                    checks
+                    {analyzing && <span className="tab-loading"> ●</span>}
+                    {/* The count is the point of the tab: it says whether to open it. */}
+                    {findingCount > 0 && (
+                      <span className={worstSeverity === 'critical' ? 'tab-bad' : 'tab-warn'}>
+                        {' '}
+                        {findingCount}
+                      </span>
+                    )}
+                  </button>
                 </div>
-                {tab === 'metrics' ? <MetricCatalog /> : <LogView />}
+                {tab === 'metrics' ? (
+                  <MetricCatalog />
+                ) : tab === 'log' ? (
+                  <LogView />
+                ) : (
+                  <Insights />
+                )}
               </>
             )}
           </div>

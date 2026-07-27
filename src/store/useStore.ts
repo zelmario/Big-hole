@@ -30,6 +30,8 @@ import { splitRef, type KnownCapture } from '../data/qualify.js';
 import type { CaptureRef, SeriesSource } from '../data/panelData.js';
 import { groupCaptures, groupLogs, isLogFile, type SourceFile } from '../ingest/discover.js';
 import { withLogs } from '../logs/logSource.js';
+import { detect, type Finding } from '../insights/detect.js';
+import { RULES } from '../insights/rules.js';
 import type { LogAnalysis } from '../logs/analyze.js';
 import { FtdcClient } from '../workers/client.js';
 import type {
@@ -135,8 +137,19 @@ interface State {
   showHelp: boolean;
   toggleHelp(on?: boolean): void;
   /** Which sidebar panel is showing. In the store so revealing a log line can switch to it. */
-  sidebarTab: 'metrics' | 'log';
-  setSidebarTab(tab: 'metrics' | 'log'): void;
+  sidebarTab: 'metrics' | 'log' | 'insights';
+  setSidebarTab(tab: 'metrics' | 'log' | 'insights'): void;
+  /**
+   * Pathologies found by the M6 detectors, worst first.
+   *
+   * Recomputed when the set of loaded captures changes, not when the time range does: a finding
+   * is a statement about the capture, and one that vanished because the user zoomed in would be
+   * worse than useless. `null` means the pass has not run yet, which reads differently from an
+   * empty array -- that is a clean bill of health and worth saying out loud.
+   */
+  findings: Finding[] | null;
+  analyzing: boolean;
+  analyze(): Promise<void>;
   /**
    * Per-capture log-parse progress, while a log is being read. Absent when idle.
    *
@@ -426,6 +439,11 @@ function adopt(
     recent: get().recent.filter((c) => !loaded.has(c.captureId)),
   });
   persist(panels, get().range);
+
+  // Automatic, because a check nobody remembers to run is a check that does not happen -- and
+  // "did the ticket pool empty at any point in these 42 hours" is the first thing anyone asks.
+  // Not awaited: the dashboard must paint first, and a finding arriving a second later is fine.
+  void get().analyze();
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -438,6 +456,8 @@ export const useStore = create<State>((set, get) => ({
   recent: [],
   pins: [],
   sidebarTab: 'metrics',
+  findings: null,
+  analyzing: false,
   logProgress: {},
   logReveal: null,
   panels: [],
@@ -522,6 +542,41 @@ export const useStore = create<State>((set, get) => ({
 
   setSidebarTab(tab) {
     set({ sidebarTab: tab });
+  },
+
+  /**
+   * Run every detector over every visible capture.
+   *
+   * Deliberately over the WHOLE capture rather than the visible range: "was anything wrong with
+   * this server" is a question about the bundle, and an answer that changed as you zoomed would
+   * be untrustworthy in both directions.
+   *
+   * `maxPoints` sets the bucket width the detectors reason over -- about 7 s on a 42-hour
+   * capture, and full resolution on anything smaller. Detection reads the conservative end of
+   * each bucket's envelope (see detect.ts), so a coarser bucket can only hide a short episode,
+   * never invent one.
+   */
+  async analyze() {
+    const captures = get().visibleCaptures();
+    if (captures.length === 0) {
+      set({ findings: null, analyzing: false });
+      return;
+    }
+    set({ analyzing: true });
+    try {
+      const findings = await detect(
+        get().source(),
+        captures.map((c) => ({ id: c.id, label: c.label, paths: c.paths })),
+        RULES,
+        { maxPoints: 20_000 },
+      );
+      set({ findings });
+    } catch {
+      // A detector pass that fails must not look like a clean capture.
+      set({ findings: null });
+    } finally {
+      set({ analyzing: false });
+    }
   },
 
   revealLogAt(tMs) {
@@ -837,6 +892,8 @@ export const useStore = create<State>((set, get) => ({
     set({
       captures: get().captures.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)),
     });
+    // Findings name the node they were found on, so hiding one has to withdraw its findings.
+    void get().analyze();
   },
 
   setActive(id: string) {

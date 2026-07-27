@@ -17,6 +17,7 @@ import { join } from 'node:path';
 
 import { decodeFTDC } from '../src/ftdc/index.js';
 import { defaultDashboard, detectRolePrefixes, expandMetric } from '../src/dashboard/layout.js';
+import { RULES } from '../src/insights/rules.js';
 
 const ROOT = 'sample-data/versions';
 
@@ -113,6 +114,25 @@ describe.each(captures)('MongoDB $version', (capture) => {
       `MongoDB ${capture.version} [roles: ${prefixes.map((p) => p || 'none').join(',')}] ` +
         `cannot resolve:\n  ${missing.join('\n  ')}\n` +
         `Add an alias in src/dashboard/aliases.ts -- run \`npm run catalogs\` for candidates.`,
+    ).toEqual([]);
+  });
+
+  /**
+   * A detector whose metric was renamed does not fail -- it reports nothing, which is
+   * indistinguishable from a healthy server. That is the worst failure this tool can have:
+   * the check that would have caught the incident silently stops running on the version the
+   * customer happens to be on, and the capture comes back clean.
+   */
+  it('resolves every pathology rule', () => {
+    const prefixes = detectRolePrefixes(capture.paths);
+    const missing = RULES.filter(
+      (rule) => expandMetric(rule.metric, capture.paths, prefixes).length === 0,
+    ).map((rule) => `${rule.id} (${rule.metric})`);
+
+    expect(
+      missing,
+      `MongoDB ${capture.version} cannot evaluate these checks, so they would report ` +
+        `"nothing found" on every capture from this release:\n  ${missing.join('\n  ')}`,
     ).toEqual([]);
   });
 
