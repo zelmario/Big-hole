@@ -8,23 +8,36 @@ axis. No Docker, no InfluxDB, no upload. Your data stays on your laptop.
 
 ## Get it running
 
-You need [Node.js](https://nodejs.org/) 20 or newer. That's the only prerequisite.
+Two ways, whichever suits you. Both give you the same app on a local address.
+
+**With Docker** — nothing to install but Docker itself:
+
+```bash
+git clone https://github.com/zelmario/Big-hole.git
+cd Big-hole
+docker build -t big-hole .
+docker run --rm -p 8080:80 big-hole
+```
+
+Then open **http://localhost:8080**. The image is the built app behind nginx — about 90 MB, no
+toolchain, no database, no configuration, because the app has no backend to configure.
+
+> **Reach it on `localhost`.** Browsers only give a page private on-disk storage over HTTPS or
+> localhost, so opening the container as `http://some-host:8080` leaves the app unable to keep a
+> decoded capture — and it fails partway through decoding, which looks like a broken file rather
+> than a setup problem. Running it on another machine? Tunnel it and the browser stays on
+> localhost: `ssh -N -L 8080:127.0.0.1:8080 you@host`.
+
+**With Node** — if you want to poke at the code, or already have [Node.js](https://nodejs.org/) 20+:
 
 ```bash
 git clone https://github.com/zelmario/Big-hole.git
 cd Big-hole
 npm install
-npm run dev
+npm run dev          # http://localhost:5173
 ```
 
-Or, if you'd rather not install Node at all:
-
-```bash
-docker build -t big-hole .
-docker run --rm -p 8080:80 big-hole      # then open http://localhost:8080
-```
-
-Open the address it prints and drag in one of these:
+Either way, drag in one of these:
 
 - a **`diagnostic.data` folder** from a mongod,
 - a **support tarball** — it finds the FTDC and the logs inside, however they're nested,
@@ -35,12 +48,6 @@ the metrics.
 
 That's it. Decoding happens on your machine, once — reopening a capture you looked at yesterday is
 instant.
-
-> **One rule if you run the container on another machine:** reach it on `localhost`. Browsers
-> only give a page private on-disk storage over HTTPS or localhost, so opening it as
-> `http://some-host:8080` leaves the app unable to store a capture — and it fails partway
-> through decoding, which looks like a broken file rather than a setup problem. Tunnel it
-> instead: `ssh -N -L 8080:127.0.0.1:8080 you@host`.
 
 ## What you can do with it
 
