@@ -145,7 +145,8 @@ export function compare(input: ChangeInput, minScore: number): Change | null {
   // as a rate -- but only if it actually ticked. Without the sustain test the top of every
   // ranking is metrics that stepped once: dividing a single increment by the window produces a
   // "rate" hundreds of times the metric's own capture-wide average, so the list fills with
-  // 0/s -> 0.00/s rows and buries the eviction storm underneath them. Measured on the 67.7 h 7.0.34 dirty-cache capture.
+  // 0/s -> 0.00/s rows and buries the eviction storm underneath them. Measured on a real
+  // capture of a dirty-cache incident.
   const counter =
     base.dn > 0 &&
     win.dn > 0 &&

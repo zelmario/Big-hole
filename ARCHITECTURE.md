@@ -1,4 +1,4 @@
-# Big Hole
+# Big Hole — architecture and decisions
 
 Browser-native, zero-infrastructure viewer for MongoDB FTDC diagnostic data.
 Everything runs client-side; user data never leaves the machine.
@@ -336,7 +336,7 @@ npm run checks -- <dir> [more dirs]   # run every rule over real captures and pr
 ```
 
 Calibrated against real bundles — silent on a healthy 42 h sharded 8.0 node and on 4.4/8.0
-fixtures, and on the 67.7 h 7.0.34 dirty-cache capture (7.0.34, 67.7 h, known dirty-cache incident) it reports dirty cache
+fixtures, and on a 67.7 h 7.0.34 capture with a known dirty-cache incident it reports dirty cache
 at or above the 20% eviction trigger for 6h 45m across 174 episodes, peaking at 22.8%.
 
 ## Explain this window (M6)
@@ -360,7 +360,7 @@ Four decisions carry the ranking, each of which was wrong first:
 - **Counters are compared as rates** — but only when they *ticked*. Any column that never
   decreases can be read as a rate, and dividing a single step by the window produces a rate
   hundreds of times the counter's own capture-wide average. Without the "moved in ≥5% of
-  samples" test, the top of the list on the 67.7 h 7.0.34 dirty-cache capture was entirely `0/s → 0.00/s` rows and the
+  samples" test, the top of the list on that capture was entirely `0/s → 0.00/s` rows and the
   eviction storm was buried under them.
 - **A rate's scale must come from outside the two values compared.** Scaling by the larger of
   them made every metric that went from nothing to something score *identically* — `0 → 0.001/s`
@@ -371,7 +371,7 @@ Four decisions carry the ranking, each of which was wrong first:
   the classic way an anomaly detector ends up reporting thermal noise.
 
 Log-derived series are ranked by the same code from the same numbers, on the main thread, since
-they never went to disk. Verified end to end on the 67.7 h 7.0.34 dirty-cache capture: the window around the dirty-cache
+they never went to disk. Verified end to end on the dirty-cache capture: the window around the
 incident returns forced eviction, application threads evicting and waiting on cache,
 `document.returned` 6.95k → 330k/s and network out 3.6M → 175M/s — a scan that blew the cache.
 
@@ -506,7 +506,6 @@ Enforced mechanically, not by convention:
 - `npm run dev` — Vite dev server
 - `npm run test` — Vitest
 - `npm run build` — production build
-- `npm run lint` — ESLint
 - `npm run verify:browser` — drag/resize in a real Chromium (jsdom cannot catch that class of bug)
 - `npm run verify:multi [bundle]` — load a two-node bundle into the real app and report what
   drew; the bundle is a directory with one folder per node, each holding its own

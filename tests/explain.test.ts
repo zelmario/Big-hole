@@ -174,7 +174,7 @@ describe('ranking what changed', () => {
   /**
    * A column that stepped once is non-decreasing too, and dividing that step by the window
    * produces a "rate" hundreds of times its own capture-wide average. Left in, those rows took
-   * the entire top of the list on the 67.7 h 7.0.34 dirty-cache capture and buried the eviction storm underneath them.
+   * the entire top of the list on a real dirty-cache capture and buried the eviction storm.
    */
   it('does not call a column that stepped twice a rate', () => {
     const win = series(60 * SECOND, [

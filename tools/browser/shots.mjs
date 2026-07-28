@@ -64,30 +64,37 @@ if (await fanned.count()) {
   await shot('multi-node', fanned);
 }
 
-// --- the log, if the bundle carries one ---
-await page.locator('.sidebar-tabs .tab', { hasText: 'log' }).click();
-await page.waitForTimeout(2500);
-await shot('log', page.locator('.sidebar'));
-
 // --- the checks ---
 await page.locator('.sidebar-tabs .tab', { hasText: 'checks' }).click();
-await page.waitForTimeout(2500);
+await page.waitForTimeout(3000);
 await shot('checks', page.locator('.sidebar'));
 
-// --- explain: brush a window on a chart first, the way a reader would ---
-const plot = page.locator('.panel .u-over').first();
-const box = await plot.boundingBox();
-await page.mouse.move(box.x + box.width * 0.35, box.y + box.height / 2);
-await page.mouse.down();
-await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2, { steps: 12 });
-await page.mouse.up();
-await page.waitForTimeout(1500);
-await page.locator('.sidebar-tabs .tab', { hasText: 'explain' }).click();
+// --- explain, reached the way a reader reaches it: from the worst finding ---
+// Falling back to a brush keeps the shot takeable on a capture where nothing fired, but a
+// finding's own "explain" link lands on a window that actually contains something.
+const explainLink = page.locator('.finding button', { hasText: 'explain' }).first();
+if (await explainLink.count()) {
+  await explainLink.click();
+} else {
+  const plot = page.locator('.panel .u-over').first();
+  const box = await plot.boundingBox();
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(1500);
+  await page.locator('.sidebar-tabs .tab', { hasText: 'explain' }).click();
+}
 await page
   .waitForFunction(() => document.querySelectorAll('.change').length > 0, { timeout: 120000 })
   .catch(() => {});
 await page.waitForTimeout(1500);
 await shot('explain', page.locator('.sidebar'));
+
+// --- the log last, so it is showing the incident window rather than the whole capture ---
+await page.locator('.sidebar-tabs .tab', { hasText: 'log' }).click();
+await page.waitForTimeout(3000);
+await shot('log', page.locator('.sidebar'));
 
 console.log(errors.length === 0 ? 'no page errors' : `PAGE ERRORS:\n${errors.join('\n')}`);
 await browser.close();
