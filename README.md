@@ -141,7 +141,8 @@ Grafana — is still available at the
 
 ## Author
 
-**Zelmar Michelini** — [github.com/zelmario](https://github.com/zelmario) ·
+**Zelmar Michelini** — [LinkedIn](https://uy.linkedin.com/in/zelmario) ·
+[github.com/zelmario](https://github.com/zelmario) ·
 [zelmar@michelini.com.uy](mailto:zelmar@michelini.com.uy)
 
 Found a capture it reads wrongly, or a metric it cannot resolve? That is the most useful thing
