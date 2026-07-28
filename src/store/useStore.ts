@@ -347,8 +347,16 @@ function maxStateOf(catalog: readonly CatalogEntry[]): number | undefined {
  */
 const CHANGE_LIMIT = 60;
 
-/** Annotated log lines listed per node, before the rest are summarised as a count. */
-const EVENT_LIMIT = 40;
+/**
+ * Annotated log lines an explanation lists, across every node, before the rest become a count.
+ *
+ * Small on purpose. The value of a log annotation is that it is rare and specific -- an
+ * election, a sync-source change, a restart -- and a window that lists a hundred of them has
+ * reproduced the problem the annotate/count split exists to prevent, one layer up. When the
+ * window holds more than this, the rarest classes are kept: twenty identical checkpoints say
+ * less than one oplog-truncation line does.
+ */
+const EVENT_LIMIT = 16;
 
 /** Whole-series range of a log-derived series, the counterpart of CaptureReader.rangeOf. */
 function rangeOfSeries(v: Float64Array): number {
@@ -724,10 +732,9 @@ export const useStore = create<State>((set, get) => ({
 
           // Annotated lines are the rare, specific ones -- an election, a sync-source change --
           // so inside a brushed window there are normally a handful, and they are the answer far
-          // more often than any metric is.
-          const inside = logs.events.filter((e) => e.tMs >= window.fromMs && e.tMs <= window.toMs);
-          moreEvents += Math.max(0, inside.length - EVENT_LIMIT);
-          for (const event of inside.slice(0, EVENT_LIMIT)) {
+          // more often than any metric is. Trimming happens after the merge, across all nodes.
+          for (const event of logs.events) {
+            if (event.tMs < window.fromMs || event.tMs > window.toMs) continue;
             events.push({ ...event, captureId: c.id, captureLabel: c.label });
           }
 
@@ -750,14 +757,26 @@ export const useStore = create<State>((set, get) => ({
       );
 
       changes.sort((a, b) => b.score - a.score);
-      events.sort((a, b) => a.tMs - b.tMs);
       restarts.sort((a, b) => a.tMs - b.tMs);
+
+      // Keep the rarest classes when there are too many: a window holding sixty checkpoints and
+      // one oplog truncation must not lose the truncation. Ties fall back to time order.
+      const perKind = new Map<string, number>();
+      for (const event of events) perKind.set(event.kind, (perKind.get(event.kind) ?? 0) + 1);
+      const kept = [...events]
+        .sort(
+          (a, b) =>
+            (perKind.get(a.kind) ?? 0) - (perKind.get(b.kind) ?? 0) || a.tMs - b.tMs,
+        )
+        .slice(0, EVENT_LIMIT)
+        .sort((a, b) => a.tMs - b.tMs);
+      moreEvents = events.length - kept.length;
       set({
         explanation: {
           window,
           baseline,
           changes: changes.slice(0, CHANGE_LIMIT),
-          events,
+          events: kept,
           restarts,
           moreEvents,
           compared,

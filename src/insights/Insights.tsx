@@ -70,7 +70,8 @@ function Row({ finding }: { finding: Finding }): ReactElement {
         {formatValue(finding.peak, finding.unit)}
       </div>
       <div className="finding-when muted small">
-        worst stretch {stamp(finding.worstFromMs)}–{stamp(finding.worstToMs)} — click to zoom
+        worst stretch {stamp(finding.worstFromMs)}–{stamp(finding.worstToMs)} — click to zoom,
+        or{' '}
         {/* The finding says a threshold was crossed; the explanation says what else was
             different while it was. Stop the click so it does not also fire the plain zoom. */}
         <button

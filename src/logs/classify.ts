@@ -83,7 +83,12 @@ export const RULES: readonly Rule[] = [
   // --- storage ----------------------------------------------------------------------------
   { kind: 'oplogTruncate', label: 'Oplog truncation', mode: 'annotate', ids: [22402] },
   { kind: 'indexBuild', label: 'Index build', mode: 'annotate', component: 'INDEX' },
-  { kind: 'checkpoint', label: 'Checkpoint', mode: 'annotate', component: 'WTCHKPT' },
+  // Counted, not annotated. A checkpoint is periodic and routine -- one every fifteen seconds
+  // per node -- so as a marker it is pure noise, and on a three-node bundle it filled the whole
+  // "what happened in this window" list with a hundred identical rows before a single metric.
+  // As a rate it is genuinely useful: checkpoints getting longer or more frequent is what
+  // eviction pressure looks like from the log side.
+  { kind: 'checkpoint', label: 'Checkpoints', mode: 'count', component: 'WTCHKPT' },
 
   // --- high volume: series, never markers ---------------------------------------------------
   { kind: 'slowQuery', label: 'Slow query', mode: 'count', ids: [51803] },
