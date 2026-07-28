@@ -17,7 +17,14 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 and drag in one of these:
+Or, if you'd rather not install Node at all:
+
+```bash
+docker build -t big-hole .
+docker run --rm -p 8080:80 big-hole      # then open http://localhost:8080
+```
+
+Open the address it prints and drag in one of these:
 
 - a **`diagnostic.data` folder** from a mongod,
 - a **support tarball** — it finds the FTDC and the logs inside, however they're nested,
@@ -28,6 +35,12 @@ the metrics.
 
 That's it. Decoding happens on your machine, once — reopening a capture you looked at yesterday is
 instant.
+
+> **One rule if you run the container on another machine:** reach it on `localhost`. Browsers
+> only give a page private on-disk storage over HTTPS or localhost, so opening it as
+> `http://some-host:8080` leaves the app unable to store a capture — and it fails partway
+> through decoding, which looks like a broken file rather than a setup problem. Tunnel it
+> instead: `ssh -N -L 8080:127.0.0.1:8080 you@host`.
 
 ## What you can do with it
 

@@ -25,6 +25,7 @@
     "logscan": "vite-node tools/logscan.ts",
     "verify:logpage": "bash tools/browser/verify-logpage.sh",
     "verify:explain": "bash tools/browser/verify-explain.sh",
+    "verify:docker": "bash tools/browser/verify-docker.sh",
     "verify:togglenode": "bash tools/browser/verify-togglenode.sh",
     "checks": "vite-node tools/checks.ts",
     "explain": "vite-node tools/explain.ts",

@@ -1,0 +1,7 @@
+# Build artefacts and local scratch that must never enter the image context.
+node_modules
+dist
+sample-data
+docs/img
+.git
+deploy
