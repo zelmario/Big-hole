@@ -23,9 +23,9 @@ describe('finding episodes in a series', () => {
   it('reports a stretch that holds for long enough', () => {
     const t = at(0, 10, 20, 30, 40);
     const v = f(5, 0, 0, 0, 5);
-    // Sustained 20 s at zero, with a 10 s requirement.
+    // Three samples at zero on a 10 s clock: 30 s in state, against a 10 s requirement.
     expect(episodesOf(t, v, v, '<=', 0, 10_000)).toEqual([
-      { fromMs: 10_000, toMs: 30_000, peak: 0 },
+      { fromMs: 10_000, toMs: 30_000, peak: 0, inStateMs: 30_000 },
     ]);
   });
 
@@ -55,8 +55,8 @@ describe('finding episodes in a series', () => {
     const v = f(0, 0, NaN, 0, 0);
     const episodes = episodesOf(t, v, v, '<=', 0, 10_000);
     expect(episodes).toHaveLength(2);
-    expect(episodes[0]).toEqual({ fromMs: 0, toMs: 10_000, peak: 0 });
-    expect(episodes[1]).toEqual({ fromMs: 30_000, toMs: 40_000, peak: 0 });
+    expect(episodes[0]).toEqual({ fromMs: 0, toMs: 10_000, peak: 0, inStateMs: 20_000 });
+    expect(episodes[1]).toEqual({ fromMs: 30_000, toMs: 40_000, peak: 0, inStateMs: 20_000 });
   });
 
   it('reports the worst value reached, not the one that triggered it', () => {
@@ -65,6 +65,52 @@ describe('finding episodes in a series', () => {
     const extreme = f(100, 340, 200, 10);
     const [episode] = episodesOf(t, guard, extreme, '>=', 50, 10_000);
     expect(episode!.peak).toBe(340);
+  });
+});
+
+/**
+ * Flapping is the shape real incidents have.
+ *
+ * WiredTiger fights its own dirty cache, so the metric crosses the trigger and is pulled back
+ * within seconds. Measured on a capture that spent 377 s above the 20% trigger and peaked at
+ * 36%: the longest unbroken stretch was 30 s, so a rule wanting 60 s of unbroken breach saw
+ * nothing. Tolerating short recoveries is what makes that visible -- without letting a detector
+ * claim time that was never in breach.
+ */
+describe('a condition that flaps', () => {
+  // Over the line, back under for one sample, over again -- repeatedly, for a minute.
+  const t = at(...Array.from({ length: 12 }, (_, i) => i * 10));
+  const v = f(30, 30, 5, 30, 30, 5, 30, 30, 5, 30, 30, 5);
+
+  it('is one episode when the recoveries are shorter than the tolerance', () => {
+    const episodes = episodesOf(t, v, v, '>=', 20, 60_000, 20_000);
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0]!.fromMs).toBe(0);
+    expect(episodes[0]!.toMs).toBe(100_000);
+  });
+
+  it('counts only the time actually in breach, never the bridged dips', () => {
+    const [episode] = episodesOf(t, v, v, '>=', 20, 60_000, 20_000);
+    // Eight samples over the line on a 10 s clock -- not the 110 s the episode spans.
+    expect(episode!.inStateMs).toBe(80_000);
+  });
+
+  it('still requires that in-breach time to reach sustainMs', () => {
+    // The same shape, asked for two minutes in state. It only ever managed 80 s.
+    expect(episodesOf(t, v, v, '>=', 20, 120_000, 20_000)).toEqual([]);
+  });
+
+  it('is several episodes without a tolerance, which is what made the flapping invisible', () => {
+    // Each crossing is 20 s, so a 60 s requirement rejects all four.
+    expect(episodesOf(t, v, v, '>=', 20, 60_000)).toEqual([]);
+  });
+
+  /** A gap is not a short recovery. No tolerance may bridge one. */
+  it('never bridges a hole in the capture, however generous the tolerance', () => {
+    const withGap = f(30, 30, 30, NaN, 30, 30, 30);
+    const clock = at(0, 10, 20, 30, 40, 50, 60);
+    const episodes = episodesOf(clock, withGap, withGap, '>=', 20, 20_000, 600_000);
+    expect(episodes).toHaveLength(2);
   });
 });
 
@@ -144,7 +190,9 @@ describe('detecting across captures', () => {
     const findings = await detect(source, [capture('c0', 'node1', [TICKETS])], [ticketRule], {});
     expect(findings).toHaveLength(1);
     expect(findings[0]!.episodes).toBe(3);
-    expect(findings[0]!.totalMs).toBe(30_000);
+    // Six samples at zero on a 10 s clock. The old measure summed each run's span and reported
+    // 30 s, which undercounted every episode by its last sample.
+    expect(findings[0]!.totalMs).toBe(60_000);
     expect(findings[0]!.firstMs).toBe(0);
     expect(findings[0]!.lastMs).toBe(70_000);
     expect(findings[0]!.captureLabel).toBe('node1');

@@ -16,6 +16,12 @@
  * 3. **Make `sustainMs` long enough to mean something.** Almost all of these metrics touch
  *    their threshold briefly on a perfectly healthy server. What distinguishes a pathology is
  *    that it persists.
+ * 4. **Set `toleranceMs` to how long this condition typically recovers for.** These conditions
+ *    flap -- that is their nature, because the server is actively fighting them. Without a
+ *    tolerance, `sustainMs` means "unbroken", and a capture that spent 377 s above the dirty
+ *    trigger with a 36% peak produced no finding at all, because no single stretch reached 60 s.
+ *    `sustainMs` still counts only time actually in breach, so this widens what can be seen
+ *    without widening what can be claimed.
  */
 
 import type { Rule } from './detect.js';
@@ -35,6 +41,12 @@ export const RULES: readonly Rule[] = [
     threshold: 0,
     // Brief exhaustion is normal under load; a pool that stays empty is not.
     sustainMs: 30_000,
+    // No tolerance, unlike the cache rules. MongoDB 8.0 sizes this pool adaptively -- it shrinks
+    // to single digits on an idle server -- so `available` touches zero routinely, and on a
+    // healthy 8.0 node it did so on 91 scattered samples with a pool of 6. Bridging those into an
+    // episode reported a critical saturation on a server that was fine. The pathology this rule
+    // exists for is a pool pinned at zero, which needs no bridging to be seen.
+    toleranceMs: 0,
     unit: 'count',
     what: 'No read ticket was available, so every incoming read waited for one.',
     check: 'Read latency and the global lock read queue over the same window, then what was consuming the tickets — a collection scan, a missing index, or storage that stopped keeping up.',
@@ -47,6 +59,7 @@ export const RULES: readonly Rule[] = [
     op: '<=',
     threshold: 0,
     sustainMs: 30_000,
+    toleranceMs: 0, // see read-tickets-exhausted
     unit: 'count',
     what: 'No write ticket was available, so every incoming write waited for one.',
     check: 'Dirty cache and checkpoint activity over the same window — write tickets usually empty because eviction is behind, not because the writes themselves are slow.',
@@ -65,6 +78,9 @@ export const RULES: readonly Rule[] = [
     op: '>=',
     threshold: 20,
     sustainMs: 60_000,
+    // Eviction pulls dirty back under the trigger within seconds and it climbs straight back;
+    // measured at 30 s of unbroken breach on a capture spending 6+ minutes over the line.
+    toleranceMs: 30_000,
     unit: 'percent',
     what: 'Dirty cache stayed at or above the 20% mark where WiredTiger makes application threads evict.',
     check: 'Checkpoint duration and disk write throughput — this is eviction failing to keep up with the write rate, and the storage is the usual reason.',
@@ -80,6 +96,7 @@ export const RULES: readonly Rule[] = [
     op: '>=',
     threshold: 95,
     sustainMs: 300_000,
+    toleranceMs: 30_000,
     unit: 'percent',
     what: 'The cache stayed within 5% of its configured maximum, leaving eviction no headroom.',
     check: 'Pages evicted and bytes read into cache — a working set larger than the cache shows up here first, and as page faults next.',
@@ -97,6 +114,7 @@ export const RULES: readonly Rule[] = [
     op: '>=',
     threshold: 10,
     sustainMs: 60_000,
+    toleranceMs: 15_000,
     unit: 'count',
     what: 'Reads were waiting on the global lock queue rather than executing.',
     check: 'Read tickets over the same window — a sustained read queue is almost always the ticket pool emptying.',
@@ -109,6 +127,7 @@ export const RULES: readonly Rule[] = [
     op: '>=',
     threshold: 10,
     sustainMs: 60_000,
+    toleranceMs: 15_000,
     unit: 'count',
     what: 'Writes were waiting on the global lock queue rather than executing.',
     check: 'Write tickets and dirty cache over the same window.',
@@ -127,6 +146,7 @@ export const RULES: readonly Rule[] = [
     op: '>=',
     threshold: 10,
     sustainMs: 60_000,
+    toleranceMs: 15_000,
     unit: 'percent',
     what: 'The primary was throttling its own writes because a secondary was behind the majority-commit point.',
     check: 'Replication lag across the nodes, and whether the lagging secondary was itself ticket- or cache-bound.',
@@ -143,6 +163,7 @@ export const RULES: readonly Rule[] = [
     op: '>=',
     threshold: 100,
     sustainMs: 300_000,
+    toleranceMs: 30_000,
     unit: 'per-sec',
     what: 'The server was faulting pages from disk continuously, so its working set did not fit in memory.',
     check: 'Resident memory against the cache size, and whether another process on the host is taking the memory.',

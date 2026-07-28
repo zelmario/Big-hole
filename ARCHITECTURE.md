@@ -325,8 +325,19 @@ Three properties matter more than the rule list, which will always be incomplete
   through the same `expandMetric`, so aliases and role prefixes apply. `tests/versions.test.ts`
   asserts every rule resolves on every captured version — a rule whose metric was renamed
   reports "nothing found", which is indistinguishable from a healthy server.
-- **Episodes aggregate.** A saturating ticket pool flaps. One finding per (rule, node) carries
-  the episode count, the total time in state, and the worst stretch to jump to.
+- **Episodes aggregate, and tolerate the flapping.** A saturating ticket pool flaps; so does a
+  dirty cache, because WiredTiger is actively fighting it. Requiring an *unbroken* breach is not
+  conservatism, it is blindness: a capture that spent 377 s above the 20% dirty trigger and
+  peaked at 36% produced no finding at all, because no single stretch reached the 60 s the rule
+  asked for. Each rule now declares a `toleranceMs` — how long a recovery has to last before the
+  episode is over — while `sustainMs` is still measured against time *actually* in breach, so
+  bridging a dip can join one episode but can never claim duration that did not happen.
+  One finding per (rule, node) carries the episode count, that in-state time, and the worst
+  stretch to jump to.
+
+  The ticket rules deliberately set `toleranceMs: 0`. MongoDB 8.0 sizes the execution pool
+  adaptively — it shrinks to single digits on an idle server — so `available` touches zero
+  routinely, and bridging those touches reported a critical saturation on a healthy node.
 
 A gap breaks a run rather than spanning it: the collector stopping for five hours must not be
 read as five hours of whatever the metric was doing when it stopped.
@@ -335,9 +346,12 @@ read as five hours of whatever the metric was doing when it stopped.
 npm run checks -- <dir> [more dirs]   # run every rule over real captures and print what fired
 ```
 
-Calibrated against real bundles — silent on a healthy 42 h sharded 8.0 node and on 4.4/8.0
-fixtures, and on a 67.7 h 7.0.34 capture with a known dirty-cache incident it reports dirty cache
-at or above the 20% eviction trigger for 6h 45m across 174 episodes, peaking at 22.8%.
+Calibrated against real bundles — silent on a healthy 42 h sharded 8.0 node, on a 3-node 8.0
+teaching capture, and on the 4.4→8.0 fixtures. On a 67.7 h 7.0.34 capture with a known
+dirty-cache incident it reports the cache at or above the 20% eviction trigger for **7h 57m
+across 99 episodes**, peaking at 22.8%; on a purpose-built incident (64 MB cache against a 1.5 GB
+working set) it reports **377 s in state, peaking at 36.3%**. Both were invisible to the
+unbroken-run version of this code.
 
 ## Explain this window (M6)
 

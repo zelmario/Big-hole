@@ -50,8 +50,23 @@ export interface Rule {
   readonly metric: string;
   readonly op: '<=' | '>=';
   readonly threshold: number;
-  /** How long the condition must hold before it is worth reporting. */
+  /** How long the condition must hold, in total, before it is worth reporting. */
   readonly sustainMs: number;
+  /**
+   * Recovery shorter than this does not end an episode.
+   *
+   * Real pathologies flap. WiredTiger's eviction pulls dirty cache back below its trigger within
+   * seconds and lets it climb again; a ticket pool empties and refills. Measured on a capture
+   * that spent 377 seconds above the 20% dirty trigger and peaked at 36%: the longest *unbroken*
+   * stretch was 30 s, so a rule needing 60 s of unbroken breach reported nothing at all. Requiring
+   * an unbroken run does not make a detector conservative, it makes it blind to the shape real
+   * incidents have.
+   *
+   * The honesty is preserved elsewhere: `sustainMs` is compared against time actually spent in
+   * breach, never against the bridged span, so tolerating a dip can extend an episode but can
+   * never invent one. Omit for a condition that genuinely should be continuous.
+   */
+  readonly toleranceMs?: number;
   readonly unit: Unit;
   /** What it means, in one sentence. */
   readonly what: string;
@@ -99,20 +114,30 @@ interface Episode {
   readonly fromMs: number;
   readonly toMs: number;
   readonly peak: number;
+  /** Time actually spent in breach, which is less than `toMs - fromMs` when dips were bridged. */
+  readonly inStateMs: number;
 }
 
 /**
- * Stretches where the condition held for at least `sustainMs`.
+ * Stretches where the condition held for at least `sustainMs` in total.
  *
  * `guard` is the conservative envelope column -- the one that must satisfy the test for the
  * whole bucket to count -- and `extreme` is the opposite one, used only to report how bad it
- * got. A NaN breaks the run: a gap in the capture is not evidence that the condition continued
- * across it, and treating it as such is how a detector reports a five-hour ticket outage
- * because the collector stopped for five hours.
+ * got. A NaN breaks the run outright: a gap in the capture is not evidence that the condition
+ * continued across it, and treating it as such is how a detector reports a five-hour ticket
+ * outage because the collector stopped for five hours.
  *
- * A run's duration is measured from its first sample to its last, so a single bucket counts as
- * zero and any positive `sustainMs` requires at least two. That understates every episode by up
- * to one bucket, which is the right direction to be wrong in.
+ * A recovery shorter than `toleranceMs` does not end the episode -- see `Rule.toleranceMs` for
+ * why, and for the capture that made it necessary. Two properties keep that from becoming a
+ * licence to invent findings:
+ *
+ *  - the qualifying test is on **time spent in breach**, not on the bridged span, so bridging a
+ *    dip can join two halves of one episode but cannot manufacture duration that never happened;
+ *  - an episode's reported window still starts and ends on samples that were in breach.
+ *
+ * Each in-breach sample contributes the interval up to the next sample, so a single sample
+ * counts for one sample period rather than zero. On a 1 s clock that is the difference between
+ * "377 seconds above the eviction trigger" and a detector that says nothing.
  */
 export function episodesOf(
   t: Float64Array,
@@ -121,35 +146,52 @@ export function episodesOf(
   op: '<=' | '>=',
   threshold: number,
   sustainMs: number,
+  toleranceMs = 0,
 ): Episode[] {
   const holds = (v: number): boolean => (op === '<=' ? v <= threshold : v >= threshold);
   const worse = (a: number, b: number): number =>
     op === '<=' ? Math.min(a, b) : Math.max(a, b);
 
+  // Median-ish sample interval, used to give the last sample of a run a width. Taken from the
+  // first gap rather than computed: this runs per rule per capture, and the clock is regular.
+  const step = t.length > 1 ? Math.max(1, t[1]! - t[0]!) : 1;
+
   const out: Episode[] = [];
-  let start = -1;
+  let start = -1; // first in-breach sample of the open episode
+  let last = -1; // most recent in-breach sample
   let peak = NaN;
+  let inStateMs = 0;
+
+  const close = (): void => {
+    if (start < 0) return;
+    if (inStateMs >= sustainMs) {
+      out.push({ fromMs: t[start]!, toMs: t[last]!, peak, inStateMs });
+    }
+    start = -1;
+    last = -1;
+    inStateMs = 0;
+  };
 
   for (let i = 0; i <= t.length; i++) {
-    const inRun = i < t.length && !Number.isNaN(guard[i]!) && holds(guard[i]!);
-
-    if (inRun) {
-      const value = Number.isNaN(extreme[i]!) ? guard[i]! : extreme[i]!;
-      if (start < 0) {
-        start = i;
-        peak = value;
-      } else {
-        peak = worse(peak, value);
-      }
+    const gapHere = i >= t.length || Number.isNaN(guard[i]!);
+    if (gapHere) {
+      // A hole in the capture, or the end of it. Neither is evidence either way.
+      close();
       continue;
     }
 
-    if (start >= 0) {
-      const fromMs = t[start]!;
-      const toMs = t[i - 1]!;
-      if (toMs - fromMs >= sustainMs) out.push({ fromMs, toMs, peak });
-      start = -1;
+    if (holds(guard[i]!)) {
+      const value = Number.isNaN(extreme[i]!) ? guard[i]! : extreme[i]!;
+      peak = start < 0 ? value : worse(peak, value);
+      if (start < 0) start = i;
+      // The interval this sample stands for: up to the next sample, or one step at the tail.
+      inStateMs += i + 1 < t.length ? t[i + 1]! - t[i]! : step;
+      last = i;
+      continue;
     }
+
+    // Out of breach. Keep the episode open while the recovery is shorter than the tolerance.
+    if (start >= 0 && t[i]! - t[last]! > toleranceMs) close();
   }
 
   return out;
@@ -216,6 +258,7 @@ export async function detect(
           rule.op,
           rule.threshold,
           rule.sustainMs,
+          rule.toleranceMs ?? 0,
         );
         if (episodes.length === 0) continue;
 
@@ -223,8 +266,8 @@ export async function detect(
         let totalMs = 0;
         let peak = episodes[0]!.peak;
         for (const episode of episodes) {
-          totalMs += episode.toMs - episode.fromMs;
-          if (episode.toMs - episode.fromMs > worst.toMs - worst.fromMs) worst = episode;
+          totalMs += episode.inStateMs;
+          if (episode.inStateMs > worst.inStateMs) worst = episode;
           peak = rule.op === '<=' ? Math.min(peak, episode.peak) : Math.max(peak, episode.peak);
         }
 
