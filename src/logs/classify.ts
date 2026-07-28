@@ -9,7 +9,7 @@
  * MongoDB rewords messages between releases and the id survives it. Text matching is a
  * fallback for families of messages that share wording but not ids.
  *
- * The hard part is not recognising events, it is *volume*. A real 73 MB customer log holds
+ * The hard part is not recognising events, it is *volume*. A real 73 MB production log holds
  * 19,220 "Connection ended", 18,485 TLS warnings and 11,552 slow queries against 5 sync-source
  * changes. Annotating everything buries the five lines that explain the incident. So each rule
  * declares how it should be shown:

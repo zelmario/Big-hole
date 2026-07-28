@@ -1,7 +1,7 @@
 /**
  * Cross-version compatibility.
  *
- * The tool has to work on whatever a customer sends, and MongoDB moves metrics between
+ * The tool has to work on whatever arrives, and MongoDB moves metrics between
  * releases: concurrency tickets left `wiredTiger.concurrentTransactions` for
  * `queues.execution` in 8.0, and 8.0 scopes sections by role on a sharded cluster
  * (`shard.serverStatus.…`). Both failures are silent -- the panel is simply empty, with no
@@ -121,7 +121,7 @@ describe.each(captures)('MongoDB $version', (capture) => {
    * A detector whose metric was renamed does not fail -- it reports nothing, which is
    * indistinguishable from a healthy server. That is the worst failure this tool can have:
    * the check that would have caught the incident silently stops running on the version the
-   * customer happens to be on, and the capture comes back clean.
+   * server happens to be on, and the capture comes back clean.
    */
   it('resolves every pathology rule', () => {
     const prefixes = detectRolePrefixes(capture.paths);

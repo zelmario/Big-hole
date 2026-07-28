@@ -4,9 +4,9 @@
 correlated with the mongod log, across every node of a replica set at once.**
 
 No backend. No containers. No upload. Big Hole decodes FTDC in the browser, stores it on your
-own disk, and works with the network cable pulled out. Diagnostic data from a customer's
-production cluster never leaves your laptop, and that is enforced by the build, not by a promise
-in a README.
+own disk, and works with the network cable pulled out. Diagnostic data from a production
+cluster never leaves your laptop, and that is enforced by the build, not by a promise in a
+README.
 
 ![Big Hole dashboard](docs/img/dashboard.png)
 
@@ -130,7 +130,7 @@ believed.
 ## Supported MongoDB versions
 
 Tested against captures generated from real mongod builds, 4.4 through 8.0, plus a sharded
-cluster and real customer bundles from 7.0 and 8.0 (Percona Server for MongoDB included). The
+cluster and real production bundles from 7.0 and 8.0 (Percona Server for MongoDB included). The
 guardrail is a test, not a claim: `tests/versions.test.ts` asserts that the metrics an
 investigation cannot proceed without — tickets, cache, queues, connections, opcounters, memory,
 CPU — resolve on every captured version.
@@ -148,7 +148,7 @@ ping.
 
 ## Privacy, as a build gate
 
-The promise is that diagnostic data from a customer's production cluster stays on your machine.
+The promise is that diagnostic data from a production cluster stays on your machine.
 That is worth nothing unless it is checked:
 
 - CI fails the build on `fetch`, `XMLHttpRequest`, `sendBeacon` or `WebSocket` outside an
@@ -162,7 +162,7 @@ That is worth nothing unless it is checked:
 
 ## Speed
 
-Measured on a real 42-hour, 152,308-sample, 5,763-metric customer capture (102 MB on disk),
+Measured on a real 42-hour, 152,308-sample, 5,763-metric production capture (102 MB on disk),
 single core:
 
 | | |

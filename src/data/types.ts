@@ -15,7 +15,7 @@
  *
  * Constant-column elision is the reason this fits: a column whose value never moves within a
  * chunk costs 8 bytes instead of sampleCount x 8. On an idle server -- the common case in
- * support work, where the customer sends the whole retention window for a ten-minute
+ * support work, where a whole retention window arrives for a ten-minute
  * incident -- that is most of the file.
  *
  * Chunk-major rather than path-major is deliberate. It lets ingest stream: decode a chunk,

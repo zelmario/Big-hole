@@ -5,7 +5,7 @@
  *
  *   {"t":{"$date":"2026-07-20T03:41:09.910-05:00"},"s":"I","c":"REPL","id":21080,
  *    "ctx":"ReplCoordExtern-0","msg":"Clearing sync source to choose a new one",
- *    "attr":{"syncSource":"mongod-b3:27100"}}
+ *    "attr":{"syncSource":"mongod-b3:27017"}}
  *
  * Two properties of that format drive everything here. The timestamp carries an offset, so
  * events land on the same absolute axis as FTDC without asking anyone what timezone the server

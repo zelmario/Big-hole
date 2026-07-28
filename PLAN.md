@@ -19,7 +19,7 @@ Keep all of this:
 - **Zero infrastructure / browser-native.** The three-container Docker stack is genuinely
   the thing to disrupt. Drag a folder, get charts, no rebuild loop.
 - **Privacy as a hard constraint, not a feature bullet.** For production diagnostic data
-  from paying customers this is the difference between "interesting" and "allowed on the
+  from production systems this is the difference between "interesting" and "allowed on the
   laptop." It is also, counter-intuitively, the strongest possible SaaS positioning — see §5.
 - **Multi-capture with a shared time cursor.** This is the actual differentiator. Nothing
   in the ecosystem does replica-set-wide correlation well.
@@ -126,7 +126,7 @@ roughly 2.8–5.4 GB depending on how idle the server was, which OPFS handles wi
 complaint.
 
 Note that idle captures compress *better* (13.1× vs 6.7×), and idle is the common case in
-support work — the customer sends a whole retention window for a ten-minute incident.
+support work — a whole retention window arrives for a ten-minute incident.
 
 Two consequences worth accepting up front:
 
@@ -155,7 +155,7 @@ Keep LTTB available for smooth gauges where the envelope looks noisy.
 
 Small additions, high value, all cheap:
 
-- **Tarball ingestion.** Customers send `bundle.tar.gz`, not tidy directories. `fflate` plus
+- **Tarball ingestion.** Bundles arrive as `bundle.tar.gz`, not tidy directories. `fflate` plus
   ~80 lines of tar reader. Auto-discover `diagnostic.data/`, `mongod.log*`, and `mongod.conf`
   at any nesting depth. Without this, step one of every real investigation is a manual untar.
 - **Worker pool**, sized to `navigator.hardwareConcurrency`, one file per worker. The brief
@@ -184,7 +184,7 @@ Changes from the brief marked ✚ (new) and ▲ (modified).
 | ✚ **M3.5** ✅ | **Derived metrics + ported dashboard — DONE 2026-07-22.** Expression layer (`rate`/`pct`/`div`/`sum`/`diff`/`scale`), unit-aware formatting, 47-panel dashboard ported from devops-land/mongodb_ftdc_viewer. | ✅ 55 tests. 41/44 panels resolve on a real capture, 144 series. |
 | ✚ **M3.6** ✅ | **Dashboard ownership + UX — DONE 2026-07-22.** Named saved dashboards (save/open/rename/delete/import/export), collapsible metric catalog, Grafana-style bottom legend with click-to-toggle, time-range picker, zoom preview, source-verified units. | ✅ 147 tests + a real-browser gesture check (`npm run verify:browser`). |
 | **M4** ✅ | **Multi-capture — DONE 2026-07-23.** One capture per node, decoded concurrently across the worker pool. Panels fan out over every loaded node; `c1:path` pins one; cross-host expressions split per capture, evaluate at full resolution, and combine on a shared clock. Cross-host lag + clock-skew panels appear when a second node loads. | ✅ 178 tests, and a real browser run (`npm run verify:multi`): two nodes, 42/42 panels drawing both, cross-host panels resolving or degrading, no console errors and no network requests. |
-| **M5** ✅ | **Log correlation — DONE 2026-07-23.** Streaming JSON parser (syslog-unwrapping, header-only, windowed via binary search — a 2.58 GB log costs ~36 MB heap). A **log viewer** that follows the dashboard window with notable lines highlighted; double-click pins a marker across every chart. High-volume classes become `logs.*` series in the catalogue. | ✅ Verified on real customer bundles: 150k lines at 450k/s, a 4-hour window located in 13 ms inside a 2.5 GB log, `logs.slowQuery.p95Ms` charted next to WiredTiger, and a pinned oplog-fetcher timeout landing on the dirty-cache cliff. |
+| **M5** ✅ | **Log correlation — DONE 2026-07-23.** Streaming JSON parser (syslog-unwrapping, header-only, windowed via binary search — a 2.58 GB log costs ~36 MB heap). A **log viewer** that follows the dashboard window with notable lines highlighted; double-click pins a marker across every chart. High-volume classes become `logs.*` series in the catalogue. | ✅ Verified on real collected bundles: 150k lines at 450k/s, a 4-hour window located in 13 ms inside a 2.5 GB log, `logs.slowQuery.p95Ms` charted next to WiredTiger, and a pinned oplog-fetcher timeout landing on the dirty-cache cliff. |
 | **M6** ✅ | **Insights — DONE 2026-07-28.** Detectors (2026-07-27): 8 rules as data in `src/insights/rules.ts`, run automatically on load, aggregated per (rule, node), conservative under downsampling by construction. **"Explain this window"** (2026-07-28): brush a window and every metric is ranked by how far it moved against the adjacent stretch, log annotations first, one click to put a row on a chart. One scan pass over the window's chunks, not 5,763 series reads. | ✅ Detectors: silent on a healthy 42 h sharded 8.0 node, and on a 67.7 h 7.0.34 capture with a known dirty-cache incident it reports dirty cache ≥20% for 6h45m over 174 episodes, peak 22.8%. Explain: 5,759 metrics in 48 ms (20-min windows), and on that incident it returns forced eviction, cache waits, `document.returned` 6.95k→330k/s. `npm run checks`, `npm run explain`, `npm run verify:explain`. |
 | **M7** | Stretch. duckdb-wasm SQL panels over the OPFS/Parquet layer, postmortem export, baseline reference lines, Rust/Go WASM decoder if profiling demands it. | — |
 
@@ -224,7 +224,7 @@ Two structural decisions to make at M1:
 The paid wedge is the set of things that genuinely require a server, none of which
 compromise the local-first promise: shared investigations with the data attached, org-wide
 capture history, comparison across tickets, baselines learned across many captures,
-scheduled ingestion from customer environments, team annotations, generated postmortems.
+scheduled ingestion from monitored environments, team annotations, generated postmortems.
 "Your data never leaves your machine unless you explicitly share an investigation" is a
 better sales line than anything a server-side competitor can say.
 

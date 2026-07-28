@@ -31,7 +31,7 @@ function fixtureLines(): string[] {
       `{"t":{"$date":"${at(`03:38:${s}.000`)}"},"s":"I","c":"NETWORK","id":22943,"ctx":"listener","msg":"Connection accepted","attr":{"remote":"10.0.0.${i}:5000"}}`,
     );
     lines.push(
-      `{"t":{"$date":"${at(`03:39:${s}.171`)}"},"s":"I","c":"COMMAND","id":51803,"ctx":"conn${i}","msg":"Slow query","attr":{"type":"command","ns":"db.objectdata_v2","durationMillis":${100 + i}}}`,
+      `{"t":{"$date":"${at(`03:39:${s}.171`)}"},"s":"I","c":"COMMAND","id":51803,"ctx":"conn${i}","msg":"Slow query","attr":{"type":"command","ns":"appdb.events","durationMillis":${100 + i}}}`,
     );
   }
   // The two rare events that must not be drowned -- and the reason the log matters at all.
@@ -39,7 +39,7 @@ function fixtureLines(): string[] {
     `{"t":{"$date":"${at('03:41:09.910')}"},"s":"W","c":"REPL","id":21122,"ctx":"BackgroundSync","msg":"Oplog fetcher stopped querying remote oplog with error","attr":{"error":"NetworkTimeout: Error while getting the next batch in the oplog fetcher"}}`,
   );
   lines.push(
-    `{"t":{"$date":"${at('03:41:09.911')}"},"s":"I","c":"REPL","id":21080,"ctx":"BackgroundSync","msg":"Clearing sync source to choose a new one","attr":{"syncSource":"mongod-b3.example.net:27100"}}`,
+    `{"t":{"$date":"${at('03:41:09.911')}"},"s":"I","c":"REPL","id":21080,"ctx":"BackgroundSync","msg":"Clearing sync source to choose a new one","attr":{"syncSource":"mongod-b3.example.net:27017"}}`,
   );
   return lines;
 }

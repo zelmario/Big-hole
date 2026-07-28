@@ -3,7 +3,7 @@
  *
  * Decodes, ingests, and reports throughput, storage efficiency, and the things that matter
  * before any chart exists: sample cadence, gaps, restarts, catalog size. Useful for
- * validating a customer capture without opening a browser, and for checking that the numbers
+ * validating a capture without opening a browser, and for checking that the numbers
  * measured on synthetic fixtures hold on real data.
  *
  *   npm run inspect -- /path/to/diagnostic.data

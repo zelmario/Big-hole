@@ -1,5 +1,5 @@
 /**
- * Drive the log viewer's three interactions on real customer data:
+ * Drive the log viewer's three interactions on a real capture:
  *   1. a parsing bar while the log loads,
  *   2. double-click a chart -> the log scrolls to that moment,
  *   3. click a line -> it expands to the full text.

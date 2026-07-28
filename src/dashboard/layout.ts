@@ -4,7 +4,7 @@
  * A permalink carries the *view* -- which panels, which metrics, which time window -- and
  * never the data. That is not a limitation to work around; it is the product promise. A
  * colleague opening your link loads their own copy of the capture from their own disk, and
- * nothing about the customer's server has crossed a network.
+ * nothing about the server it describes has crossed a network.
  */
 
 import { deflateSync, inflateSync } from 'fflate';

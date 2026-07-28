@@ -134,7 +134,7 @@ harness either way. Keep `src/ftdc/`'s interface WASM-swappable.
 
 ## Cross-version compatibility
 
-**This must work on every MongoDB version a customer might send.** That is a hard
+**This must work on every MongoDB version someone might send you.** That is a hard
 requirement, and it cannot be met by fixing shapes one bug report at a time -- every failure
 mode here is *silent*. A renamed metric produces an empty panel, not an error, so nothing
 tells you the tool has stopped answering the question it exists to answer.
@@ -252,7 +252,7 @@ saved dashboards are byte-identical to what M3 produced.
 bundle's log is routinely 73 MB and can be gigabytes; holding lines resident would break the
 same promise the storage layer keeps for metrics.
 
-The hard part is volume, not parsing. One real 24-hour customer log holds:
+The hard part is volume, not parsing. One real 24-hour production log holds:
 
 | | |
 |---|---|
@@ -405,7 +405,7 @@ resident = catalog index + only the series currently plotted, downsampled to cur
 - OPFS is local disk, private to the origin, and never touches the network — the privacy
   promise is fully intact.
 
-**Measured on a real customer capture** (`npm run inspect`) — 42.3 h, 152,308 samples,
+**Measured on a real production capture** (`npm run inspect`) — 42.3 h, 152,308 samples,
 5,763 metrics, mongod 8.0.19-7 sharded, 102 MB on disk:
 
 | | |

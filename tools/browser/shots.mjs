@@ -6,7 +6,7 @@
  * feature stops drawing, the picture of it stops being takeable.
  *
  * The capture is whatever BUNDLE points at, and that choice matters: FTDC metadata carries the
- * hostname, so a screenshot of a customer bundle publishes their infrastructure names. Point
+ * hostname, so a screenshot of someone else's bundle publishes their infrastructure names. Point
  * this at data you are content to make public.
  *
  *   BUNDLE=sample-data/teach3 node tools/browser/shots.mjs

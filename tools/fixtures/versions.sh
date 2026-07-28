@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Capture FTDC from a matrix of MongoDB versions.
 #
-# The dashboard has to work on whatever a customer sends, and metric paths move between
+# The dashboard has to work on whatever arrives, and metric paths move between
 # releases -- concurrency tickets left wiredTiger.concurrentTransactions for queues.execution
 # in 8.0, and 8.0 scopes sections by role on a sharded cluster. Guessing at that is how you
 # ship a dashboard that silently resolves nothing; this captures the ground truth instead.

@@ -255,7 +255,7 @@ if (nzeroes >= remaining) { out.fill(current, j, nSamples); nzeroes -= remaining
 ```
 
 On idle captures this collapses the majority of the decode into `TypedArray.prototype.fill`,
-which is memset-speed. Idle captures are also the common case in support work — the customer
+which is memset-speed. Idle captures are also the common case in support work — a whole
 sends you the whole retention window and the incident is ten minutes of it.
 
 Net effect: pure `Number` and typed-array arithmetic throughout, one allocation per column,

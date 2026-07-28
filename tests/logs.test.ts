@@ -1,7 +1,7 @@
 /**
  * Log correlation.
  *
- * The failure mode is volume, not parsing. A real 73 MB customer log holds 19,220 connection
+ * The failure mode is volume, not parsing. A real 73 MB production log holds 19,220 connection
  * events and 18,485 TLS warnings against 5 sync-source changes, and a correlator that draws
  * everything hides the five lines that explain the incident. So most of this is about what
  * gets shown, not what gets read.
@@ -16,13 +16,13 @@ import { logExpressionKind } from '../src/logs/logSource.js';
 import { dropOverlap, pageSize, type OverlapLine } from '../src/logs/paging.js';
 import { groupLogs, isFtdcFile, isLogFile, type SourceFile } from '../src/ingest/discover.js';
 
-/** Real lines, copied from a customer capture with hostnames left as they were. */
+/** Lines in the shapes mongod actually emits, with generic hosts and namespaces. */
 const REAL = {
-  slow: '{"t":{"$date":"2026-07-20T03:38:36.171-05:00"},"s":"I","c":"COMMAND","id":51803,"ctx":"conn7","msg":"Slow query","attr":{"type":"command","ns":"db.objectdata_v2","durationMillis":936}}',
+  slow: '{"t":{"$date":"2026-07-20T03:38:36.171-05:00"},"s":"I","c":"COMMAND","id":51803,"ctx":"conn7","msg":"Slow query","attr":{"type":"command","ns":"appdb.events","durationMillis":936}}',
   fetcher:
     '{"t":{"$date":"2026-07-20T03:41:09.910-05:00"},"s":"W","c":"REPL","id":21122,"ctx":"BackgroundSync","msg":"Oplog fetcher stopped querying remote oplog with error","attr":{"error":"NetworkTimeout: Error while getting the next batch in the oplog fetcher"}}',
   syncSource:
-    '{"t":{"$date":"2026-07-20T03:41:09.910-05:00"},"s":"I","c":"REPL","id":21080,"ctx":"BackgroundSync","msg":"Clearing sync source to choose a new one","attr":{"syncSource":"mongod-b3.example.net:27100"}}',
+    '{"t":{"$date":"2026-07-20T03:41:09.910-05:00"},"s":"I","c":"REPL","id":21080,"ctx":"BackgroundSync","msg":"Clearing sync source to choose a new one","attr":{"syncSource":"mongod-b3.example.net:27017"}}',
   connection:
     '{"t":{"$date":"2026-07-20T03:38:35.000-05:00"},"s":"I","c":"NETWORK","id":22943,"ctx":"listener","msg":"Connection accepted","attr":{"remote":"10.0.0.1:5000"}}',
   tls: '{"t":{"$date":"2026-07-20T03:38:35.000-05:00"},"s":"W","c":"NETWORK","id":23234,"ctx":"conn1","msg":"No SSL certificate provided by peer"}',
@@ -39,7 +39,7 @@ describe('parsing mongod JSON logs', () => {
   });
 
   it('unwraps a syslog prefix, which collected bundles almost always have', () => {
-    // "Jul 15 06:52:31 host mongo[3731]: {json}" -- 2.5 GB of a real customer bundle looks
+    // "Jul 15 06:52:31 host mongo[3731]: {json}" -- 2.5 GB of a real collected bundle looks
     // exactly like this, and rejecting it reported "0 lines parsed" on a perfectly good log.
     const stats = emptyStats();
     const wrapped = `Jul 15 06:52:31 ip-10-0-0-152 mongo[3731]: ${REAL.slow}`;
@@ -58,7 +58,7 @@ describe('parsing mongod JSON logs', () => {
     expect(line.msg).toBe('Slow query');
     expect(durationOf(fat)).toBe(936);
     // The document is available when something actually needs it.
-    expect(attrOf(fat)?.['ns']).toBe('db.objectdata_v2');
+    expect(attrOf(fat)?.['ns']).toBe('appdb.events');
   });
 
   it('counts unparsable lines instead of throwing', () => {
