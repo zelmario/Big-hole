@@ -8,7 +8,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LAYOUT_VERSION, type DashboardState } from '../src/dashboard/layout.js';
+import {
+  LAYOUT_VERSION,
+  loadLayout,
+  saveLayout,
+  type DashboardState,
+} from '../src/dashboard/layout.js';
 import {
   deleteDashboard,
   fromFile,
@@ -19,6 +24,7 @@ import {
   renameDashboard,
   saveDashboard,
   toFile,
+  type SavedDashboard,
 } from '../src/dashboard/library.js';
 
 // Node has no localStorage; a minimal stand-in is enough and keeps the test honest about
@@ -89,7 +95,7 @@ describe('dashboard library', () => {
 
   it('drops entries from an older layout version instead of rendering them', () => {
     localStorage.setItem(
-      'ftdc-lens:dashboards',
+      'big-hole:dashboards',
       JSON.stringify([
         { id: 'old', name: 'Ancient', updatedAt: 1, state: { v: 1, panels: [], range: null } },
       ]),
@@ -98,7 +104,7 @@ describe('dashboard library', () => {
   });
 
   it('survives corrupt storage', () => {
-    localStorage.setItem('ftdc-lens:dashboards', '{not json');
+    localStorage.setItem('big-hole:dashboards', '{not json');
     expect(listDashboards()).toEqual([]);
   });
 
@@ -133,5 +139,58 @@ describe('dashboard files', () => {
       state: { v: 1, panels: [], range: null },
     });
     expect(fromFile(stale)).toBeNull();
+  });
+});
+
+/**
+ * Surviving the rename.
+ *
+ * The project was ftdc-lens while it was being built and is Big Hole now. Saved dashboards and
+ * the working layout are the only things in this app a user has actually authored, so a rename
+ * is the worst possible reason to lose them -- and a layout that silently reverts to the
+ * default is indistinguishable from a bug.
+ */
+describe('state saved under the old name', () => {
+  const legacy: SavedDashboard = {
+    id: 'old',
+    name: 'Replication',
+    updatedAt: 5,
+    state: state('panel'),
+  };
+
+  it('moves saved dashboards across on first read', () => {
+    localStorage.setItem('ftdc-lens:dashboards', JSON.stringify([legacy]));
+    localStorage.setItem('ftdc-lens:current', JSON.stringify('old'));
+
+    expect(listDashboards().map((d) => d.name)).toEqual(['Replication']);
+    expect(getCurrentId()).toBe('old');
+    // Moved, not copied: the old keys must not linger and shadow later edits.
+    expect(localStorage.getItem('ftdc-lens:dashboards')).toBeNull();
+    expect(localStorage.getItem('big-hole:dashboards')).not.toBeNull();
+  });
+
+  it('does not overwrite dashboards already saved under the new name', () => {
+    saveDashboard('Current', state('new'));
+    localStorage.setItem('ftdc-lens:dashboards', JSON.stringify([legacy]));
+    expect(listDashboards().map((d) => d.name)).toEqual(['Current']);
+  });
+
+  it('moves the working layout across too', () => {
+    localStorage.setItem('ftdc-lens:layout', JSON.stringify(state('working')));
+    expect(loadLayout()?.panels[0]?.title).toBe('working');
+    expect(localStorage.getItem('ftdc-lens:layout')).toBeNull();
+    // And the next save lands under the new key, where the next load will look for it.
+    saveLayout(state('edited'));
+    expect(loadLayout()?.panels[0]?.title).toBe('edited');
+  });
+
+  it('still imports a dashboard file exported before the rename', () => {
+    const exported = JSON.stringify({
+      kind: 'ftdc-lens-dashboard',
+      v: LAYOUT_VERSION,
+      name: 'From a runbook',
+      state: state('panel'),
+    });
+    expect(fromFile(exported)?.name).toBe('From a runbook');
   });
 });

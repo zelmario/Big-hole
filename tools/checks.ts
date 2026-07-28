@@ -40,7 +40,7 @@ function collect(path: string): string[] {
     .map((n) => join(path, n));
 }
 
-const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-checks-'));
+const dir = await mkdtemp(join(tmpdir(), 'big-hole-checks-'));
 const store = new NodeFileStore(dir);
 const readers = new Map<string, CaptureReader>();
 const captures: DetectCapture[] = [];

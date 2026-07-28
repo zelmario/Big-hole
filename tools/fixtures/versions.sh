@@ -18,7 +18,7 @@ RUN_SECONDS="${RUN_SECONDS:-75}"
 mkdir -p "$OUT"
 
 start_one() {
-  local version="$1" name="ftdc-lens-v${1//./_}"
+  local version="$1" name="big-hole-v${1//./_}"
   docker rm -f "$name" >/dev/null 2>&1
 
   # Fast FTDC sampling: a chunk every ~30s instead of every 5 minutes.
@@ -46,13 +46,13 @@ done
 
 sleep 12
 for v in "${started[@]}"; do
-  name="ftdc-lens-v${v//./_}"
+  name="big-hole-v${v//./_}"
   shell_in "$name" 'rs.initiate()' && echo "  $v: replica set initiated"
 done
 
 echo "collecting for ${RUN_SECONDS}s"
 for v in "${started[@]}"; do
-  name="ftdc-lens-v${v//./_}"
+  name="big-hole-v${v//./_}"
   # Light write load in the background so counters actually move.
   docker exec -d "$name" sh -c \
     "(mongosh --quiet --eval 'const c=db.getSiblingDB(\"b\").e; const end=Date.now()+${RUN_SECONDS}*1000; let n=0; while(Date.now()<end){const a=[];for(let i=0;i<200;i++)a.push({n:n++,p:\"x\".repeat(100)});c.insertMany(a);c.find().limit(50).toArray();}' || \
@@ -64,7 +64,7 @@ sleep 20   # let one more chunk flush
 
 echo "harvesting"
 for v in "${started[@]}"; do
-  name="ftdc-lens-v${v//./_}"
+  name="big-hole-v${v//./_}"
   dest="$OUT/$v"
   rm -rf "$dest"; mkdir -p "$dest"
   if docker cp "$name:/data/db/diagnostic.data/." "$dest/" >/dev/null 2>&1; then

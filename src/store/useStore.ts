@@ -37,6 +37,7 @@ import {
   rankChanges,
   type Explanation,
   type HostChange,
+  type RestartNote,
   type WindowEvent,
 } from '../insights/explain.js';
 import { statsOf } from '../data/scan.js';
@@ -669,6 +670,7 @@ export const useStore = create<State>((set, get) => ({
           baseline: null,
           changes: [],
           events: [],
+          restarts: [],
           moreEvents: 0,
           compared: 0,
           errors: [
@@ -684,12 +686,27 @@ export const useStore = create<State>((set, get) => ({
     const errors: string[] = [];
     const changes: HostChange[] = [];
     const events: WindowEvent[] = [];
+    const restarts: RestartNote[] = [];
     let compared = 0;
     let moreEvents = 0;
 
     try {
       await Promise.all(
         captures.map(async (c) => {
+          // A restart resets every cumulative counter, so a window or baseline containing one
+          // produces hundreds of "changes" that are all the same fact. Say the fact instead.
+          for (const tMs of c.summary.restarts) {
+            const where =
+              tMs >= window.fromMs && tMs <= window.toMs
+                ? 'window'
+                : tMs >= baseline.fromMs && tMs <= baseline.toMs
+                  ? 'baseline'
+                  : null;
+            if (where !== null) {
+              restarts.push({ captureId: c.id, captureLabel: c.label, tMs, where });
+            }
+          }
+
           try {
             const result = await get().client.explain(c.id, window, baseline, {
               maxSamples: MAX_SCAN_SAMPLES,
@@ -734,12 +751,14 @@ export const useStore = create<State>((set, get) => ({
 
       changes.sort((a, b) => b.score - a.score);
       events.sort((a, b) => a.tMs - b.tMs);
+      restarts.sort((a, b) => a.tMs - b.tMs);
       set({
         explanation: {
           window,
           baseline,
           changes: changes.slice(0, CHANGE_LIMIT),
           events,
+          restarts,
           moreEvents,
           compared,
           errors,

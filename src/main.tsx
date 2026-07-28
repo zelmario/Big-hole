@@ -37,7 +37,7 @@ function fatal(error: unknown): void {
   box.className = 'drop';
 
   const title = document.createElement('h2');
-  title.textContent = 'ftdc-lens failed to start';
+  title.textContent = 'Big Hole failed to start';
 
   const detail = document.createElement('p');
   detail.className = 'error';

@@ -219,6 +219,7 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
           win,
           (path) => r.rangeOf(path),
           r.manifest.endMs - r.manifest.startMs,
+          (path) => r.typeOf(path),
         );
         post({
           kind: 'explain',

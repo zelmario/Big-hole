@@ -413,7 +413,16 @@ export function fromHash(hash: string): DashboardState | null {
 
 /* ------------------------------------------------------------ local disk ---- */
 
-const STORAGE_KEY = 'ftdc-lens:layout';
+const STORAGE_KEY = 'big-hole:layout';
+
+/**
+ * Key this was stored under before the project took the Big Hole name.
+ *
+ * Read once, on the first load after the rename, and then written back under the new key. A
+ * rename is not a reason to throw away the dashboard someone was in the middle of building,
+ * and a working layout that silently reverts to the default is indistinguishable from a bug.
+ */
+const LEGACY_STORAGE_KEY = 'ftdc-lens:layout';
 
 /**
  * Persist the layout only.
@@ -433,7 +442,14 @@ export function saveLayout(state: DashboardState): void {
 
 export function loadLayout(): DashboardState | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) {
+      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (raw !== null) {
+        localStorage.setItem(STORAGE_KEY, raw);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+    }
     if (raw === null) return null;
     const parsed: unknown = JSON.parse(raw);
     if (isValidState(parsed)) return parsed;
@@ -449,6 +465,7 @@ export function loadLayout(): DashboardState | null {
 export function clearLayout(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     /* see saveLayout */
   }

@@ -7,7 +7,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CACHE="${ORACLE_GOCACHE:-${TMPDIR:-/tmp}/ftdc-lens-gocache}"
+CACHE="${ORACLE_GOCACHE:-${TMPDIR:-/tmp}/big-hole-gocache}"
 
 if [[ "${ORACLE_NATIVE:-0}" == "1" ]]; then
   echo "building oracle with local Go toolchain"

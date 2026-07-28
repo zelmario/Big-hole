@@ -38,7 +38,7 @@ export function Help(): ReactElement | null {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="help-bar">
-          <span className="help-title">ftdc-lens — help</span>
+          <span className="help-title">Big Hole — help</span>
           <span className="spacer" />
           <button className="link" title="Close (Esc)" onClick={close}>
             ✕

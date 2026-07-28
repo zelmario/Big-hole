@@ -176,6 +176,53 @@ export function rankChanges(inputs: Iterable<ChangeInput>, options: RankOptions 
 }
 
 /**
+ * Columns that measure time rather than behaviour, which must not be ranked.
+ *
+ * Every one of these moves in every window, by construction, and on a capture with a restart or
+ * a gap they move enormously: an optime that caught up after a node was down looks like a metric
+ * that went up 1,367x. On the teaching dataset that put six clocks and two BSON timestamps at
+ * the top of the list before a single real metric.
+ *
+ *  - `datetime` columns are wall clocks outright.
+ *  - `.ts` and `.inc` are the two halves a BSON Timestamp flattens into (docs/ftdc-format.md,
+ *    trap 2) -- optimes and lastWrite times.
+ *  - anything named `timestamp` is a WiredTiger transaction timestamp: `seconds << 32`, so a
+ *    normal advance reads as billions.
+ *  - `start` and `end` are the chunk clock, and uptime is a clock with a different zero.
+ *
+ * They stay fully available as metrics -- the catalogue lists them and a panel will draw them.
+ * This is only about what "what changed" is allowed to nominate.
+ */
+export function isClockPath(path: string, type?: string): boolean {
+  if (type === 'datetime') return true;
+  const p = path.toLowerCase();
+  return (
+    /(^|\.)(start|end)$/.test(p) ||
+    /\.ts$/.test(p) ||
+    /\.inc$/.test(p) ||
+    p.includes('uptime') ||
+    p.includes('timestamp')
+  );
+}
+
+/**
+ * Above 2^53 a column is a packed timestamp, not a measurement.
+ *
+ * WiredTiger stores transaction times as `seconds << 32` -- around 6.6e18 -- and scatters them
+ * through `storageStats` under names that give nothing away, like "btree clean tree checkpoint
+ * expiration time". They are also the columns the reference implementation truncates to 32 bits
+ * where the type says int32, so the same path can read as -0.68 in one chunk and 6.6e18 in the
+ * next, which ranks as the largest change in the capture and means nothing at all.
+ *
+ * Testing the values rather than the name is the same principle the rest of the project follows:
+ * resolve from what the capture contains. It is also exactly where the decoder's guarantee ends
+ * -- integer columns are exact below 2^53 -- so past this point a number is not a reading.
+ */
+function isPacked(s: WindowStats): boolean {
+  return Math.abs(s.max) >= Number.MAX_SAFE_INTEGER || Math.abs(s.min) >= Number.MAX_SAFE_INTEGER;
+}
+
+/**
  * Pair the two scans up by path. A metric missing from one side is simply not comparable.
  *
  * `spanMs` is the capture's own duration, which is what turns each metric's range into the
@@ -186,14 +233,18 @@ export function changeInputs(
   win: ReadonlyMap<string, WindowStats>,
   rangeOf: (path: string) => number,
   spanMs: number,
+  typeOf?: (path: string) => string | undefined,
 ): ChangeInput[] {
   const seconds = Math.max(1, spanMs / 1000);
   const out: ChangeInput[] = [];
   for (const [path, w] of win) {
+    if (isClockPath(path, typeOf?.(path))) continue;
+    const b = base.get(path) ?? EMPTY_STATS;
+    if (isPacked(w) || isPacked(b)) continue;
     const range = rangeOf(path);
     out.push({
       path,
-      base: base.get(path) ?? EMPTY_STATS,
+      base: b,
       win: w,
       range,
       rateScale: range / seconds,
@@ -232,12 +283,28 @@ export interface WindowEvent extends LogEvent {
   readonly captureLabel: string;
 }
 
+/**
+ * A restart inside the window, or inside the baseline it is compared against.
+ *
+ * Worth its own line rather than a row in the ranking. Every cumulative counter goes back to
+ * zero at a restart, so a comparison spanning one reports hundreds of "changes" that are all
+ * the same fact -- and that fact, "this node restarted", is the explanation rather than
+ * something to scroll past.
+ */
+export interface RestartNote {
+  readonly captureId: string;
+  readonly captureLabel: string;
+  readonly tMs: number;
+  readonly where: 'window' | 'baseline';
+}
+
 /** Everything the window explanation shows. */
 export interface Explanation {
   readonly window: Window;
   readonly baseline: Window | null;
   readonly changes: HostChange[];
   readonly events: WindowEvent[];
+  readonly restarts: RestartNote[];
   /** Annotated lines inside the window beyond the ones listed. */
   readonly moreEvents: number;
   /** Metrics the ranking chose from, across every node. */

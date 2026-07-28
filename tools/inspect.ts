@@ -46,7 +46,7 @@ if (files.length === 0) {
 const inputBytes = files.reduce((n, f) => n + statSync(f).size, 0);
 console.log(`${files.length} file(s), ${(inputBytes / 1e6).toFixed(1)} MB on disk\n`);
 
-const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-inspect-'));
+const dir = await mkdtemp(join(tmpdir(), 'big-hole-inspect-'));
 const store = new NodeFileStore(dir);
 
 let hostname: string | undefined;

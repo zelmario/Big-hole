@@ -59,13 +59,22 @@ function expressionOf(change: HostChange): string {
  * ranking rather than as a small but unusual change.
  */
 function magnitude(from: number, to: number, unit: Unit): string {
-  if (from === 0 || !Number.isFinite(to / from)) return to > from ? 'from zero' : 'to zero';
+  const delta = `${to > from ? '+' : '−'}${formatValue(Math.abs(to - from), unit)}`;
+  if (from === 0) return to > from ? 'from zero' : 'to zero';
+  if (to === 0) return 'to zero';
+
   const ratio = to / from;
+  // A ratio only means anything between two values of the same sign. Across zero it is
+  // arithmetic nonsense -- -0.68 to 6.7e18 printed as "-977359053000902836224%", which reads
+  // as a broken tool rather than as a large change. Say what it moved by instead.
+  if (!Number.isFinite(ratio) || ratio <= 0 || from < 0) return delta;
+
   if (ratio > 1.5) return `×${ratio.toFixed(ratio >= 10 ? 0 : 1)}`;
   const percent = (ratio - 1) * 100;
-  if (Math.abs(percent) < 0.5) {
-    return `${to > from ? '+' : '−'}${formatValue(Math.abs(to - from), unit)}`;
-  }
+  // Below half a percent the ratio rounds to +0%, which reads as a bug in the ranking rather
+  // than as a small but unusual move. A metric can cross most of its whole-capture range and
+  // still be a fraction of a percent of its own value.
+  if (Math.abs(percent) < 0.5) return delta;
   return percent < 0 ? `−${(-percent).toFixed(0)}%` : `+${percent.toFixed(0)}%`;
 }
 
@@ -171,6 +180,17 @@ export function Explain(): ReactElement {
       {explanation?.errors.map((e) => (
         <div key={e} className="small warn pad">
           ⚠ {e}
+        </div>
+      ))}
+
+      {/* Before the ranking, because it explains the ranking. Every cumulative counter returns
+          to zero at a restart, so a comparison spanning one is mostly reporting that one fact
+          over and over. */}
+      {explanation?.restarts.map((r) => (
+        <div key={`${r.captureId}-${r.tMs}`} className="small warn pad">
+          ⚠ {multiNode ? `${r.captureLabel} ` : ''}restarted at {stamp(r.tMs)}, inside the{' '}
+          {r.where}. Counters reset at a restart, so much of what follows is that, not a change
+          in behaviour.
         </div>
       ))}
 

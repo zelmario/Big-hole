@@ -1,7 +1,7 @@
 # FTDC binary format — verified specification
 
 Every claim here was checked against `github.com/mongodb/ftdc` at commit `4041a70`
-(cloned 2026-07-22). Line citations are to that repo. Where the ftdc-lens build brief
+(cloned 2026-07-22). Line citations are to that repo. Where the Big Hole build brief
 disagreed with the reference implementation, the reference wins and the discrepancy is
 called out in **⚠ CORRECTION** blocks.
 
@@ -380,7 +380,7 @@ own column and carry their own data.
 
 The decoder must stay faithful and emit both columns; deduplicating there would break
 equality with the reference. Disambiguation belongs one layer up, in whatever addresses
-series by name — ftdc-lens suffixes collisions within a chunk (`path`, `path#1`). Note that a
+series by name — Big Hole suffixes collisions within a chunk (`path`, `path#1`). Note that a
 suffixed path is only as stable as document order, exactly like the array-index paths below.
 
 ### ⚠ Metric names contain characters that break naive parsers

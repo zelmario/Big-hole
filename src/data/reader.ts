@@ -350,6 +350,12 @@ export class CaptureReader {
     return out;
   }
 
+  /** BSON type the column was decoded from, or undefined for a path this capture lacks. */
+  typeOf(path: string): MetricType | undefined {
+    const id = this.pathIds.get(path);
+    return id === undefined ? undefined : this.manifest.types[id];
+  }
+
   /** Whole-capture range of a path, normalised like its values. Zero for a metric that never moved. */
   rangeOf(path: string): number {
     const id = this.pathIds.get(path);

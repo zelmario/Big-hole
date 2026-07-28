@@ -19,8 +19,35 @@ import {
   type DashboardState,
 } from './layout.js';
 
-const LIBRARY_KEY = 'ftdc-lens:dashboards';
-const CURRENT_KEY = 'ftdc-lens:current';
+const LIBRARY_KEY = 'big-hole:dashboards';
+const CURRENT_KEY = 'big-hole:current';
+
+/** Keys used before the project took the Big Hole name. Migrated on first read; see below. */
+const LEGACY_KEYS: ReadonlyArray<readonly [legacy: string, current: string]> = [
+  ['ftdc-lens:dashboards', LIBRARY_KEY],
+  ['ftdc-lens:current', CURRENT_KEY],
+];
+
+/**
+ * Move anything saved under the old names across, once.
+ *
+ * Saved dashboards are the only thing in this app a user has actually authored, and a rename
+ * is the worst possible reason to lose them. Runs before every read rather than at startup so
+ * it cannot be skipped by whichever module happens to load first.
+ */
+function migrateLegacy(): void {
+  try {
+    for (const [legacy, current] of LEGACY_KEYS) {
+      if (localStorage.getItem(current) !== null) continue;
+      const raw = localStorage.getItem(legacy);
+      if (raw === null) continue;
+      localStorage.setItem(current, raw);
+      localStorage.removeItem(legacy);
+    }
+  } catch {
+    /* see write(): storage can be unavailable, and that is not worth failing over */
+  }
+}
 
 export interface SavedDashboard {
   readonly id: string;
@@ -36,6 +63,7 @@ function newId(): string {
 
 function read<T>(key: string, fallback: T): T {
   try {
+    migrateLegacy();
     const raw = localStorage.getItem(key);
     return raw === null ? fallback : (JSON.parse(raw) as T);
   } catch {
@@ -130,7 +158,7 @@ export function setCurrentId(id: string | null): void {
 /* ------------------------------------------------------------ file transfer ---- */
 
 export interface DashboardFile {
-  readonly kind: 'ftdc-lens-dashboard';
+  readonly kind: 'big-hole-dashboard';
   readonly v: typeof LAYOUT_VERSION;
   readonly name: string;
   readonly state: DashboardState;
@@ -143,14 +171,17 @@ export interface DashboardFile {
  * next to a runbook. Same guarantee either way: the view travels, the data does not.
  */
 export function toFile(name: string, state: DashboardState): string {
-  const payload: DashboardFile = { kind: 'ftdc-lens-dashboard', v: LAYOUT_VERSION, name, state };
+  const payload: DashboardFile = { kind: 'big-hole-dashboard', v: LAYOUT_VERSION, name, state };
   return JSON.stringify(payload, null, 2);
 }
 
 export function fromFile(text: string): { name: string; state: DashboardState } | null {
   try {
-    const parsed = JSON.parse(text) as Partial<DashboardFile>;
-    if (parsed.kind !== 'ftdc-lens-dashboard' || parsed.state === undefined) return null;
+    const parsed = JSON.parse(text) as Partial<DashboardFile> & { kind?: string };
+    // The old name is still accepted: a dashboard someone exported and put next to a runbook
+    // has to keep importing after the project was renamed.
+    const known = parsed.kind === 'big-hole-dashboard' || parsed.kind === 'ftdc-lens-dashboard';
+    if (!known || parsed.state === undefined) return null;
     // Validate through the same path a permalink takes.
     const state = decodeState(encodeState(parsed.state));
     return state === null ? null : { name: parsed.name ?? 'Imported', state };
@@ -182,6 +213,7 @@ export function clearAllLocalState(): void {
   try {
     localStorage.removeItem(LIBRARY_KEY);
     localStorage.removeItem(CURRENT_KEY);
+    for (const [legacy] of LEGACY_KEYS) localStorage.removeItem(legacy);
   } catch {
     /* private browsing, or a disabled store: nothing to clear */
   }

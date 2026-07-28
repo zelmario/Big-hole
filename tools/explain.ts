@@ -60,7 +60,7 @@ function unitFor(change: Change): Unit {
   return base === 'bytes' ? 'bytes/s' : 'per-sec';
 }
 
-const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-explain-'));
+const dir = await mkdtemp(join(tmpdir(), 'big-hole-explain-'));
 const store = new NodeFileStore(dir);
 let reader: CaptureReader | undefined;
 
@@ -169,6 +169,7 @@ try {
     win,
     (path) => reader!.rangeOf(path),
     manifest.endMs - manifest.startMs,
+    (path) => reader!.typeOf(path),
   );
   const changes = rankChanges(inputs, { limit: 40 });
 

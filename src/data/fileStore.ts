@@ -89,6 +89,15 @@ interface FileSystemSyncAccessHandleLike {
  * local file -- which is what makes per-chunk random access cheap.
  */
 export class OpfsFileStore implements FileStore {
+  /**
+   * The directory name is deliberately still the project's old one.
+   *
+   * This string is a storage identity, not a brand. OPFS has no rename, so changing it would
+   * not move the captures already decoded on disk -- it would strand them: unreachable from the
+   * UI, still counting against the origin's quota, and gigabytes each. That is precisely the
+   * wreckage the ingest-failure cleanup exists to prevent, and creating it deliberately for a
+   * name nobody sees would be a poor trade.
+   */
   constructor(private readonly rootName = 'ftdc-lens') {}
 
   private async root(): Promise<FileSystemDirectoryHandle> {

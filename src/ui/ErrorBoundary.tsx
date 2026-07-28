@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     // eslint-disable-next-line no-console
-    console.error('ftdc-lens render error:', error, info.componentStack);
+    console.error('Big Hole render error:', error, info.componentStack);
   }
 
   override render(): ReactNode {

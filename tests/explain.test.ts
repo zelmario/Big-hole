@@ -24,6 +24,7 @@ import {
   baselineFor,
   changeInputs,
   compare,
+  isClockPath,
   rankChanges,
   type ChangeInput,
 } from '../src/insights/explain.js';
@@ -253,6 +254,69 @@ describe('ranking what changed', () => {
     expect(changes[0]!.path).toBe('m99');
   });
 
+  /**
+   * Clocks move in every window by construction, and after a restart or a gap they move
+   * enormously -- an optime catching up reads as a metric that went up 1,367x. On the teaching
+   * dataset this put six clocks and two BSON timestamp halves above every real metric.
+   */
+  it('never nominates a clock', () => {
+    for (const path of [
+      'start',
+      'end',
+      'shard.start',
+      'replSetGetStatus.members.0.optime.ts',
+      'replSetGetStatus.members.0.optime.ts.inc',
+      'serverStatus.uptimeMillis',
+      'serverStatus.storageEngine.oldestRequiredTimestampForCrashRecovery',
+    ]) {
+      expect(isClockPath(path), path).toBe(true);
+    }
+    expect(isClockPath('serverStatus.localTime', 'datetime')).toBe(true);
+
+    // And does not throw out metrics that merely look adjacent to one.
+    for (const path of [
+      'serverStatus.wiredTiger.cache.bytes currently in the cache',
+      'replSetGetStatus.members.0.optime.t',
+      'serverStatus.metrics.ttl.passes',
+    ]) {
+      expect(isClockPath(path, 'int64'), path).toBe(false);
+    }
+  });
+
+  it('leaves clocks out of the ranking entirely', () => {
+    const moved = flat(60 * SECOND, 500, 60);
+    const win = new Map([
+      ['start', moved],
+      ['serverStatus.wiredTiger.cache.pages evicted', moved],
+    ]);
+    const base = new Map([
+      ['start', flat(0, 0, 60)],
+      ['serverStatus.wiredTiger.cache.pages evicted', flat(0, 0, 60)],
+    ]);
+    const inputs = changeInputs(base, win, () => 1000, 3600 * SECOND);
+    expect(inputs.map((i) => i.path)).toEqual(['serverStatus.wiredTiger.cache.pages evicted']);
+  });
+
+  /**
+   * WiredTiger packs transaction times as `seconds << 32` and hides them in storageStats under
+   * names like "btree clean tree checkpoint expiration time". They are also the columns the
+   * reference truncates to 32 bits, so one chunk reads -0.68 and the next 6.6e18 -- which ranks
+   * as the largest change in the capture and means nothing.
+   */
+  it('leaves packed timestamps out, whatever they are called', () => {
+    const packed = 'config.transactions.stats.storageStats.wiredTiger.btree.btree clean tree checkpoint expiration time';
+    const win = new Map([
+      [packed, flat(60 * SECOND, 6.643e18, 60)],
+      ['serverStatus.wiredTiger.cache.pages evicted', flat(60 * SECOND, 500, 60)],
+    ]);
+    const base = new Map([
+      [packed, flat(0, -0.68, 60)],
+      ['serverStatus.wiredTiger.cache.pages evicted', flat(0, 0, 60)],
+    ]);
+    const inputs = changeInputs(base, win, () => 1000, 3600 * SECOND);
+    expect(inputs.map((i) => i.path)).toEqual(['serverStatus.wiredTiger.cache.pages evicted']);
+  });
+
   it('pairs the two scans by path and derives the rate scale from the capture span', () => {
     const base = new Map([['a', flat(0, 0, 60)]]);
     const win = new Map([['a', flat(60 * SECOND, 5, 60)]]);
@@ -275,7 +339,7 @@ describe.each(discoverFixtures())('scan matches getSeries: $name', (fixture) => 
   let reader: CaptureReader;
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-scan-'));
+    dir = await mkdtemp(join(tmpdir(), 'big-hole-scan-'));
     const store = new NodeFileStore(dir);
     const bytes = new Uint8Array(readFileSync(fixture.ftdc));
     const writer = await CaptureWriter.create(store, { captureId: 'cap', sourceFile: fixture.ftdc });

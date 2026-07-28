@@ -1,7 +1,12 @@
-# ftdc-lens
+# Big Hole
 
 Browser-native, zero-infrastructure viewer for MongoDB FTDC diagnostic data.
 Everything runs client-side; user data never leaves the machine.
+
+This is the second Big Hole. The first (`github.com/zelmario/Big-hole`, kept at the
+`v1-grafana` tag) decoded FTDC in Python/Go and shipped it to a three-container
+InfluxDB + Grafana stack; this one does the whole job in the browser with no backend at
+all. Same purpose, nothing shared but the name and the reason it exists.
 
 ## What this is
 

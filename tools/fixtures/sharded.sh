@@ -12,12 +12,12 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="${VERSION:-8.0}"
 OUT="$ROOT/sample-data/versions/${VERSION}-sharded"
-NET=ftdc-lens-net
+NET=big-hole-net
 RUN_SECONDS="${RUN_SECONDS:-75}"
 
-CFG=ftdc-lens-cfg
-SHARD=ftdc-lens-shard
-MONGOS=ftdc-lens-mongos
+CFG=big-hole-cfg
+SHARD=big-hole-shard
+MONGOS=big-hole-mongos
 
 cleanup() { docker rm -f "$CFG" "$SHARD" "$MONGOS" >/dev/null 2>&1; }
 cleanup

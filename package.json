@@ -1,9 +1,9 @@
 {
-  "name": "ftdc-lens",
+  "name": "big-hole",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Browser-native, zero-infrastructure viewer for MongoDB FTDC diagnostic data",
+  "description": "Big Hole - browser-native, zero-infrastructure viewer for MongoDB FTDC diagnostic data",
   "license": "MIT",
   "scripts": {
     "test": "vitest run",
@@ -27,7 +27,8 @@
     "verify:explain": "bash tools/browser/verify-explain.sh",
     "verify:togglenode": "bash tools/browser/verify-togglenode.sh",
     "checks": "vite-node tools/checks.ts",
-    "explain": "vite-node tools/explain.ts"
+    "explain": "vite-node tools/explain.ts",
+    "shots": "bash tools/browser/shots.sh"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

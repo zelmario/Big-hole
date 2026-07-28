@@ -1,4 +1,4 @@
-# ftdc-lens — revised build plan
+# Big Hole — revised build plan
 
 Review of the build brief, plus the plan I'd actually execute.
 
@@ -212,7 +212,7 @@ local tool should be deliberately positioned as the top of a funnel, not as the 
 
 Two structural decisions to make at M1:
 
-1. **Extract the decoder as a standalone, DOM-free npm package** (`@ftdc-lens/decoder`) in a
+1. **Extract the decoder as a standalone, DOM-free npm package** (`@big-hole/decoder`) in a
    workspace. Zero browser dependencies, so it runs in Node/Deno/Bun unchanged. That single
    constraint is what later allows server-side ingest for a paid tier — and it makes the
    decoder testable without a browser, which you want anyway. Costs nothing now.
@@ -239,9 +239,12 @@ Flagged rather than assumed:
    captures. If you routinely handle large sharded clusters, Tauri removes the ceiling
    entirely and reuses the React app unchanged — *provided* the storage layer stays behind an
    interface. Keeping that interface clean costs nothing and preserves the option.
-3. **Name.** `ftdc-lens` is serviceable; "lens" is well-worn. Continuity with Big-hole may be
-   worth more than novelty given the existing audience.
-4. **License split** (§5.2) — before the repo is public.
+3. ~~**Name.**~~ **Resolved 2026-07-28.** The project takes the **Big Hole** name and the
+   existing repository, which already has the audience this is for. The Grafana/InfluxDB
+   version stays reachable at the `v1-grafana` tag.
+4. ~~**License split** (§5.2).~~ **Resolved 2026-07-28.** MIT throughout, as Big-hole already
+   shipped and as its forks assumed. Nothing here is worth the friction of a licence change
+   applied retroactively to people who already forked it.
 5. ~~**Which column is the sample clock.**~~ **Resolved 2026-07-22.** `start` is column 0,
    a `DateTime` in epoch milliseconds, with a matching `end` at the tail. Verified against a
    mongod 6.0.26 capture. Look it up by path rather than by index, with

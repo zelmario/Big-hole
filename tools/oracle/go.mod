@@ -1,4 +1,4 @@
-module github.com/zelmar/ftdc-lens/tools/oracle
+module github.com/zelmar/Big-hole/tools/oracle
 
 go 1.24.0
 

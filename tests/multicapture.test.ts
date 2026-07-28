@@ -451,7 +451,7 @@ describe.skipIf(fixtures.length === 0)('two real captures on one dashboard', () 
   let refs: CaptureRef[];
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-m4-'));
+    dir = await mkdtemp(join(tmpdir(), 'big-hole-m4-'));
     const store = new NodeFileStore(dir);
     const bytes = new Uint8Array(readFileSync(fixture.ftdc));
 

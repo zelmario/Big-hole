@@ -1,4 +1,4 @@
-"""Port the devops-land/mongodb_ftdc_viewer Grafana dashboard to ftdc-lens panel specs.
+"""Port the devops-land/mongodb_ftdc_viewer Grafana dashboard to Big Hole panel specs.
 
 Grafana applies derivative() to most panels; those become rate() here. Panels whose Flux
 does something we cannot express generically (per-disk regex fans, CPU percent, replica lag)

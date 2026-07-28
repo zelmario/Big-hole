@@ -80,7 +80,7 @@ describe.each(fixtures)('capture store: $name', (fixture) => {
   let rawBytes: number;
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-test-'));
+    dir = await mkdtemp(join(tmpdir(), 'big-hole-test-'));
     store = new NodeFileStore(dir);
 
     const bytes = new Uint8Array(readFileSync(fixture.ftdc));
@@ -228,7 +228,7 @@ describe('FileStore contract', () => {
     // reads of a manifest collided and the loser threw NoModificationAllowedError -- which the
     // capture list caught and turned into "there are no captures", hiding data that was
     // sitting on disk. Both backends have to allow this.
-    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-concurrent-'));
+    const dir = await mkdtemp(join(tmpdir(), 'big-hole-concurrent-'));
     try {
       const store = new NodeFileStore(dir);
       await store.writeText('cap/manifest.json', '{"captureId":"cap"}');
@@ -246,7 +246,7 @@ describe('FileStore contract', () => {
   });
 
   it('lists capture directories', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-list-'));
+    const dir = await mkdtemp(join(tmpdir(), 'big-hole-list-'));
     try {
       const store = new NodeFileStore(dir);
       await store.writeText('c0/manifest.json', '{}');
@@ -258,7 +258,7 @@ describe('FileStore contract', () => {
   });
 
   it('removeDir resolves when the directory does not exist', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-contract-'));
+    const dir = await mkdtemp(join(tmpdir(), 'big-hole-contract-'));
     try {
       const store = new NodeFileStore(dir);
       // Both backends must agree here. OPFS removeEntry throws NotFoundError by default,
@@ -288,7 +288,7 @@ describe('FileStore contract', () => {
  */
 describe('capture identity survives a reload', () => {
   it('writes the decoded hostname and version into the manifest', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-identity-'));
+    const dir = await mkdtemp(join(tmpdir(), 'big-hole-identity-'));
     try {
       const store = new NodeFileStore(dir);
       const writer = await CaptureWriter.create(store, {
@@ -310,7 +310,7 @@ describe('capture identity survives a reload', () => {
   });
 
   it('leaves them out when the capture carried no metadata', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'ftdc-lens-identity-none-'));
+    const dir = await mkdtemp(join(tmpdir(), 'big-hole-identity-none-'));
     try {
       const store = new NodeFileStore(dir);
       const writer = await CaptureWriter.create(store, { captureId: 'c0', sourceFile: 'm' });

@@ -76,7 +76,7 @@ export function App(): ReactElement {
       const blob = new Blob([JSON.stringify(dashboard(), null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'ftdc-lens-dashboard.json';
+      a.download = 'big-hole-dashboard.json';
       a.click();
       URL.revokeObjectURL(a.href);
       setCopied('layout too large for a URL — downloaded as JSON');
@@ -95,7 +95,7 @@ export function App(): ReactElement {
   return (
     <div className="app">
       <header>
-        <h1>ftdc-lens</h1>
+        <h1>Big Hole</h1>
         {bounds !== null && (
           <div className="summary">
             <span className="muted">

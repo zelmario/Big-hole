@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ftdc-lens</title>
+    <title>Big Hole</title>
     <script>
       /*
        * Boot watchdog.
@@ -61,7 +61,7 @@
           root.innerHTML =
             '<div style="font:13px ui-monospace,Menlo,monospace;color:#e6e9ef;background:#171a1f;' +
             'padding:24px;margin:24px;border:1px solid #2a2f38;border-radius:8px;max-width:900px">' +
-            '<h2 style="margin:0 0 8px;font-size:15px">ftdc-lens did not start</h2>' +
+            '<h2 style="margin:0 0 8px;font-size:15px">Big Hole did not start</h2>' +
             '<p style="color:#8b94a3">The page loaded but the app never mounted. Nothing was ' +
             'uploaded anywhere; this happened entirely in this tab.</p>' +
             (errors.length
@@ -80,8 +80,11 @@
           // wedged layout is no reason to make someone decode 42 hours of FTDC again.
           document.getElementById('ftdc-clear').onclick = function () {
             try {
+              localStorage.removeItem('big-hole:layout');
               localStorage.removeItem('ftdc-lens:layout');
+              localStorage.removeItem('big-hole:dashboards');
               localStorage.removeItem('ftdc-lens:dashboards');
+              localStorage.removeItem('big-hole:current');
               localStorage.removeItem('ftdc-lens:current');
             } catch (e) {
               /* private browsing, or a disabled store: nothing to clear */
