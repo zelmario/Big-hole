@@ -33,7 +33,7 @@ import {
   changeInputs,
   rankChanges,
   type Change,
-} from '../src/insights/explain.js';
+} from '../src/insights/ranking.js';
 import type { SeriesQuery } from '../src/data/reader.js';
 
 const [target, fromArg, toArg] = process.argv.slice(2);

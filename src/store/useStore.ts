@@ -39,7 +39,7 @@ import {
   type HostChange,
   type RestartNote,
   type WindowEvent,
-} from '../insights/explain.js';
+} from '../insights/ranking.js';
 import { statsOf } from '../data/scan.js';
 import { RULES } from '../insights/rules.js';
 import type { LogAnalysis } from '../logs/analyze.js';

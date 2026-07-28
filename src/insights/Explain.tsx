@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore.js';
 import { formatValue } from '../data/format.js';
 import { unitOfPath, type Unit } from '../data/expr.js';
 import { legendLabel } from '../panels/plotData.js';
-import { MAX_SCAN_SAMPLES, type HostChange } from './explain.js';
+import { MAX_SCAN_SAMPLES, type HostChange } from './ranking.js';
 
 /**
  * What changed in the window on screen.

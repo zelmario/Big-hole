@@ -10,7 +10,7 @@
 
 import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
-import type { Change } from '../insights/explain.js';
+import type { Change } from '../insights/ranking.js';
 import type { CaptureManifest, Gap } from '../data/types.js';
 
 export interface IngestRequest {

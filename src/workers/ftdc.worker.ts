@@ -16,7 +16,7 @@ import { hasStoredLog, persistAndAnalyze, restoreLog, type LogProgress } from '.
 import { OpfsFileStore } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
 import { CaptureReader } from '../data/reader.js';
-import { changeInputs, rankChanges } from '../insights/explain.js';
+import { changeInputs, rankChanges } from '../insights/ranking.js';
 import type { CaptureManifest } from '../data/types.js';
 import {
   summarise,

@@ -27,7 +27,7 @@ import {
   isClockPath,
   rankChanges,
   type ChangeInput,
-} from '../src/insights/explain.js';
+} from '../src/insights/ranking.js';
 import { discoverFixtures } from './oracle.js';
 
 const SECOND = 1000;

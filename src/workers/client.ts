@@ -15,7 +15,7 @@
 
 import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
-import type { Change } from '../insights/explain.js';
+import type { Change } from '../insights/ranking.js';
 import type {
   CaptureSummary,
   LogViewLine,
