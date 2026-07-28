@@ -1,6 +1,10 @@
 /**
  * README screenshots, taken from the real app rather than mocked up.
  *
+ * The README carries two: the dashboard and the log viewer. The rest are still taken, because
+ * they cost nothing on a run that has already ingested the capture and they are what you look at
+ * when a UI change needs reviewing -- they are simply not referenced by the README.
+ *
  * A screenshot in a README is a claim about what the tool does, so these are driven through the
  * shipped app in a real browser with a real capture, the same way the verify scripts are. If a
  * feature stops drawing, the picture of it stops being takeable.

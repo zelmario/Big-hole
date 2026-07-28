@@ -1,139 +1,194 @@
 # Big Hole
 
-**Drag a `diagnostic.data` folder into your browser and read every MongoDB FTDC metric —
-correlated with the mongod log, across every node of a replica set at once.**
+**A browser-native reader for MongoDB FTDC.** Drop a `diagnostic.data` directory or a support
+tarball onto the page: it decodes the FTDC in a worker pool, writes a columnar store to OPFS, and
+draws every metric of every node on one time axis, correlated with the mongod log. There is no
+backend, no container, and no upload — the app is static files, and the data never leaves the
+machine, which is enforced by the build rather than promised in a README.
 
-No backend. No containers. No upload. Big Hole decodes FTDC in the browser, stores it on your
-own disk, and works with the network cable pulled out. Diagnostic data from a production
-cluster never leaves your laptop, and that is enforced by the build, not by a promise in a
-README.
-
-![Big Hole dashboard](docs/img/dashboard.png)
+![The dashboard](docs/img/dashboard.png)
 
 ---
 
-## What happened to the Docker version
+## Why this exists
 
 The first Big Hole decoded FTDC with Python and Go and shipped it into a three-container
-InfluxDB + Grafana stack. It worked, but every investigation started with `docker-compose build`,
-a copy of the metrics files into a fixed directory, and a rebuild whenever you wanted a metric
-that was not already in `metrics_to_get.txt`.
+InfluxDB + Grafana stack. Two structural problems ended it:
 
-This is a rewrite with the same purpose and none of the infrastructure. It is also the fix for
-[#3](https://github.com/zelmario/Big-hole/issues/3): FTDC values are 64-bit, InfluxDB's line
-protocol is not, and there is no version of "store it in InfluxDB" that does not eventually lose
-a WiredTiger timestamp. Big Hole keeps the exact 64-bit values all the way to the chart.
+- **The metric set was fixed at build time.** `metrics_to_get.txt` listed what to extract, and
+  anything else meant editing the file and rebuilding the image. A modern mongod reports ~5,700
+  metrics per sample, and the one you need is never the one you listed.
+- **InfluxDB's line protocol cannot hold FTDC's values.** WiredTiger packs transaction times as
+  `seconds << 32`, around 6.6e18, past both int64 line protocol and IEEE-754's exact integer
+  range. That is [#3](https://github.com/zelmario/Big-hole/issues/3), and no version of "store it
+  in InfluxDB" fixes it.
 
-The old version is still there, at the **[`v1-grafana`](https://github.com/zelmario/Big-hole/tree/v1-grafana)**
-tag, if you have a workflow built around it.
-
-| | v1 (Grafana) | v2 (this) |
-|---|---|---|
-| Setup | Docker, docker-compose, 3 containers | `npm install` |
-| Metrics available | those listed in `metrics_to_get.txt`, rebuild to add | **all of them**, ~5,700 on 8.0 |
-| Nodes at once | one | **every node in the bundle** |
-| Logs | separate problem | on the same time axis |
-| Data leaves the machine | no | no — and the build fails if any code tries |
-| Re-reading yesterday's capture | decode it again | instant, it is already on disk |
+This rewrite takes the storage tier out of the path entirely. The old version is preserved at the
+[`v1-grafana`](https://github.com/zelmario/Big-hole/tree/v1-grafana) tag.
 
 ## Quick start
 
-Needs [Node.js](https://nodejs.org/) 20 or newer. Nothing else — no Docker, no Go, no Python.
+Node 20+. No Docker, no Go, no Python.
 
 ```bash
 git clone https://github.com/zelmario/Big-hole.git
 cd Big-hole
 npm install
-npm run dev          # then open http://localhost:5173
+npm run dev          # http://localhost:5173
 ```
 
-Drag one of these onto the page:
+Drop in a `diagnostic.data` directory, a `.tar.gz` support bundle (FTDC and logs are found inside
+it at any depth), or a directory holding one folder per node — every member of a replica set loads
+at once and each panel fans out to all of them.
 
-- a **`diagnostic.data` directory** from a mongod,
-- a **support tarball** (`.tar.gz`) — it finds the FTDC and the logs inside, at any depth,
-- a **bundle directory with one folder per node** — every member of the replica set loads at
-  once, and every chart draws all of them.
+`npm run build` produces a static `dist/` that can be served from anywhere, including a USB stick.
+It makes no network requests at runtime.
 
-Drop a `mongod.log` beside it (or use **+ log**) and the log lines land on the same timeline as
-the metrics.
+## Architecture
 
-To keep a copy for offline use, `npm run build` produces a static `dist/` you can serve from
-anywhere — `npm run preview`, an internal web server, a USB stick. It still never talks to the
-network.
+```
+ File/tarball ──► worker pool (one capture per worker)
+                      │  inflate, BSON reference doc, undelta
+                      ▼
+                  columnar writer ──► OPFS  <captureId>/columns.bin
+                                            <captureId>/manifest.json
+                                            <captureId>/time.bin
+                      │                     full resolution, written once
+                      ▼
+        resident = manifest + sample clock (~2 MB)  +  only what is on screen
+                      │
+                      ▼
+   async getSeries(expr, {from, to, maxPoints}) ─► expression eval at full
+                      │                            resolution ─► min/max envelope
+                      ▼
+                    uPlot
+```
 
-## What you get
+### Decoder (`src/ftdc/`)
 
-### Every metric, not a chosen subset
+FTDC is zlib-compressed, delta-encoded, column-major data behind a BSON reference document. Four
+properties of the format decide whether a decoder is correct, and three of them fail *silently*:
 
-A modern mongod reports around 5,700 metrics per sample. All of them are decoded, all of them
-are searchable in the catalogue, and any of them can be dropped onto a panel. Derived
-expressions — `rate()`, `pct()`, `div()`, `diff()`, `sum()`, `scale()` — are computed at full
-resolution before anything is downsampled, so a rate is exact rather than a rate of averages.
+| | Trap | What a naive decoder produces |
+|---|---|---|
+| 1 | `Double` metrics are delta-encoded as their raw IEEE-754 **bit pattern** | floats render as ~4.6e18 — loud |
+| 2 | BSON `Timestamp` flattens to **two** columns, `key` and `key.inc` | every later column shifts by one, so real numbers appear under the wrong metric names — **silent** |
+| 3 | Deltas are unsigned varints holding **two's-complement-wrapped int64**, no zigzag | `-1` reads as 1.84e19 |
+| 4 | The zero-run counter **carries across column boundaries** | correct on busy captures, corrupt on idle ones — **silent** |
 
-![Metric catalogue](docs/img/catalogue.png)
+Because three of those are silent, correctness is established by differential testing rather than
+spot checks: `tools/oracle/` decodes a fixture with
+[`github.com/mongodb/ftdc`](https://github.com/mongodb/ftdc) and emits JSONL, and the suite
+compares **every metric of every sample** — millions of values per fixture — plus column order at
+each schema boundary.
 
-### Every node on the same chart
+The hot path uses no BigInt. Exact 64-bit accumulation is done in `(hi, lo)` 32-bit halves with an
+explicit carry, converted once per changed sample: `BigInt64Array` is 10–40× slower, and
+accumulating directly into a `Float64Array` drifts a full ULP within a few hundred samples on
+WiredTiger timestamp columns, which live above 2^53. Measured single-core: **197M values/s** on a
+busy capture, **289M/s** on an idle one, where a zero run covering the rest of a column collapses
+to `fill()`.
 
-Panels are written host-agnostically, so dropping in a three-node bundle turns each one into a
-three-node comparison with nothing to configure. Cross-host expressions — replication lag, clock
-skew — are evaluated per node at full resolution and combined on a shared clock, with a
-staleness bound so a node whose capture ended early cannot fabricate a trend.
+`src/ftdc/` is DOM-free and independent of the rest of the app: it takes an `ArrayBuffer` and
+returns typed arrays.
 
-![Multiple nodes](docs/img/multi-node.png)
+### Storage (`src/data/`)
 
-### The log, on the metric timeline
+A three-node replica set over a week is ~600 MB on disk and **~36 GB decoded at full resolution**.
+A browser tab has roughly 1.5 GB, so the decoded form cannot be resident.
 
-A support bundle's mongod log is routinely tens of megabytes and can be gigabytes. Big Hole
-streams it, keeps a few hundred markers and some `logs.*` series, and reads raw lines from disk
-on demand — so the viewer follows the dashboard's window without ever holding the log in memory.
-Double-click a line to pin it across every chart; double-click a chart to jump the log there.
+Ingest is chunk-major and streams: decode a chunk, write it, drop it — memory stays bounded by one
+chunk (~6 MB) regardless of capture size. A chunk block is a constant bitmap, then the elided
+constants, then the varying columns; a column that never moves within a chunk costs 8 bytes
+instead of `sampleCount × 8`. Reading one metric is one positioned read per chunk, and those reads
+are planned and issued through a single `Promise.all` — serialising them cost 41 ms per series on
+a 500-chunk capture against 10 ms batched.
 
-![Log viewer](docs/img/log.png)
+Merging across chunks is **by dotted path, never by column index**, because schemas drift
+mid-capture. A dotted path is also not unique — BSON permits duplicate keys and real captures
+contain them (two mounts at one mountpoint) — so collisions are suffixed `path`, `path#1`.
 
-### Checks that run themselves
+### Downsampling
 
-The handful of questions every engineer asks first — did the ticket pool empty, did the cache go
-dirty, did the queues build, was flow control engaged — run automatically over the whole capture
-the moment it loads. Each finding says what happened, for how long, how many times, and what to
-look at next.
+**Min/max envelope per pixel bucket, not LTTB.** LTTB optimises for visual resemblance of the
+curve, which for diagnostic data is actively dangerous: a two-second drop of
+`concurrentTransactions.read.available` to zero *is* the finding, and LTTB discards it as visually
+insignificant. Full resolution is never destroyed; zooming re-reads from OPFS.
 
-They are deliberately conservative: findings are read off the min/max envelope in the direction
-that makes them pessimistic, so downsampling can hide a short episode but can never invent one.
-A detector that cries wolf gets switched off, and then it catches nothing at all.
+### Multi-capture (`src/data/panelData.ts`)
 
-![Checks](docs/img/checks.png)
+Captures are grouped by **directory** and never merged — every member's files are called
+`metrics.<timestamp>`, so merging produces one incoherent timeline rather than an error. Panel
+metrics are host-agnostic and fan out to every node that resolves them; `c1:path` pins one node;
+and a cross-host expression such as `diff(c0:…lastWriteDate, c1:…lastWriteDate)` is **split at the
+highest single-capture subtree**, evaluated per node at full resolution, and combined afterwards
+on a shared clock. Alignment is nearest-sample with a staleness bound: carrying the previous value
+would bias every lag reading high by up to a sample interval, and without the bound a node whose
+capture ended early holds its last value and fabricates a linear climb.
 
-### "Explain this window"
+### Logs (`src/logs/`)
 
-The question a finding leaves you with is *what else was different at that moment*. Drag across
-a spike and every metric in the capture is ranked by how far it moved compared with the stretch
-of time immediately before it, with the log events inside the window listed first. Click a row
-and the metric goes onto a panel, so the claim is checked against the curve rather than
-believed.
+A support bundle's log is routinely 73 MB and can be 2.5 GB, so nothing is held. The parser
+streams, unwraps syslog framing, locates a window by binary search over the file, and keeps two
+things: a few hundred **markers**, and **`logs.*` series** that join the metric catalogue and need
+no special case anywhere downstream.
 
-![Explain this window](docs/img/explain.png)
+Which lines become markers is a volume decision, not a taste one. One real 24-hour log holds
+19,220 connection events and 18,485 TLS warnings against **10** oplog-fetcher errors; annotating
+everything erases the ten lines that explain the incident. Each rule in `classify.ts` declares
+`annotate` (rare and specific) or `count` (aggregated into a rate); rules match on the numeric
+**statement id** rather than message text, because MongoDB rewords messages between releases; and
+a density guard demotes an `annotate` class that fires too often, since a class that is rare on
+one server is not rare on another.
 
-### The things that are easy to miss
+The viewer's buffer is a **sliding window, not a cap**: reaching either edge loads the next page
+and drops the same number off the far end, so the whole log is reachable while resident cost stays
+bounded. Paging backwards asks the reader for the *end* of a sub-range rather than scanning a
+36-hour log from its start, and the boundary is requested inclusively with the overlap removed
+**by count, not by key** — logs repeat verbatim within a millisecond, and a `Set` would delete
+exactly the bursts an investigation is reading.
 
-- **Gaps and restarts** are detected at ingest and drawn as red bands on every chart. Missing
-  FTDC means mongod was down, stalled, or the host froze — one of the strongest signals in a
-  capture, and invisible unless something draws it.
-- **Renamed metrics resolve anyway.** Tickets moved from `wiredTiger.concurrentTransactions` to
-  `queues.execution` in 8.0; the oplog's collStats moved under `storageStats` in 7.0. Panels are
-  resolved from what the capture actually contains, never from a version string, because a
-  renamed metric produces an empty panel rather than an error.
-- **Sharded members work.** A shard reports `common.serverStatus.…` and `shard.serverStatus.…`
-  simultaneously; role prefixes are detected from the data and applied per path.
-- **Dashboards are yours.** Build one, name it, save it, export it, or share a permalink — which
-  carries the layout only, never the data.
+![The log viewer, following the dashboard's window](docs/img/log.png)
 
-## Supported MongoDB versions
+### Insights (`src/insights/`)
 
-Tested against captures generated from real mongod builds, 4.4 through 8.0, plus a sharded
-cluster and real production bundles from 7.0 and 8.0 (Percona Server for MongoDB included). The
-guardrail is a test, not a claim: `tests/versions.test.ts` asserts that the metrics an
-investigation cannot proceed without — tickets, cache, queues, connections, opcounters, memory,
-CPU — resolve on every captured version.
+Two things, both automatic.
+
+**Detectors.** The checks every engineer runs first — ticket exhaustion, dirty cache, queue
+buildup, flow control, page faulting — held as data in `rules.ts`: a metric, a comparison, a
+threshold, a duration. They read the min/max envelope rather than full resolution, and each test
+reads the column that makes it pessimistic (`<=` reads the bucket's max, `>=` its min), so
+downsampling can hide an episode but never invent one. Rules also declare a `toleranceMs`, because
+real pathologies flap: a capture that spent 377 s above WiredTiger's 20% dirty trigger, peaking at
+36%, never held it unbroken for 60 s, and an unbroken-run detector reported nothing at all.
+Qualifying time is measured against samples *actually* in breach, so tolerating a dip can join an
+episode but cannot manufacture duration, and a gap in the capture always ends one.
+
+**"Explain this window."** Brush any chart and every metric in the capture is ranked by how far it
+moved against the adjacent stretch of time, with the log annotations inside the window listed
+first. `CaptureReader.scan()` answers it in one pass over the window's chunks — **5,759 metrics in
+48 ms** — rather than 5,763 trips through the expression layer. Counters are compared as rates,
+but only when they actually ticked; a rate is scaled by the metric's whole-capture average rather
+than by the two values being compared, or every `0 → something` scores identically; and the score
+is deviation × share of the metric's own range, because deviation alone ranks a metric that never
+moves above one that swung through its entire range.
+
+### Cross-version resolution
+
+Metric paths move between releases and topologies, and every failure here is silent — a renamed
+metric produces an empty panel, not an error. Nothing is keyed to a version string; everything
+resolves from what the capture contains (`expandMetric`):
+
+| Axis | Example | Mechanism |
+|---|---|---|
+| rename | tickets left `wiredTiger.concurrentTransactions` for `queues.execution` in 8.0 | `src/dashboard/aliases.ts` |
+| role scoping | a shard member reports `shard.serverStatus.…` and `common.…` at once | `detectRolePrefixes` |
+| cardinality | one series per disk, mount, or replica-set member | `*` globs in templates |
+
+Roles resolve in two passes — uniform first, so a multi-role node shows one series per role, then
+per-path, so a cross-section expression like `diff(serverStatus.localTime,
+replSetGetStatus.members.*.lastAppliedWallTime)` still resolves when the clock sits under
+`common.` and replication under `shard.`.
 
 | Capture | Metric paths | Roles | Panels that draw |
 |---|---|---|---|
@@ -141,89 +196,78 @@ CPU — resolve on every captured version.
 | 7.0 | 2,950 | none | 43/44 |
 | 8.0 | 5,616 | none | 43/44 |
 | 8.0 sharded | 5,846 | `common`, `shard` | 43/44 |
-| real 8.0 sharded, 3 members | 5,763 | `common`, `shard` | **44/44** |
+| 8.0 sharded, 3 members | 5,763 | `common`, `shard` | **44/44** |
 
-The one panel missing on single-node fixtures is "Replica members ping", which needs a peer to
-ping.
+`tests/versions.test.ts` asserts that the metrics an investigation cannot proceed without resolve
+on every captured version. `npm run coverage -- <dir>` prints which panels a capture cannot draw
+and why.
 
-## Privacy, as a build gate
+## Privacy, enforced by the build
 
-The promise is that diagnostic data from a production cluster stays on your machine.
-That is worth nothing unless it is checked:
+- CI fails on `fetch`, `XMLHttpRequest`, `sendBeacon` or `WebSocket` outside an explicit allowlist.
+- The shipped CSP permits no external origins; fonts and wasm are bundled.
+- Captures live in **OPFS** — the origin's private on-disk storage, which is local disk and not a
+  network surface. `localStorage` holds dashboard layouts only, and `tests/privacy.test.ts`
+  enforces that exactly two modules may touch it.
+- A test loads a capture with the network stubbed to throw, and the browser harnesses assert that
+  a full session — ingest, charts, logs, checks, explain — issues no request at all.
+- Permalinks encode layout only: lz-compressed, size-capped, with a fallback to a downloadable
+  `.json`.
 
-- CI fails the build on `fetch`, `XMLHttpRequest`, `sendBeacon` or `WebSocket` outside an
-  explicit allowlist.
-- The shipped HTML's CSP permits no external origins. Fonts and wasm are bundled.
-- A test loads a capture with the network stubbed to throw.
-- Decoded captures live in **OPFS** — the browser's private on-disk storage for this origin,
-  which is local disk and not a network surface. `localStorage` holds dashboard layouts only.
-- The browser checks assert that a full session — ingest, charts, logs, checks, explain — issues
-  no network request at all.
+## Measured
 
-## Speed
-
-Measured on a real 42-hour, 152,308-sample, 5,763-metric production capture (102 MB on disk),
-single core:
+A 42-hour, 152,308-sample, 5,763-metric production capture (102 MB on disk), single core:
 
 | | |
 |---|---|
 | decode | 197–289M values/s |
 | ingest | 13.7 s for 877M values, cold |
-| stored | 7,022 MB dense → **1,522 MB** after constant-column elision |
-| resident memory once open | **1.95 MB** — the manifest and the sample clock |
-| one series at 1200 points | **10 ms** |
-| ranking all 5,759 metrics over a window | **48 ms** |
+| stored | 7,022 MB dense → **1,522 MB** after constant-column elision (4.6×) |
+| resident once open | **1.95 MB** — manifest and sample clock |
+| one series at 1200 points | **10.1 ms** |
+| rank every metric over a window | **48 ms** |
 
-Resident memory is a function of what is on screen, not of capture size: a one-day single-node
-capture decodes in about a second, and a three-node replica-set week is handled by streaming
-chunks to disk rather than by holding 36 GB in a tab.
+Resident cost scales with capture *duration*, not width: the clock is 8 bytes per sample, so 42
+hours costs under 2 MB regardless of its 5,763 metrics.
 
 ## Development
 
 ```bash
-npm run dev              # Vite dev server
-npm test                 # full suite, including full-matrix decoder equality
-npm run build            # typecheck + production build
-```
+npm run dev                          # Vite
+npm test                             # 291 tests, including full-matrix decoder equality
+npm run build                        # typecheck + production build
 
-Verification tools, all of which take real captures:
-
-```bash
-npm run inspect  -- <dir>          # cadence, gaps, roles, throughput, elision, coverage
-npm run coverage -- <dir>          # which dashboard panels this capture cannot draw, and why
-npm run checks   -- <dir>          # run every pathology rule and print what fired
+npm run inspect  -- <dir>            # cadence, gaps, roles, throughput, elision, coverage
+npm run coverage -- <dir>            # panels this capture cannot draw, and why
+npm run checks   -- <dir>            # run every detector, print what fired
 npm run explain  -- <dir> [from to]  # rank what moved in a window
-npm run verify:multi [bundle]      # drive the real app in a real Chromium
-npm run verify:explain [bundle]
-npm run verify:logpage [bundle]
+
+npm run oracle:build                 # Go reference decoder (needs Docker)
+npm run fixtures                     # capture fixtures from a local mongod
+npm run fixtures:versions            # the 4.4 → 8.0 matrix
+npm run fixtures:sharded             # a sharded cluster — the only way to reproduce role scoping
+
+npm run verify:multi     [bundle]    # drive the real app in a real Chromium
+npm run verify:explain   [bundle]
+npm run verify:logpage   [bundle]
 ```
 
-The decoder is verified against MongoDB's own implementation rather than against itself:
-`tools/oracle/` decodes a fixture with `github.com/mongodb/ftdc` and emits JSONL, and the test
-suite compares **every metric of every sample** — millions of values per fixture — plus column
-order at each schema boundary. FTDC has several failure modes that are completely silent (a BSON
-`Timestamp` produces two columns, and a zero-run counter carries across column boundaries), so
-spot-checks are not an acceptable substitute.
+`ARCHITECTURE.md` documents every non-obvious decision and the measurement behind it.
+`docs/ftdc-format.md` is the byte-level format spec, verified against the reference implementation
+with line citations.
 
-```bash
-npm run oracle:build       # builds the Go reference (needs Docker)
-npm run fixtures           # captures fixtures from a local mongod
-npm run fixtures:versions  # the 4.4 → 8.0 matrix
-npm run fixtures:sharded   # a sharded cluster, the only way to reproduce role scoping
-```
+## Stack
 
-`docs/ftdc-format.md` is the byte-level format spec, verified against the reference
-implementation with line citations. `ARCHITECTURE.md` and `PLAN.md` describe the architecture and why
-each decision was made — including the ones that were wrong first.
+Vite · React · TypeScript (strict) · fflate (inflate + tar) · uPlot · react-grid-layout · Zustand
+· Vitest. No charting framework, no state library beyond Zustand, and no runtime dependency that
+touches the network.
 
 ## Credits
 
-- The original Big Hole was built after using **[Keyhole](https://github.com/simagix/keyhole)**
-  by Ken Chen (@simagix), and exists because sometimes you need a metric it does not show.
-- **[github.com/mongodb/ftdc](https://github.com/mongodb/ftdc)** is the reference implementation
-  the decoder is verified against.
-- The starting dashboard is ported from
-  **[devops-land/mongodb_ftdc_viewer](https://github.com/devops-land/mongodb_ftdc_viewer)**.
+Built after years of using **[Keyhole](https://github.com/simagix/keyhole)** by Ken Chen
+(@simagix), and because sometimes you need the metric it does not show.
+**[github.com/mongodb/ftdc](https://github.com/mongodb/ftdc)** is the reference implementation
+this decoder is verified against.
 
 ## License
 
