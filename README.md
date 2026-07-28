@@ -142,11 +142,10 @@ Grafana — is still available at the
 ## Author
 
 **Zelmar Michelini** — [LinkedIn](https://uy.linkedin.com/in/zelmario) ·
-[github.com/zelmario](https://github.com/zelmario) ·
-[zelmar@michelini.com.uy](mailto:zelmar@michelini.com.uy)
+[github.com/zelmario](https://github.com/zelmario)
 
-Found a capture it reads wrongly, or a metric it cannot resolve? That is the most useful thing
-you can send me — with the mongod version and, if you can share it, the capture.
+Found a capture it reads wrongly, or a metric it cannot resolve? Open an issue — that is the most
+useful thing you can send, with the mongod version and, if you can share it, the capture.
 
 ## License
 

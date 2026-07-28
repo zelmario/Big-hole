@@ -190,6 +190,27 @@ export function Help(): ReactElement | null {
             </ul>
           </section>
 
+          <section>
+            <h3>About</h3>
+            <p className="small">
+              Built by <b>Zelmar Michelini</b> —{' '}
+              {/* Plain links: nothing is requested until you click one, so the privacy promise
+                  holds. rel=noreferrer keeps even the click from carrying where it came from. */}
+              <a href="https://uy.linkedin.com/in/zelmario" target="_blank" rel="noreferrer noopener">
+                LinkedIn
+              </a>{' '}
+              ·{' '}
+              <a href="https://github.com/zelmario" target="_blank" rel="noreferrer noopener">
+                github.com/zelmario
+              </a>
+            </p>
+            <p className="small muted">
+              A capture this reads wrongly, or a metric it cannot resolve, is worth reporting: it
+              fails silently by design — an empty panel, never an error — so nobody finds out
+              unless you say so.
+            </p>
+          </section>
+
           <p className="help-foot muted small">
             Press <K>Esc</K> or click outside to close.
           </p>
