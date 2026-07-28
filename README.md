@@ -139,6 +139,14 @@ The previous version of Big Hole — the one that decoded FTDC into InfluxDB and
 Grafana — is still available at the
 [`v1-grafana`](https://github.com/zelmario/Big-hole/tree/v1-grafana) tag.
 
+## Author
+
+**Zelmar Michelini** — [github.com/zelmario](https://github.com/zelmario) ·
+[zelmar@michelini.com.uy](mailto:zelmar@michelini.com.uy)
+
+Found a capture it reads wrongly, or a metric it cannot resolve? That is the most useful thing
+you can send me — with the mongod version and, if you can share it, the capture.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
