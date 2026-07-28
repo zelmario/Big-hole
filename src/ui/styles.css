@@ -430,3 +430,24 @@ header { align-items: center; flex-wrap: wrap; }
 
 .tab-bad  { color: var(--err); font-weight: 700; }
 .tab-warn { color: var(--warn); font-weight: 700; }
+
+/* ---- M6: explain this window ---- */
+/* A row is a button, not a card: the whole point is that clicking it puts the metric on a
+   chart, so it has to read as something you press. Two lines -- what moved, and the two
+   numbers being compared -- because a ranked list you cannot sanity-check is an oracle. */
+.explain-heading { color: var(--muted); text-transform: lowercase; letter-spacing: .04em;
+  padding: 6px 9px 2px; }
+.explain-events { padding: 0 8px; }
+.change { display: block; width: 100%; text-align: left; cursor: pointer;
+  border: 1px solid #232833; border-radius: 6px; padding: 5px 8px; margin-bottom: 5px;
+  background: #12151b; color: var(--fg); font-size: 12px; }
+.change:hover { background: #171b23; border-color: #2f3644; }
+.change-event { border-left: 3px solid #8ab8ff; }
+.change-head { display: flex; align-items: baseline; gap: 6px; }
+.change-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Inside a change row the host chip leads the line rather than floating right; the ratio is
+   what belongs on the right, because that is the column the eye scans down. */
+.change-head .finding-host { margin-left: 0; flex: none; }
+.change-up { color: var(--warn); font-variant-numeric: tabular-nums; }
+.change-down { color: var(--accent); font-variant-numeric: tabular-nums; }
+.change-values { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

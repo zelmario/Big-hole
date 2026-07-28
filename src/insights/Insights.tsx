@@ -35,13 +35,14 @@ function span(ms: number): string {
 
 function Row({ finding }: { finding: Finding }): ReactElement {
   const setRange = useStore((s) => s.setRange);
+  const explainRange = useStore((s) => s.explainRange);
   const captures = useStore((s) => s.captures);
   const multiNode = captures.filter((c) => c.visible).length > 1;
 
   // A window with context either side: the episode alone tells you nothing about what led to it,
   // and what led to it is the whole reason to look.
+  const width = Math.max(finding.worstToMs - finding.worstFromMs, 60_000);
   const jump = (): void => {
-    const width = Math.max(finding.worstToMs - finding.worstFromMs, 60_000);
     setRange([finding.worstFromMs - width, finding.worstToMs + width]);
   };
 
@@ -70,6 +71,18 @@ function Row({ finding }: { finding: Finding }): ReactElement {
       </div>
       <div className="finding-when muted small">
         worst stretch {stamp(finding.worstFromMs)}–{stamp(finding.worstToMs)} — click to zoom
+        {/* The finding says a threshold was crossed; the explanation says what else was
+            different while it was. Stop the click so it does not also fire the plain zoom. */}
+        <button
+          className="link small"
+          title="Rank every metric over this episode"
+          onClick={(e) => {
+            e.stopPropagation();
+            explainRange(finding.worstFromMs - width, finding.worstToMs + width);
+          }}
+        >
+          explain
+        </button>
       </div>
 
       <div className="finding-what small">{finding.what}</div>

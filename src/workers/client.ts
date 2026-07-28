@@ -15,6 +15,7 @@
 
 import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
+import type { Change } from '../insights/explain.js';
 import type {
   CaptureSummary,
   LogViewLine,
@@ -23,6 +24,12 @@ import type {
   Response,
   SeriesPayload,
 } from './protocol.js';
+
+/** What moved in a window, and how many metrics that was chosen from. */
+export interface ExplainResult {
+  readonly changes: Change[];
+  readonly compared: number;
+}
 
 /** One page of log lines, with whether the window holds more on either side of it. */
 export interface LogPage {
@@ -87,6 +94,10 @@ export class FtdcClient {
       case 'series':
         this.pending.delete(msg.id);
         entry.resolve(msg.series as never);
+        return;
+      case 'explain':
+        this.pending.delete(msg.id);
+        entry.resolve({ changes: msg.changes, compared: msg.compared } as never);
         return;
       case 'captures':
         this.pending.delete(msg.id);
@@ -160,6 +171,30 @@ export class FtdcClient {
       captureId,
       paths,
       query,
+    });
+  }
+
+  /**
+   * Rank every metric in a capture by how much it moved in a window, against a baseline.
+   *
+   * Routed to the capture's worker like every other read. Rejects when the window is wider than
+   * the scan's sample cap -- that is a real answer ("narrow it"), not a failure to hide.
+   */
+  explain(
+    captureId: string,
+    window: { fromMs: number; toMs: number },
+    baseline: { fromMs: number; toMs: number },
+    opts: { limit?: number; maxSamples?: number } = {},
+  ): Promise<ExplainResult> {
+    return this.send<ExplainResult>(this.route(captureId), {
+      kind: 'explain',
+      captureId,
+      fromMs: window.fromMs,
+      toMs: window.toMs,
+      baseFromMs: baseline.fromMs,
+      baseToMs: baseline.toMs,
+      ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+      ...(opts.maxSamples !== undefined ? { maxSamples: opts.maxSamples } : {}),
     });
   }
 

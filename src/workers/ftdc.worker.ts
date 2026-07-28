@@ -16,6 +16,7 @@ import { hasStoredLog, persistAndAnalyze, restoreLog, type LogProgress } from '.
 import { OpfsFileStore } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
 import { CaptureReader } from '../data/reader.js';
+import { changeInputs, rankChanges } from '../insights/explain.js';
 import type { CaptureManifest } from '../data/types.js';
 import {
   summarise,
@@ -194,6 +195,39 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         ]);
 
         post({ kind: 'series', id, series }, transfer);
+        break;
+      }
+
+      case 'explain': {
+        const r = await reader(request.captureId);
+        // Both windows before either is ranked: the comparison is per metric, so the two scans
+        // are independent and the second is not waiting on anything the first produced.
+        const [win, base] = await Promise.all([
+          r.scan({
+            from: request.fromMs,
+            to: request.toMs,
+            ...(request.maxSamples !== undefined ? { maxSamples: request.maxSamples } : {}),
+          }),
+          r.scan({
+            from: request.baseFromMs,
+            to: request.baseToMs,
+            ...(request.maxSamples !== undefined ? { maxSamples: request.maxSamples } : {}),
+          }),
+        ]);
+        const inputs = changeInputs(
+          base,
+          win,
+          (path) => r.rangeOf(path),
+          r.manifest.endMs - r.manifest.startMs,
+        );
+        post({
+          kind: 'explain',
+          id,
+          changes: rankChanges(inputs, {
+            ...(request.limit !== undefined ? { limit: request.limit } : {}),
+          }),
+          compared: inputs.length,
+        });
         break;
       }
 

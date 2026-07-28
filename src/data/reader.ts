@@ -12,7 +12,8 @@
 import type { MetricType } from '../ftdc/types.js';
 import type { FileStore, ReadableFile } from './fileStore.js';
 import { envelope } from './downsample.js';
-import { ExprError, evaluate, exprPaths, parseExpr, unitOf, type Unit } from './expr.js';
+import { ExprError, evaluate, exprPaths, parseExpr, scaleOfPath, unitOf, type Unit } from './expr.js';
+import { SeriesScan, type WindowStats } from './scan.js';
 import type { CaptureManifest, Gap, Series } from './types.js';
 
 export interface SeriesQuery {
@@ -252,6 +253,109 @@ export class CaptureReader {
     }
 
     return envelope(expression, t, evaluate(expr, t, raw), query.maxPoints ?? 0);
+  }
+
+  /**
+   * What every metric did over one window, in a single pass.
+   *
+   * Chunk-major storage is what makes this affordable: the columns for a window sit together,
+   * so the whole window is a handful of positioned reads regardless of how many metrics it
+   * covers. Reading the same thing series by series would be one read per chunk per metric --
+   * five thousand times the round trips for the same bytes.
+   *
+   * Deliberately bounded by `maxSamples` rather than being clever about wide windows. The cost
+   * is linear in the window's duration and this reads FULL resolution, which is the point:
+   * downsampling first would hide the short excursions the ranking is looking for. A window
+   * wider than the cap is refused by name so the caller can say "narrow it" instead of freezing
+   * the tab for twenty seconds.
+   */
+  async scan(
+    query: SeriesQuery & { readonly maxSamples?: number } = {},
+  ): Promise<Map<string, WindowStats>> {
+    const m = this.manifest;
+    const s0 = this.lowerBound(query.from ?? m.startMs);
+    const s1 = this.lowerBound((query.to ?? m.endMs) + 1);
+
+    const out = new Map<string, WindowStats>();
+    if (s1 <= s0) return out;
+
+    const cap = query.maxSamples ?? Number.POSITIVE_INFINITY;
+    if (s1 - s0 > cap) {
+      throw new ExprError(
+        `window covers ${(s1 - s0).toLocaleString()} samples, more than the ${cap.toLocaleString()} a scan reads`,
+      );
+    }
+
+    // A delta may not span a hole in the capture: the collector stopping is not evidence about
+    // what the metric did while it was stopped.
+    const maxGapMs = Math.max(m.cadenceMs * 4, 5000);
+    const scans = new Map<number, SeriesScan>();
+    const factors = new Map<number, number>();
+
+    const nChunks = m.chunks.offset.length;
+    for (let c = 0; c < nChunks; c++) {
+      const first = m.chunks.firstSample[c]!;
+      const count = m.chunks.sampleCount[c]!;
+      const last = first + count;
+      if (last <= s0 || first >= s1) continue;
+
+      const schema = m.schemas[m.chunks.schemaId[c]!]!;
+      const bitmapBytes = (Math.ceil(schema.length / 8) + 7) & ~7;
+      const constCount = m.chunks.constCount[c]!;
+      const varyingCount = schema.length - constCount;
+      const blockBytes = bitmapBytes + constCount * 8 + varyingCount * count * 8;
+
+      const raw = await this.columns.read(m.chunks.offset[c]!, blockBytes);
+      // A Float64Array view needs 8-byte alignment and the backend may hand back a view at any
+      // offset. Copying a whole chunk is one memcpy of a few MB; reading it a value at a time
+      // through a DataView instead costs a call per value, and there are 100M of them.
+      const block = (raw.byteOffset & 7) === 0 ? raw : new Uint8Array(raw);
+      const values = new Float64Array(
+        block.buffer,
+        block.byteOffset + bitmapBytes,
+        constCount + varyingCount * count,
+      );
+
+      const lo = Math.max(first, s0);
+      const hi = Math.min(last, s1);
+
+      let constSlot = 0;
+      let varSlot = 0;
+      for (let col = 0; col < schema.length; col++) {
+        const pathId = schema[col]!;
+        const isConst = (block[col >> 3]! & (1 << (col & 7))) !== 0;
+
+        let scan = scans.get(pathId);
+        if (scan === undefined) {
+          scan = new SeriesScan(maxGapMs);
+          scans.set(pathId, scan);
+          // Same normalisation getSeries applies, so a scanned value and a charted value are
+          // the same number -- mem.resident in bytes, not in MiB.
+          factors.set(pathId, scaleOfPath(m.paths[pathId]!));
+        }
+        const factor = factors.get(pathId)!;
+
+        if (isConst) {
+          scan.run(values[constSlot]! * factor, this.times[lo]!, this.times[hi - 1]!, hi - lo);
+          constSlot++;
+        } else {
+          const base = constCount + varSlot * count - first;
+          for (let i = lo; i < hi; i++) scan.push(this.times[i]!, values[base + i]! * factor);
+          varSlot++;
+        }
+      }
+    }
+
+    for (const [pathId, scan] of scans) out.set(m.paths[pathId]!, scan.result());
+    return out;
+  }
+
+  /** Whole-capture range of a path, normalised like its values. Zero for a metric that never moved. */
+  rangeOf(path: string): number {
+    const id = this.pathIds.get(path);
+    if (id === undefined) return NaN;
+    const factor = scaleOfPath(path);
+    return (this.manifest.max[id]! - this.manifest.min[id]!) * factor;
   }
 
   /** Unit implied by an expression, used to format axes and legend values. */

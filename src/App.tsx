@@ -10,6 +10,7 @@ import { MetricCatalog } from './dashboard/MetricCatalog.js';
 import { LogView } from './logs/LogView.js';
 import { LogWindow } from './logs/LogWindow.js';
 import { Insights } from './insights/Insights.js';
+import { Explain } from './insights/Explain.js';
 import { Help } from './ui/Help.js';
 import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
@@ -42,6 +43,7 @@ export function App(): ReactElement {
   const pinCount = useStore((s) => s.pins.length);
   const logLoading = useStore((s) => Object.keys(s.logProgress).length > 0);
   const analyzing = useStore((s) => s.analyzing);
+  const explaining = useStore((s) => s.explaining);
   const findingCount = useStore((s) => s.findings?.length ?? 0);
   const worstSeverity = useStore((s) => s.findings?.[0]?.severity ?? null);
 
@@ -198,13 +200,23 @@ export function App(): ReactElement {
                       </span>
                     )}
                   </button>
+                  <button
+                    className={tab === 'explain' ? 'tab on' : 'tab'}
+                    title="Rank every metric by how much it moved in the visible window"
+                    onClick={() => setTab('explain')}
+                  >
+                    explain
+                    {explaining && <span className="tab-loading"> ●</span>}
+                  </button>
                 </div>
                 {tab === 'metrics' ? (
                   <MetricCatalog />
                 ) : tab === 'log' ? (
                   <LogView />
-                ) : (
+                ) : tab === 'insights' ? (
                   <Insights />
+                ) : (
+                  <Explain />
                 )}
               </>
             )}

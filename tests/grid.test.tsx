@@ -220,3 +220,37 @@ describe('maximizing a panel', () => {
     expect(JSON.stringify(useStore.getState().dashboard())).not.toContain('maximiz');
   });
 });
+
+/**
+ * A metric click has to land on a chart.
+ *
+ * The shipped dashboard opens with a section heading, so focusing the first panel pointed the
+ * catalogue at one: clicking a metric stored it on the heading, which draws nothing, and the
+ * click looked like it had simply been ignored. Found by clicking a row in the explain tab and
+ * watching the legend not change.
+ */
+describe('adding a metric to the focused panel', () => {
+  const withSection: PanelSpec[] = [
+    { id: 'head', kind: 'section', title: 'WiredTiger', metrics: [], x: 0, y: 0, w: 24, h: 1 },
+    { id: 'chart', kind: 'chart', title: 'Cache', metrics: [], x: 0, y: 1, w: 12, h: 8 },
+  ];
+
+  it('falls through a focused section to the first chart', () => {
+    useStore.setState({ panels: withSection, focused: 'head' });
+    act(() => {
+      useStore.getState().toggleMetric('serverStatus.mem.resident');
+    });
+    const panels = useStore.getState().panels;
+    expect(panels.find((p) => p.id === 'head')!.metrics).toEqual([]);
+    expect(panels.find((p) => p.id === 'chart')!.metrics).toEqual(['serverStatus.mem.resident']);
+  });
+
+  it('still toggles on the focused chart when there is one', () => {
+    useStore.setState({ panels: withSection, focused: 'chart' });
+    act(() => {
+      useStore.getState().toggleMetric('a.b');
+      useStore.getState().toggleMetric('a.b');
+    });
+    expect(useStore.getState().panels.find((p) => p.id === 'chart')!.metrics).toEqual([]);
+  });
+});

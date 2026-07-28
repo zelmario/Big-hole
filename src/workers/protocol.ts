@@ -10,6 +10,7 @@
 
 import type { LogAnalysis } from '../logs/analyze.js';
 import type { CatalogEntry, SeriesQuery } from '../data/reader.js';
+import type { Change } from '../insights/explain.js';
 import type { CaptureManifest, Gap } from '../data/types.js';
 
 export interface IngestRequest {
@@ -28,6 +29,26 @@ export interface SeriesRequest {
   readonly captureId: string;
   readonly paths: string[];
   readonly query: SeriesQuery;
+}
+
+/**
+ * Rank every metric by how much it moved in a window, against an adjacent baseline.
+ *
+ * In the worker because it reads full resolution over every column: the answer is a few dozen
+ * rows, but arriving at it touches every byte the window covers, and that is not work the main
+ * thread should be holding still for.
+ */
+export interface ExplainRequest {
+  readonly kind: 'explain';
+  readonly captureId: string;
+  readonly fromMs: number;
+  readonly toMs: number;
+  readonly baseFromMs: number;
+  readonly baseToMs: number;
+  /** Rows to return. The tail of a ranked list is noise by construction. */
+  readonly limit?: number;
+  /** Refuse rather than read a window wider than this many samples. See CaptureReader.scan. */
+  readonly maxSamples?: number;
 }
 
 /**
@@ -112,6 +133,7 @@ export type Request =
   | IngestRequest
   | CatalogRequest
   | SeriesRequest
+  | ExplainRequest
   | LogsRequest
   | LogRangeRequest
   | CapturesRequest
@@ -163,6 +185,13 @@ export type Response =
   | { readonly kind: 'ingested'; readonly id: number; readonly summary: CaptureSummary }
   | { readonly kind: 'catalog'; readonly id: number; readonly entries: CatalogEntry[] }
   | { readonly kind: 'series'; readonly id: number; readonly series: SeriesPayload[] }
+  | {
+      readonly kind: 'explain';
+      readonly id: number;
+      readonly changes: Change[];
+      /** Metrics the window and the baseline had in common, i.e. what the ranking chose from. */
+      readonly compared: number;
+    }
   | { readonly kind: 'captures'; readonly id: number; readonly captures: CaptureSummary[] }
   | { readonly kind: 'logs'; readonly id: number; readonly analysis: LogAnalysis }
   | {

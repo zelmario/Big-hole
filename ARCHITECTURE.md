@@ -334,6 +334,47 @@ Calibrated against real bundles — silent on a healthy 42 h sharded 8.0 node an
 fixtures, and on the 67.7 h 7.0.34 dirty-cache capture (7.0.34, 67.7 h, known dirty-cache incident) it reports dirty cache
 at or above the 20% eviction trigger for 6h 45m across 174 episodes, peaking at 22.8%.
 
+## Explain this window (M6)
+
+A finding is a coordinate, not an answer. `src/insights/explain.ts` answers the question that
+follows and no rule list can hold: brush a window, and every metric in the capture is ranked by
+how far it moved against the stretch of time immediately before it, with the annotated log lines
+inside the window listed above them.
+
+`CaptureReader.scan()` is what makes it affordable — one pass over the window's chunks
+accumulating per-column statistics (`src/data/scan.ts`), rather than 5,763 trips through the
+expression layer. Chunk-major storage means a window is a handful of positioned reads whatever
+its width in metrics; a constant run costs O(1), exactly as elision intends. **5,759 metrics over
+two 20-minute windows: 48 ms. Over two 5-hour windows: 460 ms.**
+
+Four decisions carry the ranking, each of which was wrong first:
+
+- **The baseline is the adjacent window, not the whole capture.** A 42-hour capture contains
+  several normals, and averaging over them makes every busy hour anomalous. It also bounds the
+  cost: the scan reads full resolution, so a whole-capture baseline reads the whole capture.
+- **Counters are compared as rates** — but only when they *ticked*. Any column that never
+  decreases can be read as a rate, and dividing a single step by the window produces a rate
+  hundreds of times the counter's own capture-wide average. Without the "moved in ≥5% of
+  samples" test, the top of the list on the 67.7 h 7.0.34 dirty-cache capture was entirely `0/s → 0.00/s` rows and the
+  eviction storm was buried under them.
+- **A rate's scale must come from outside the two values compared.** Scaling by the larger of
+  them made every metric that went from nothing to something score *identically* — `0 → 0.001/s`
+  ranked with `0 → 1.6M/s` and the ordering collapsed into path order. The metric's whole-capture
+  average rate (range ÷ duration) is the scale that distinguishes them.
+- **Score = deviation × share of the metric's own range**, with the deviation capped. Deviation
+  alone ranks a metric that normally never moves above one that swung through its whole range —
+  the classic way an anomaly detector ends up reporting thermal noise.
+
+Log-derived series are ranked by the same code from the same numbers, on the main thread, since
+they never went to disk. Verified end to end on the 67.7 h 7.0.34 dirty-cache capture: the window around the dirty-cache
+incident returns forced eviction, application threads evicting and waiting on cache,
+`document.returned` 6.95k → 330k/s and network out 3.6M → 175M/s — a scan that blew the cache.
+
+```bash
+npm run explain -- <dir> [from ISO] [to ISO]   # no window: explains the worst finding
+npm run verify:explain [bundle]                # brush + rank + click-through, in a real browser
+```
+
 ## Storage
 
 A 3-node replica set over a week is roughly 600 MB on disk and **~36 GB decoded at full
@@ -468,6 +509,8 @@ Enforced mechanically, not by convention:
 - `npm run verify:logpage [bundle]` — scroll a log longer than the viewer's buffer and check it
   pages both ways without losing the reader's place or a line; needs a node folder holding a
   `diagnostic.data` and a real log beside it
+- `npm run verify:explain [bundle]` — brush a window on a real chart, check the explain tab ranks
+  it, and check that clicking a row puts the metric on a panel
 
 ## Working style
 

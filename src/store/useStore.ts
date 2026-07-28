@@ -31,6 +31,15 @@ import type { CaptureRef, SeriesSource } from '../data/panelData.js';
 import { groupCaptures, groupLogs, isLogFile, type SourceFile } from '../ingest/discover.js';
 import { withLogs } from '../logs/logSource.js';
 import { detect, type Finding } from '../insights/detect.js';
+import {
+  MAX_SCAN_SAMPLES,
+  baselineFor,
+  rankChanges,
+  type Explanation,
+  type HostChange,
+  type WindowEvent,
+} from '../insights/explain.js';
+import { statsOf } from '../data/scan.js';
 import { RULES } from '../insights/rules.js';
 import type { LogAnalysis } from '../logs/analyze.js';
 import { FtdcClient } from '../workers/client.js';
@@ -137,8 +146,8 @@ interface State {
   showHelp: boolean;
   toggleHelp(on?: boolean): void;
   /** Which sidebar panel is showing. In the store so revealing a log line can switch to it. */
-  sidebarTab: 'metrics' | 'log' | 'insights';
-  setSidebarTab(tab: 'metrics' | 'log' | 'insights'): void;
+  sidebarTab: 'metrics' | 'log' | 'insights' | 'explain';
+  setSidebarTab(tab: 'metrics' | 'log' | 'insights' | 'explain'): void;
   /**
    * Pathologies found by the M6 detectors, worst first.
    *
@@ -150,6 +159,19 @@ interface State {
   findings: Finding[] | null;
   analyzing: boolean;
   analyze(): Promise<void>;
+  /**
+   * What changed in the visible window, against the stretch of capture before it.
+   *
+   * The other half of M6, and the opposite of `findings`: a finding is a statement about the
+   * whole capture, an explanation is a statement about *this* window, so this one is keyed to
+   * the range and recomputed when it moves. `null` means it has not been asked.
+   */
+  explanation: Explanation | null;
+  explaining: boolean;
+  /** Rank every metric over the current range. Refused, with a reason, on a window too wide. */
+  explainWindow(): Promise<void>;
+  /** Zoom to a span and explain it -- the "explain this episode" gesture on a finding. */
+  explainRange(fromMs: number, toMs: number): void;
   /**
    * Per-capture log-parse progress, while a log is being read. Absent when idle.
    *
@@ -315,6 +337,43 @@ function maxStateOf(catalog: readonly CatalogEntry[]): number | undefined {
   return entry?.max;
 }
 
+/**
+ * Rows an explanation shows, across every node.
+ *
+ * The tail of a ranked list is noise by construction: past the first few dozen the scores are
+ * within the ranking's own uncertainty, and a longer list reads as "everything changed", which
+ * is what the ranking exists to avoid saying.
+ */
+const CHANGE_LIMIT = 60;
+
+/** Annotated log lines listed per node, before the rest are summarised as a count. */
+const EVENT_LIMIT = 40;
+
+/** Whole-series range of a log-derived series, the counterpart of CaptureReader.rangeOf. */
+function rangeOfSeries(v: Float64Array): number {
+  let lo = Number.POSITIVE_INFINITY;
+  let hi = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < v.length; i++) {
+    const x = v[i]!;
+    if (Number.isNaN(x)) continue;
+    if (x < lo) lo = x;
+    if (x > hi) hi = x;
+  }
+  return hi >= lo ? hi - lo : NaN;
+}
+
+/**
+ * First panel a metric can actually be added to.
+ *
+ * The default dashboard opens with a section heading ("WiredTiger"), so focusing `panels[0]`
+ * pointed the catalogue -- and the explain rows -- at a panel that draws nothing: clicking a
+ * metric stored it on the heading and no chart ever appeared. A click that silently does
+ * nothing is the worst possible failure for the one gesture the catalogue exists for.
+ */
+function firstChart(panels: readonly PanelSpec[]): PanelSpec | undefined {
+  return panels.find((p) => p.kind === 'chart');
+}
+
 let captureCounter = 0;
 /**
  * Never reused within a session, and never colliding with a capture already on disk.
@@ -432,7 +491,7 @@ function adopt(
     error: failures.length > 0 ? failures.join('; ') : null,
     panels,
     currentId,
-    focused: get().focused ?? panels[0]?.id ?? null,
+    focused: get().focused ?? firstChart(panels)?.id ?? null,
     activeId: get().activeId ?? captures[0]?.id ?? null,
     progress: {},
     // A capture cannot be both open and "recent"; the list is what you could open next.
@@ -458,6 +517,8 @@ export const useStore = create<State>((set, get) => ({
   sidebarTab: 'metrics',
   findings: null,
   analyzing: false,
+  explanation: null,
+  explaining: false,
   logProgress: {},
   logReveal: null,
   panels: [],
@@ -577,6 +638,122 @@ export const useStore = create<State>((set, get) => ({
     } finally {
       set({ analyzing: false });
     }
+  },
+
+  /**
+   * Rank every metric by how much it moved inside the visible window.
+   *
+   * Per capture and concurrently, because the scans are independent and a three-node bundle
+   * would otherwise take three times as long for no reason -- the same argument as ingest.
+   *
+   * Log-derived series are ranked here rather than in the worker: they never went to disk, so
+   * the numbers are already in memory. They go through the same `rankChanges` as everything
+   * else, so a burst of slow queries is ranked against the metrics it happened alongside rather
+   * than being a separate list nobody correlates.
+   */
+  async explainWindow() {
+    const range = get().range;
+    const bounds = get().bounds();
+    if (range === null || bounds === null) {
+      set({ explanation: null });
+      return;
+    }
+
+    const window = { fromMs: range[0], toMs: range[1] };
+    const capture = { fromMs: bounds.startMs, toMs: bounds.endMs };
+    const baseline = baselineFor(window, capture);
+    if (baseline === null) {
+      set({
+        explanation: {
+          window,
+          baseline: null,
+          changes: [],
+          events: [],
+          moreEvents: 0,
+          compared: 0,
+          errors: [
+            'the window covers the whole capture, so there is nothing to compare it against — zoom in',
+          ],
+        },
+      });
+      return;
+    }
+
+    set({ explaining: true });
+    const captures = get().visibleCaptures();
+    const errors: string[] = [];
+    const changes: HostChange[] = [];
+    const events: WindowEvent[] = [];
+    let compared = 0;
+    let moreEvents = 0;
+
+    try {
+      await Promise.all(
+        captures.map(async (c) => {
+          try {
+            const result = await get().client.explain(c.id, window, baseline, {
+              maxSamples: MAX_SCAN_SAMPLES,
+            });
+            compared += result.compared;
+            for (const change of result.changes) {
+              changes.push({ ...change, captureId: c.id, captureLabel: c.label });
+            }
+          } catch (err) {
+            errors.push(`${c.label}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+
+          const logs = c.logs;
+          if (logs === undefined) return;
+
+          // Annotated lines are the rare, specific ones -- an election, a sync-source change --
+          // so inside a brushed window there are normally a handful, and they are the answer far
+          // more often than any metric is.
+          const inside = logs.events.filter((e) => e.tMs >= window.fromMs && e.tMs <= window.toMs);
+          moreEvents += Math.max(0, inside.length - EVENT_LIMIT);
+          for (const event of inside.slice(0, EVENT_LIMIT)) {
+            events.push({ ...event, captureId: c.id, captureLabel: c.label });
+          }
+
+          const seconds = Math.max(1, (capture.toMs - capture.fromMs) / 1000);
+          const logInputs = Object.entries(logs.series).map(([path, series]) => {
+            const range = rangeOfSeries(series.v);
+            return {
+              path,
+              base: statsOf(series.t, series.v, baseline.fromMs, baseline.toMs),
+              win: statsOf(series.t, series.v, window.fromMs, window.toMs),
+              range,
+              rateScale: range / seconds,
+            };
+          });
+          compared += logInputs.length;
+          for (const change of rankChanges(logInputs)) {
+            changes.push({ ...change, captureId: c.id, captureLabel: c.label });
+          }
+        }),
+      );
+
+      changes.sort((a, b) => b.score - a.score);
+      events.sort((a, b) => a.tMs - b.tMs);
+      set({
+        explanation: {
+          window,
+          baseline,
+          changes: changes.slice(0, CHANGE_LIMIT),
+          events,
+          moreEvents,
+          compared,
+          errors,
+        },
+      });
+    } finally {
+      set({ explaining: false });
+    }
+  },
+
+  explainRange(fromMs, toMs) {
+    get().setRange([fromMs, toMs]);
+    set({ sidebarTab: 'explain', showCatalog: true });
+    void get().explainWindow();
   },
 
   revealLogAt(tMs) {
@@ -883,6 +1060,7 @@ export const useStore = create<State>((set, get) => ({
       status: captures.length === 0 ? 'empty' : 'ready',
       activeId: get().activeId === id ? (captures[0]?.id ?? null) : get().activeId,
       range: null,
+      explanation: null,
       ...(closing !== undefined ? { recent: [closing.summary, ...get().recent] } : {}),
     });
     persist(panels, null);
@@ -891,6 +1069,9 @@ export const useStore = create<State>((set, get) => ({
   toggleCapture(id: string) {
     set({
       captures: get().captures.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)),
+      // Like findings, an explanation names the nodes it was computed over. Hiding one has to
+      // withdraw it rather than leave rows attributed to a node that is no longer drawn.
+      explanation: null,
     });
     // Findings name the node they were found on, so hiding one has to withdraw its findings.
     void get().analyze();
@@ -922,7 +1103,7 @@ export const useStore = create<State>((set, get) => ({
     const next = compact(get().panels.filter((p) => p.id !== id));
     set({
       panels: next,
-      focused: get().focused === id ? (next[0]?.id ?? null) : get().focused,
+      focused: get().focused === id ? (firstChart(next)?.id ?? null) : get().focused,
       // Closing the panel you are looking at should return you to the dashboard, not leave a
       // maximised view of something that no longer exists.
       maximized: get().maximized === id ? null : get().maximized,
@@ -942,7 +1123,10 @@ export const useStore = create<State>((set, get) => ({
 
   toggleMetric(path: string) {
     const { panels, focused } = get();
-    const target = focused ?? panels[0]?.id;
+    // A section can be focused -- by a saved layout, or by removing the last chart above it --
+    // and metrics stored on one are never drawn. Fall through to a real chart instead.
+    const focusedPanel = panels.find((p) => p.id === focused);
+    const target = (focusedPanel?.kind === 'chart' ? focusedPanel : firstChart(panels))?.id;
     if (target === undefined) return;
 
     const next = panels.map((p) => {
@@ -1001,7 +1185,7 @@ export const useStore = create<State>((set, get) => ({
     set({
       panels: state.panels,
       range: state.range,
-      focused: state.panels[0]?.id ?? null,
+      focused: firstChart(state.panels)?.id ?? null,
     });
     persist(state.panels, state.range);
   },
@@ -1114,7 +1298,7 @@ export const useStore = create<State>((set, get) => ({
       .filter((p) => p.kind === 'section' || p.metrics.length > 0);
 
     setCurrentId(id);
-    set({ panels, range: entry.state.range, focused: panels[0]?.id ?? null, currentId: id });
+    set({ panels, range: entry.state.range, focused: firstChart(panels)?.id ?? null, currentId: id });
     persist(panels, entry.state.range);
   },
 
@@ -1147,7 +1331,7 @@ export const useStore = create<State>((set, get) => ({
       ),
     ];
     setCurrentId(null);
-    set({ panels, focused: panels[0]?.id ?? null, currentId: null, range: null });
+    set({ panels, focused: firstChart(panels)?.id ?? null, currentId: null, range: null });
     persist(panels, null);
   },
 
@@ -1178,6 +1362,8 @@ export const useStore = create<State>((set, get) => ({
       activeId: null,
       range: null,
       error: null,
+      explanation: null,
+      findings: null,
       recent: [...closed, ...get().recent],
     });
   },

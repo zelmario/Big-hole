@@ -123,6 +123,16 @@ export function Help(): ReactElement | null {
                 none of those fired, not that the server was healthy in every respect.
               </li>
               <li>
+                <b>explain</b> answers the question a finding leaves you with: what else was
+                different at that moment. Drag across a chart to zoom into a window, open the tab,
+                and every metric in the capture is ranked by how far it moved against the stretch
+                of time immediately before — with the annotated log lines that fall inside it
+                listed first, since an election or a sync-source change is usually the
+                explanation rather than a consequence. Click a row to put that metric on the
+                focused panel. Counters are compared as rates, so the numbers read the way the
+                charts do. It reads full resolution, so the window is capped at about five hours.
+              </li>
+              <li>
                 <b>Scroll to load more</b>. The list holds a few thousand lines at a time and
                 slides: reach either end and the next lines load while the far end is dropped.
                 <b> more ↑↓</b> in the header says which way there is still log to read.
