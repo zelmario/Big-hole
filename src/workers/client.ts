@@ -42,6 +42,8 @@ type Pending = {
   resolve: (value: never) => void;
   reject: (err: Error) => void;
   onProgress?: (p: IngestProgressMessage) => void;
+  /** Which worker owes this answer, so a failure in that worker can settle the promise. */
+  target: Worker;
 };
 
 function poolSize(): number {
@@ -66,9 +68,30 @@ export class FtdcClient {
     if (w === undefined) {
       w = new Worker(new URL('./ftdc.worker.ts', import.meta.url), { type: 'module' });
       w.onmessage = (event: MessageEvent<Response>) => this.receive(event.data);
+      // An error that escapes the worker's own handler settles nothing, so every request
+      // routed to that worker stays pending forever -- and because ingest awaits all of its
+      // nodes together, one such error leaves the whole app on "Decoding…" with nothing on
+      // screen to say why. A silent permanent wait is strictly worse than the error it hides.
+      //
+      // The worker is not discarded, only its outstanding requests: `onerror` does not mean
+      // the worker is gone, and it must keep its OPFS handles for the captures pinned to it.
+      // (A worker the browser really does terminate fires nothing at all, and nothing here can
+      // help with that.)
+      const failed = (detail: string): void => this.abandon(w!, detail);
+      w.onerror = (e: ErrorEvent) => failed(e.message || 'the decode worker failed');
+      w.onmessageerror = () => failed('a reply from the decode worker could not be read');
       this.workers[index] = w;
     }
     return w;
+  }
+
+  /** Fail every request this worker still owes, so its callers stop waiting on an answer. */
+  private abandon(target: Worker, detail: string): void {
+    for (const [id, entry] of [...this.pending]) {
+      if (entry.target !== target) continue;
+      this.pending.delete(id);
+      entry.reject(new Error(detail));
+    }
   }
 
   private receive(msg: Response): void {
@@ -143,6 +166,7 @@ export class FtdcClient {
       this.pending.set(id, {
         resolve: resolve as (value: never) => void,
         reject,
+        target,
         ...(onProgress !== undefined ? { onProgress } : {}),
       });
       target.postMessage({ id, request });
