@@ -245,6 +245,13 @@ whose capture ends early holds its last value and fabricates a linear climb. Two
 With one capture loaded nothing is qualified at all, so single-capture layouts, permalinks and
 saved dashboards are byte-identical to what M3 produced.
 
+**The legend has to scale with the fan-out.** One metric across nine members is nine legend
+entries, and the original one-series-per-full-width-row layout put them in a two-row scrolling
+strip: 36 px through which to read nine nodes. It is a grid of `auto-fill` columns now, so the
+width a panel already had does the work (three columns on a tiled panel, six on a maximized
+one), with the height cap proportional and floored at two rows. Columns before rows,
+deliberately — rows are bought with chart height, columns are free.
+
 ## Log correlation
 
 `src/logs/` turns a mongod log into two things and keeps nothing else: a few hundred
@@ -580,7 +587,6 @@ Enforced mechanically, not by convention:
   `diagnostic.data` and a real log beside it
 - `npm run verify:explain [bundle]` — brush a window on a real chart, check the explain tab ranks
   it, and check that clicking a row puts the metric on a panel
-
 - `npm run verify:nodes [bundle]` — the many-node case: a UTC 24-hour chart axis and a legend
   that stays readable at nine members. Runs with `TZ` deliberately away from UTC, because a
   local-time axis and a UTC axis are indistinguishable when you are already in UTC

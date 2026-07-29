@@ -76,20 +76,40 @@ header button { flex-shrink: 0; }
 .catalog { width: 380px; }
 
 /* ---- legend at the foot of each panel (Grafana layout) ---- */
-:root { --legend-row: 18px; --legend-rows: 2; }
+/* --legend-rows is the FLOOR, not the cap: see below. --legend-col is the narrowest a legend
+   column may get before the legend drops back to one column. */
+:root { --legend-row: 18px; --legend-rows: 2; --legend-col: 200px; }
 
 .panel { display: flex; flex-direction: column; }
-/* The plot takes whatever the (hard-capped) legend leaves. */
+/* The plot takes whatever the legend leaves. */
 .panel .plot { flex: 1 1 auto; min-height: 72px; }
 
-/* One metric per row, exactly two rows visible, the rest scrolls. A fixed cap keeps every
-   panel the same shape regardless of how many series it carries. */
-.legend { flex: 0 0 auto; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 0;
-  max-height: calc(var(--legend-row) * var(--legend-rows) + 6px);
+/* Columns, not one series per row.
+ *
+ * One full-width row per series is fine for the one- or two-node case this was written for and
+ * falls apart at eight: a metric fanned out across a nine-member replica set became nine rows
+ * in a two-row box, so reading the legend meant scrolling a 36px-tall window -- reported from a
+ * real ticket. A legend entry is short ("node6 queues.execution.read.available 12") and a panel
+ * the width was there all along; auto-fill spends it. `1fr` columns keep the values aligned
+ * down the panel, which a wrapping flex row would not.
+ *
+ * The height cap is now proportional with a two-row floor, rather than a flat two rows. The
+ * flat cap existed to keep tiled panels the same shape, and that still holds -- a fraction of
+ * the panel is the same shape for every panel -- but it no longer means a tall panel wastes
+ * the room it has. It is a cap, not a size: a two-series panel is still two rows tall.
+ *
+ * 30%, not more, and deliberately modest: the columns are what made nine nodes readable (three
+ * per row means three times the entries in the same strip), so buying further rows with chart
+ * height is a bad trade -- at 38% a tiled panel's plot was squeezed to a single y tick.
+ */
+.legend { flex: 0 1 auto; display: grid; align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(var(--legend-col), 1fr));
+  column-gap: 14px; row-gap: 0;
+  max-height: max(calc(var(--legend-row) * var(--legend-rows) + 6px), 30%);
   overflow-y: auto; overflow-x: hidden;
   padding: 5px 2px 0; margin-top: 4px; border-top: 1px solid var(--line); }
 
-.legend-item { display: flex; align-items: center; gap: 6px; width: 100%;
+.legend-item { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0;
   height: var(--legend-row); flex: 0 0 auto; background: none; border: 0; padding: 0 3px;
   cursor: pointer; font-size: 11px; line-height: var(--legend-row); color: var(--fg);
   border-radius: 3px; text-align: left; }
@@ -102,7 +122,7 @@ header button { flex-shrink: 0; }
 .legend-value { flex: 0 0 auto; color: var(--fg); font-weight: 600; margin-left: 8px;
   font-variant-numeric: tabular-nums; }
 
-/* Thin scrollbar so two rows stay two rows. */
+/* Thin scrollbar, so the rows it sits beside stay the width they were measured at. */
 .legend::-webkit-scrollbar { width: 8px; }
 .legend::-webkit-scrollbar-thumb { background: #39404c; border-radius: 4px; }
 .legend::-webkit-scrollbar-track { background: transparent; }
@@ -226,9 +246,10 @@ header { align-items: center; flex-wrap: wrap; }
    "fill the viewport", so the panel measures itself instead. */
 .maximized-host { height: 100%; }
 .maximized-host > .panel { height: 100%; }
-/* With the whole viewport to work with, show more of the legend before it scrolls -- the
-   two-row cap exists to keep tiled panels the same shape, which no longer applies. */
-.maximized-host .legend { max-height: calc(var(--legend-row) * 8 + 6px); }
+/* With the whole viewport to work with, show more of the legend before it scrolls -- the cap
+   exists to keep tiled panels the same shape, which no longer applies. Wide, too, so the
+   columns get narrower and more of them fit: this is where a nine-node fan-out is read. */
+.maximized-host .legend { max-height: 40%; --legend-col: 170px; }
 
 /* ---- previously ingested captures ---- */
 .recent { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 12px;
