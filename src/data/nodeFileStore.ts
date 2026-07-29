@@ -5,7 +5,7 @@
  * tests and by tools/inspect.ts, and the path a future server-side ingest would take.
  */
 
-import type { FileStore, ReadableFile, WritableFile } from './fileStore.js';
+import { OutOfStorageError, type FileStore, type ReadableFile, type WritableFile } from './fileStore.js';
 export class NodeFileStore implements FileStore {
   constructor(private readonly root: string) {}
 
@@ -36,8 +36,15 @@ export class NodeFileStore implements FileStore {
       },
       async append(data: Uint8Array): Promise<number> {
         const at = size;
-        await handle.write(data, 0, data.byteLength, at);
-        size += data.byteLength;
+        // Checked for the same reason as the OPFS backend: a short write is a truncated
+        // capture that reports itself as a successful one. ENOSPC does throw here, unlike in
+        // OPFS, but a partial write is still permitted and must not pass for a whole one.
+        const { bytesWritten } = await handle.write(data, 0, data.byteLength, at);
+        if (bytesWritten !== data.byteLength) {
+          await handle.close();
+          throw new OutOfStorageError(path, data.byteLength, bytesWritten);
+        }
+        size += bytesWritten;
         return at;
       },
       async close(): Promise<void> {

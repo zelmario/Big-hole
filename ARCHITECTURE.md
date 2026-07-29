@@ -442,6 +442,41 @@ Remaining cost is inherent to reading full resolution and downsampling after: 15
 8 bytes per series. Precomputed rollups would fix it if it ever needs fixing; do not trade
 away spike fidelity for it without measuring first.
 
+### The quota wall, and the trap in front of it
+
+Decoded FTDC is **10–15× its size on disk** (measured: 102 MB → 1,522 MB; 210 MB → 2,367 MB).
+That is fine for a three-node replica set and is not fine for a whole sharded cluster: the
+nine-node bundle that prompted this is 1.9 GB of FTDC and **~21 GB decoded**, past what a
+browser will give one origin. Running out of room is therefore a normal operating condition
+here, not an edge case, and both halves of it have to be handled.
+
+**A short write is not a partial success.** OPFS
+`FileSystemSyncAccessHandle.write()` does not throw when the origin is out of room — verified
+in Firefox against a quota-limited profile, it writes what fits, returns that smaller count,
+and returns `0` from then on, silently. `flush()` and `close()` do not complain either. So
+ignoring the return value converts "out of storage" into undetected data loss that *reports
+itself as success*: columns.bin stops growing, `manifest.json` is written as zero bytes,
+ingest posts `ingested`, and the first anyone hears of it is the next read failing with
+
+```
+JSON.parse: unexpected end of data at line 1 column 1 of the JSON data
+```
+
+— a message naming neither storage, nor the node, nor anything the user can act on. The byte
+count is checked on **every** append, in both backends, and a short one raises
+`OutOfStorageError` (`src/data/fileStore.ts`).
+
+**Release the handle on the way out.** OPFS refuses `removeEntry` on a directory holding an
+open sync access handle (`NoModificationAllowedError`). A writer that leaks its handle on the
+failure path therefore defeats the ingest-failure cleanup, and the partial capture is stranded:
+no manifest, so the recent list skips it and nothing in the UI can reach it to drop it, while
+it goes on spending the quota the retry needs.
+
+**Say it before the twenty minutes, not after.** `ingest()` compares the dropped bytes × 12
+against `navigator.storage.estimate()` and warns while the bars are still moving. Advisory
+only — the ratio is an estimate and so is the quota, and a wrong refusal is worse than a wrong
+warning.
+
 ## Downsampling
 
 **Min/max envelope per pixel bucket is the default.** Draw the band, plus a line through the
@@ -529,6 +564,11 @@ Enforced mechanically, not by convention:
   `diagnostic.data` and a real log beside it
 - `npm run verify:explain [bundle]` — brush a window on a real chart, check the explain tab ranks
   it, and check that clicking a row puts the metric on a panel
+
+- `tools/browser/bundle-load.mjs` — point a real browser at a real support bundle and report
+  which nodes loaded, which failed and why, and what it cost in origin storage. `PROFILE=` puts
+  the browser profile on a small filesystem, which is how the quota wall is made reachable in a
+  test rather than only on someone's laptop
 
 ## Working style
 

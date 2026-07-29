@@ -69,6 +69,30 @@ export class FileStoreError extends Error {
   }
 }
 
+/**
+ * The origin ran out of room, and the write was silently truncated.
+ *
+ * Its own type because it is the one storage failure with a cause a user can act on, and
+ * because the layers above have to be able to tell it apart from a bug in order to say so.
+ * See {@link OpfsFileStore.createWritable} for how it is detected and why it is not a
+ * `QuotaExceededError`.
+ */
+export class OutOfStorageError extends Error {
+  override readonly name = 'OutOfStorageError';
+  constructor(
+    readonly path: string,
+    /** Bytes the write asked for. */
+    readonly asked: number,
+    /** Bytes the filesystem actually took. */
+    readonly wrote: number,
+  ) {
+    super(
+      `out of browser storage writing ${path} -- asked to write ${asked} bytes, the ` +
+        `filesystem took ${wrote}`,
+    );
+  }
+}
+
 /** The slice of FileSystemSyncAccessHandle we use; not in every lib.dom yet. */
 interface FileSystemSyncAccessHandleLike {
   read(buf: Uint8Array, opts: { at: number }): number;
@@ -118,6 +142,24 @@ export class OpfsFileStore implements FileStore {
     return { dir, name };
   }
 
+  /**
+   * Open a file for appending.
+   *
+   * **`write()` returning a short count is a failure, not a partial success.** When the origin
+   * runs out of room, Firefox's `FileSystemSyncAccessHandle.write()` does not throw -- it
+   * writes what fits, returns that smaller number, and lets the next call write zero bytes,
+   * still without throwing. Ignoring the return value therefore turns "out of storage" into
+   * silent data loss that reports itself as success: a nine-node bundle decoded, three nodes
+   * quietly stopped receiving column data, their `manifest.json` was written as zero bytes,
+   * ingest posted `ingested`, and the very next read failed with `JSON.parse: unexpected end
+   * of data at line 1 column 1` -- a message that names neither storage nor the node. That is
+   * the reported failure, and it is why the byte count is checked on every append.
+   *
+   * The handle is closed on the way out of a failure. It has to be: OPFS refuses `removeEntry`
+   * on a directory holding an open sync access handle (`NoModificationAllowedError`), so
+   * leaking it would defeat the ingest-failure cleanup that exists to stop a half-written
+   * capture from occupying the quota that the retry needs.
+   */
   async createWritable(path: string): Promise<WritableFile> {
     let access: FileSystemSyncAccessHandleLike;
     try {
@@ -131,19 +173,48 @@ export class OpfsFileStore implements FileStore {
     }
 
     let size = 0;
+    let open = true;
+    const release = (): void => {
+      if (!open) return;
+      open = false;
+      try {
+        access.close();
+      } catch {
+        // Already failing; a close that also fails has nothing left to tell us.
+      }
+    };
+
     return {
       get size() {
         return size;
       },
       append(data: Uint8Array): Promise<number> {
         const at = size;
-        access.write(data, { at });
-        size += data.byteLength;
+        let wrote: number;
+        try {
+          wrote = access.write(data, { at });
+        } catch (err) {
+          release();
+          return Promise.reject(new FileStoreError('append', path, err));
+        }
+        if (wrote !== data.byteLength) {
+          release();
+          return Promise.reject(new OutOfStorageError(path, data.byteLength, wrote));
+        }
+        size += wrote;
         return Promise.resolve(at);
       },
       async close(): Promise<void> {
-        access.flush();
-        access.close();
+        if (!open) return;
+        try {
+          // flush() is where a buffered short write would surface, so it is inside the guard
+          // and the handle is released either way.
+          access.flush();
+        } catch (err) {
+          release();
+          throw new FileStoreError('close', path, err);
+        }
+        release();
       },
     };
   }

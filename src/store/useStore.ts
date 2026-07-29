@@ -81,6 +81,14 @@ interface State {
   readonly client: FtdcClient;
   status: 'empty' | 'ingesting' | 'ready' | 'error';
   error: string | null;
+  /**
+   * Something worth saying before the result is in -- currently only "this will not fit".
+   *
+   * Separate from `error` because it is raised while ingest is still running and is a
+   * prediction, not an outcome: decoding a bundle the browser has no room for takes twenty
+   * minutes to fail, and the whole value is in saying so at minute zero.
+   */
+  notice: string | null;
   /** Per-capture ingest progress, keyed by the folder being decoded. */
   progress: Record<string, Progress>;
   captures: CaptureState[];
@@ -383,6 +391,91 @@ function firstChart(panels: readonly PanelSpec[]): PanelSpec | undefined {
   return panels.find((p) => p.kind === 'chart');
 }
 
+/** One node that did not make it, and why. */
+export interface Failure {
+  /** The node, as the user named it -- its folder, or its hostname on a reopen. */
+  readonly label: string;
+  readonly detail: string;
+}
+
+/**
+ * One line per distinct reason, naming every node it happened to.
+ *
+ * Nodes fail together far more often than they fail individually: they are decoded
+ * concurrently against one shared storage quota, so whatever stops one usually stops the rest.
+ * Printing the full explanation once per node turned three failures into three identical
+ * paragraphs, which is where a reader stops reading -- and the paragraph is the part actually
+ * worth reading, since it is the one that says what to do about it.
+ */
+export function joinFailures(failures: readonly Failure[]): string {
+  const byDetail = new Map<string, string[]>();
+  for (const f of failures) {
+    const labels = byDetail.get(f.detail);
+    if (labels === undefined) byDetail.set(f.detail, [f.label]);
+    else labels.push(f.label);
+  }
+  return [...byDetail].map(([detail, labels]) => `${labels.join(', ')}: ${detail}`).join(' — ');
+}
+
+/**
+ * Decoded size, as a multiple of the FTDC bytes on disk.
+ *
+ * Two real production captures measured with `npm run inspect`: 102 MB -> 1,522 MB stored
+ * (14.9x) and 210 MB -> 2,367 MB (11.3x). FTDC is delta-and-zlib compressed and the writer
+ * elides constant columns, so the ratio moves with how much of a node's metric surface is
+ * actually varying; 12x sits between the two and is only ever used to answer "is this
+ * hopeless", never to reserve or allocate anything.
+ */
+const DECODED_BYTES_PER_FTDC_BYTE = 12;
+
+/**
+ * The sentence to show when a bundle cannot fit, or null when it can.
+ *
+ * Pure, and exported, so the arithmetic and the wording are testable without a browser --
+ * `navigator.storage.estimate()` is the only part that needs one.
+ */
+export function storageWarning(
+  nodes: number,
+  inputBytes: number,
+  freeBytes: number,
+): string | null {
+  const needed = inputBytes * DECODED_BYTES_PER_FTDC_BYTE;
+  if (needed <= freeBytes) return null;
+  const size = (b: number): string =>
+    b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
+  return (
+    `${nodes} node${nodes === 1 ? '' : 's'} of FTDC decodes to roughly ${size(needed)}, and ` +
+    `this browser has ${size(freeBytes)} left for this site. Expect the nodes that do not fit ` +
+    `to fail. Load fewer at a time, or forget captures you are done with.`
+  );
+}
+
+/**
+ * Say up front when a bundle cannot possibly fit.
+ *
+ * Ingest is the long pole: nine nodes is twenty minutes of decoding, and finding out at the
+ * end that the browser had 4 GB to give is the worst possible moment to learn it. The check
+ * is advisory and never blocks -- the ratio is an estimate, the quota is itself an estimate,
+ * and a wrong refusal would be far more annoying than a wrong warning. It runs unawaited so
+ * decoding starts immediately.
+ */
+async function warnIfItWillNotFit(
+  groups: readonly { label: string; files: File[] }[],
+  set: (partial: Partial<State>) => void,
+): Promise<void> {
+  try {
+    if (typeof navigator === 'undefined' || navigator.storage?.estimate === undefined) return;
+    const { quota, usage } = await navigator.storage.estimate();
+    if (quota === undefined || usage === undefined) return;
+
+    const input = groups.reduce((n, g) => n + g.files.reduce((m, f) => m + f.size, 0), 0);
+    const notice = storageWarning(groups.length, input, Math.max(0, quota - usage));
+    if (notice !== null) set({ notice });
+  } catch {
+    // A storage estimate is a courtesy. Never let asking for one stop an ingest.
+  }
+}
+
 let captureCounter = 0;
 /**
  * Never reused within a session, and never colliding with a capture already on disk.
@@ -411,7 +504,7 @@ function adopt(
   set: (partial: Partial<State>) => void,
   added: CaptureState[],
   first: boolean,
-  failures: string[] = [],
+  failures: Failure[] = [],
 ): void {
   // Two members of the same replica set can report the same hostname when the bundle was
   // collected from containers. Keep the folder alongside so they stay tellable apart.
@@ -497,7 +590,7 @@ function adopt(
   const loaded = new Set(captures.map((c) => c.id));
   set({
     status: 'ready',
-    error: failures.length > 0 ? failures.join('; ') : null,
+    error: failures.length > 0 ? joinFailures(failures) : null,
     panels,
     currentId,
     focused: get().focused ?? firstChart(panels)?.id ?? null,
@@ -518,6 +611,7 @@ export const useStore = create<State>((set, get) => ({
   client: new FtdcClient(),
   status: 'empty',
   error: null,
+  notice: null,
   progress: {},
   captures: [],
   activeId: null,
@@ -888,10 +982,11 @@ export const useStore = create<State>((set, get) => ({
     }
 
     const first = get().captures.length === 0;
-    set({ status: 'ingesting', error: null, progress: {} });
+    set({ status: 'ingesting', error: null, notice: null, progress: {} });
+    void warnIfItWillNotFit(groups, set);
 
     const logsByGroup = groupLogs(sources, groups);
-    const failures: string[] = [];
+    const failures: Failure[] = [];
 
     // One capture per worker, decoded concurrently. Sequential ingest would make a three-node
     // replica set take three times as long for no reason -- the files are independent and so
@@ -942,7 +1037,10 @@ export const useStore = create<State>((set, get) => ({
                 })),
               );
             } catch (err) {
-              failures.push(`${group.label} logs: ${err instanceof Error ? err.message : String(err)}`);
+              failures.push({
+                label: `${group.label} logs`,
+                detail: err instanceof Error ? err.message : String(err),
+              });
             }
             set((st) => {
               const next = { ...st.logProgress };
@@ -967,7 +1065,10 @@ export const useStore = create<State>((set, get) => ({
         } catch (err) {
           // One bad folder must not sink the other nodes: a bundle routinely contains a
           // member whose diagnostic.data was collected mid-write.
-          failures.push(`${group.label}: ${err instanceof Error ? err.message : String(err)}`);
+          failures.push({
+            label: group.label,
+            detail: err instanceof Error ? err.message : String(err),
+          });
           return null;
         }
       }),
@@ -977,7 +1078,7 @@ export const useStore = create<State>((set, get) => ({
     if (added.length === 0) {
       set({
         status: first ? 'error' : 'ready',
-        error: failures.join('; ') || 'nothing could be decoded',
+        error: joinFailures(failures) || 'nothing could be decoded',
         progress: {},
       });
       return;
@@ -1007,7 +1108,7 @@ export const useStore = create<State>((set, get) => ({
     const byId = new Map(get().recent.map((c) => [c.captureId, c]));
     set({ status: 'ingesting', error: null, progress: {} });
 
-    const failures: string[] = [];
+    const failures: Failure[] = [];
     const results = await Promise.all(
       ids.map(async (id): Promise<CaptureState | null> => {
         const summary = byId.get(id);
@@ -1029,7 +1130,10 @@ export const useStore = create<State>((set, get) => ({
                 })),
               );
             } catch (err) {
-              failures.push(`${summary.hostname ?? id} logs: ${err instanceof Error ? err.message : String(err)}`);
+              failures.push({
+                label: `${summary.hostname ?? id} logs`,
+                detail: err instanceof Error ? err.message : String(err),
+              });
             } finally {
               set((st) => {
                 const next = { ...st.logProgress };
@@ -1050,7 +1154,10 @@ export const useStore = create<State>((set, get) => ({
             visible: true,
           };
         } catch (err) {
-          failures.push(`${summary.hostname ?? id}: ${err instanceof Error ? err.message : String(err)}`);
+          failures.push({
+            label: summary.hostname ?? id,
+            detail: err instanceof Error ? err.message : String(err),
+          });
           return null;
         }
       }),
@@ -1060,7 +1167,7 @@ export const useStore = create<State>((set, get) => ({
     if (added.length === 0) {
       set({
         status: first ? 'empty' : 'ready',
-        error: failures.join('; ') || 'nothing could be re-opened',
+        error: joinFailures(failures) || 'nothing could be re-opened',
       });
       return;
     }
@@ -1400,6 +1507,7 @@ export const useStore = create<State>((set, get) => ({
       activeId: null,
       range: null,
       error: null,
+      notice: null,
       explanation: null,
       findings: null,
       recent: [...closed, ...get().recent],

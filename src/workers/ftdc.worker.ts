@@ -13,9 +13,9 @@ import { emptyStats, parseLine } from '../logs/parse.js';
 import { classify } from '../logs/classify.js';
 import { rangeFor } from '../logs/locate.js';
 import { hasStoredLog, persistAndAnalyze, restoreLog, type LogProgress } from '../logs/logStore.js';
-import { OpfsFileStore } from '../data/fileStore.js';
+import { OpfsFileStore, OutOfStorageError } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
-import { CaptureReader } from '../data/reader.js';
+import { CaptureReader, parseManifest } from '../data/reader.js';
 import { changeInputs, rankChanges } from '../insights/ranking.js';
 import type { CaptureManifest } from '../data/types.js';
 import {
@@ -140,6 +140,40 @@ async function ingest(id: number, captureId: string, files: File[]): Promise<voi
     });
     throw err;
   }
+}
+
+/**
+ * Turn "out of storage" into a sentence with the numbers in it.
+ *
+ * The raw failure names a byte count and a file, which tells a support engineer nothing about
+ * the thing they can actually change -- how many nodes they dropped, and how much room the
+ * browser gave this origin. Those numbers only exist on the main-thread-or-worker side of the
+ * seam, which is why the store raises a typed error and the enrichment happens here.
+ */
+async function explainStorage(err: unknown): Promise<unknown> {
+  if (!(err instanceof OutOfStorageError)) return err;
+  let room = '';
+  try {
+    const { quota, usage } = await navigator.storage.estimate();
+    if (quota !== undefined && usage !== undefined) {
+      room =
+        ` This origin has used ${gb(usage)} of the ${gb(quota)} the browser allows it` +
+        `, leaving ${gb(Math.max(0, quota - usage))}.`;
+    }
+  } catch {
+    // An estimate we cannot get is not worth failing over; the sentence still stands without it.
+  }
+  // Deliberately not "this node": several nodes share one quota and so fail together, and the
+  // store collapses identical reasons onto one line naming all of them.
+  return new Error(
+    `ran out of browser storage part-way through decoding.${room} Decoded FTDC is roughly ` +
+      `10-15x its size on disk, so a nine-node bundle needs tens of gigabytes. Load fewer ` +
+      `nodes at a time, or drop captures you no longer need from the recent list.`,
+  );
+}
+
+function gb(bytes: number): string {
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`;
 }
 
 async function reader(captureId: string): Promise<CaptureReader> {
@@ -425,9 +459,7 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         const unreadable: string[] = [];
         for (const dir of dirs) {
           try {
-            const manifest = JSON.parse(
-              await store.readText(`${dir}/manifest.json`),
-            ) as CaptureManifest;
+            const manifest = parseManifest(dir, await store.readText(`${dir}/manifest.json`));
             // A separate existence check on the log sidecar, not a manifest field: the log is
             // attached after ingest, so the manifest was already written when it arrived.
             found.push({ ...summarise(manifest, []), hasLog: await hasStoredLog(store, dir) });
@@ -460,6 +492,13 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
       }
     }
   } catch (err) {
-    post({ kind: 'error', id, message: err instanceof Error ? err.message : String(err) });
+    // Enriched here rather than at each throw site so that every writer -- FTDC columns, the
+    // sample clock, the manifest, the persisted log -- reports running out of room the same way.
+    const reported = await explainStorage(err);
+    post({
+      kind: 'error',
+      id,
+      message: reported instanceof Error ? reported.message : String(reported),
+    });
   }
 };

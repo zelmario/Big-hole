@@ -30,6 +30,7 @@ export function DropZone(): ReactElement {
   const progress = useStore((s) => s.progress);
   const logProgress = useStore((s) => s.logProgress);
   const error = useStore((s) => s.error);
+  const notice = useStore((s) => s.notice);
   const recent = useStore((s) => s.recent);
   const loadRecent = useStore((s) => s.loadRecent);
   const reopen = useStore((s) => s.reopen);
@@ -72,6 +73,9 @@ export function DropZone(): ReactElement {
     return (
       <div className="drop working">
         <h2>Decoding{nodes.length > 1 ? ` ${nodes.length} nodes` : ''}…</h2>
+        {/* Raised while the bars are still moving, because that is the only moment at which
+            "this will not fit" is still worth anything. */}
+        {notice !== null && <p className="small warn">⚠ {notice}</p>}
         {nodes.map(([label, p]) => {
           const pct = p.filesTotal > 0 ? Math.round((p.filesDone / p.filesTotal) * 100) : 0;
           return (

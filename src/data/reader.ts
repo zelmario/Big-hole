@@ -34,6 +34,26 @@ export interface CatalogEntry {
   readonly flat: boolean;
 }
 
+/**
+ * Read a manifest, and say something useful when it is not one.
+ *
+ * A bare `JSON.parse` here reports `unexpected end of data at line 1 column 1` -- the message a
+ * nine-node bundle produced when the browser ran out of storage and the manifest was written as
+ * zero bytes. It names neither the capture nor the cause, and it is the first thing
+ * the user sees, so it is worth the six lines to answer both.
+ */
+export function parseManifest(captureId: string, text: string): CaptureManifest {
+  try {
+    return JSON.parse(text) as CaptureManifest;
+  } catch {
+    const what = text.length === 0 ? 'is empty' : `is not valid JSON (${text.length} bytes)`;
+    throw new Error(
+      `capture ${captureId}: manifest.json ${what} -- it was never written completely, which ` +
+        `usually means the browser ran out of storage during ingest. Decode this node again.`,
+    );
+  }
+}
+
 export class CaptureReader {
   /** schemaId -> (pathId -> column index within that schema). Built lazily. */
   private readonly schemaLookup = new Map<number, Map<number, number>>();
@@ -52,9 +72,7 @@ export class CaptureReader {
   }
 
   static async open(store: FileStore, captureId: string): Promise<CaptureReader> {
-    const manifest = JSON.parse(
-      await store.readText(`${captureId}/manifest.json`),
-    ) as CaptureManifest;
+    const manifest = parseManifest(captureId, await store.readText(`${captureId}/manifest.json`));
 
     const timeFile = await store.openReadable(`${captureId}/time.bin`);
     let times: Float64Array;
