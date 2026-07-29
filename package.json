@@ -21,6 +21,7 @@
     "units": "vite-node tools/units.ts",
     "verify:browser": "bash tools/browser/verify.sh",
     "verify:multi": "bash tools/browser/verify-multi.sh",
+    "verify:nodes": "bash tools/browser/verify-nodes.sh",
     "coverage": "vite-node tools/coverage.ts",
     "logscan": "vite-node tools/logscan.ts",
     "verify:logpage": "bash tools/browser/verify-logpage.sh",

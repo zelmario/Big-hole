@@ -12,6 +12,48 @@ import { legendLabel, plotColumn, timeColumn } from './plotData.js';
 import type { KnownCapture } from '../data/qualify.js';
 import type { Gap } from '../data/types.js';
 
+/**
+ * Render the time axis in UTC, not in the viewer's timezone.
+ *
+ * Every other timestamp in this app is `toISOString()`, and the log sidebar shows the instant
+ * a log line records after honouring the server's own UTC offset (`src/logs/parse.ts`). uPlot
+ * is the one component that reads a timestamp with the local `Date` getters, so without this
+ * the axis silently shifts by the viewer's offset: an engineer in UTC+2 selects a window in
+ * the log at 06:09 UTC and the chart above it labels the same instant 08:09. Nothing is
+ * misplotted -- the points are at the right x -- but every number a reader copies into a
+ * ticket is wrong, and which of the two is "the real time" is not guessable from the screen.
+ *
+ * UTC rather than a picker because a capture is not local to the person reading it: FTDC is
+ * epoch milliseconds, mongod logs carry their own offset, and a replica set routinely spans
+ * timezones. UTC is the one clock every node and every reader of the ticket already agrees on.
+ */
+const utcDate = (ts: number): Date => uPlot.tzDate(new Date(ts * 1000), 'UTC');
+
+/**
+ * 24-hour ISO tick labels, replacing uPlot's `3:10pm` default.
+ *
+ * Same argument as `tzDate` above, one step further: an axis reading `3:10pm` beside a header
+ * reading `15:16:11Z` and a log line reading `2026-07-28T15:16:11.456` is three notations for
+ * one clock, and the reader has to convert between them to line up what they are looking at.
+ *
+ * uPlot's own stamp-table format, so the useful behaviour of the default survives -- ticks
+ * carry only what changed, and the first tick of a day also spells the date out underneath
+ * (`\n` is a second line). Columns are [tick incr in seconds, default, then the format to use
+ * when the year / month / day / hour / minute / second rolls over, then mode].
+ */
+const DAY = '\n{MM}-{DD}';
+const FULL = '\n{YYYY}-{MM}-{DD}';
+const ISO_TICKS: uPlot.Axis.TimeValuesConfig = [
+  // incr        default         year        month  day             hour  min           sec   mode
+  [365 * 86400, '{YYYY}',        null,       null,  null,           null, null,         null, 1],
+  [28 * 86400,  '{MMM}',         '\n{YYYY}', null,  null,           null, null,         null, 1],
+  [86400,       '{MM}-{DD}',     '\n{YYYY}', null,  null,           null, null,         null, 1],
+  [3600,        '{HH}:{mm}',     FULL,       null,  DAY,            null, null,         null, 1],
+  [60,          '{HH}:{mm}',     FULL,       null,  DAY,            null, null,         null, 1],
+  [1,           ':{ss}',         `${FULL} {HH}:{mm}`, null, `${DAY} {HH}:{mm}`, null, '\n{HH}:{mm}', null, 1],
+  [0.001,       ':{ss}.{fff}',   `${FULL} {HH}:{mm}`, null, `${DAY} {HH}:{mm}`, null, '\n{HH}:{mm}', null, 1],
+];
+
 /** Grafana's classic series palette, so a ported dashboard reads the same. */
 const PALETTE = [
   '#73bf69', '#f2cc0c', '#8ab8ff', '#ff9830', '#f2495c', '#b877d9',
@@ -352,6 +394,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       width: size.w,
       height: Math.max(60, size.h),
       legend: { show: false }, // the chip row below the plot is the legend
+      tzDate: utcDate,
       cursor: {
         drag: { x: true, y: false, setScale: false },
         sync: { key: 'ftdc' },
@@ -359,7 +402,12 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       },
       scales: { x: { time: true } },
       axes: [
-        { stroke: '#8b94a3', grid: { stroke: '#2a2f38', width: 1 }, ticks: { stroke: '#2a2f38' } },
+        {
+          stroke: '#8b94a3',
+          grid: { stroke: '#2a2f38', width: 1 },
+          ticks: { stroke: '#2a2f38' },
+          values: ISO_TICKS,
+        },
         {
           stroke: '#8b94a3',
           grid: { stroke: '#2a2f38', width: 1 },

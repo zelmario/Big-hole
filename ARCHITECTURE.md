@@ -477,6 +477,22 @@ against `navigator.storage.estimate()` and warns while the bars are still moving
 only — the ratio is an estimate and so is the quota, and a wrong refusal is worse than a wrong
 warning.
 
+## Time is UTC, everywhere
+
+Every timestamp the app renders is `toISOString()`, and log timestamps are converted to
+absolute epoch ms by honouring the offset the server itself wrote (`src/logs/parse.ts`). The
+one component that did not follow was uPlot, which reads timestamps with the local `Date`
+getters unless given `tzDate` — so an engineer in UTC+2 read 06:09 in the log sidebar and
+08:09 on the chart above it for the same instant. Nothing was misplotted; every number copied
+into a ticket was wrong. `src/panels/TimeSeriesPanel.tsx` passes `tzDate`, replaces uPlot's
+12-hour `3:10pm` ticks with a 24-hour ISO stamp table so the axis and the header are the same
+notation, and the time-range control says "UTC" out loud.
+
+UTC rather than a timezone picker: a capture is not local to whoever opens it. FTDC is epoch
+milliseconds, mongod logs carry their own offset, replica sets span regions, and the ticket
+the findings end up in is read by people in three more. One clock everyone already shares
+beats a setting that makes two screenshots incomparable.
+
 ## Downsampling
 
 **Min/max envelope per pixel bucket is the default.** Draw the band, plus a line through the
@@ -565,6 +581,9 @@ Enforced mechanically, not by convention:
 - `npm run verify:explain [bundle]` — brush a window on a real chart, check the explain tab ranks
   it, and check that clicking a row puts the metric on a panel
 
+- `npm run verify:nodes [bundle]` — the many-node case: a UTC 24-hour chart axis and a legend
+  that stays readable at nine members. Runs with `TZ` deliberately away from UTC, because a
+  local-time axis and a UTC axis are indistinguishable when you are already in UTC
 - `tools/browser/bundle-load.mjs` — point a real browser at a real support bundle and report
   which nodes loaded, which failed and why, and what it cost in origin storage. `PROFILE=` puts
   the browser profile on a small filesystem, which is how the quota wall is made reachable in a

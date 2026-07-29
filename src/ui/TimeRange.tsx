@@ -21,6 +21,13 @@ const PRESETS: ReadonlyArray<[string, number]> = [
   ['7d', 7 * 86_400_000],
 ];
 
+/**
+ * UTC, like every other timestamp in the app -- including the chart axes, which say so too.
+ *
+ * The bare form used to read `2026-07-28 00:09:50` with nothing to say which clock that was,
+ * which is only harmless while the charts agree. They did not, so the label is now explicit
+ * rather than merely correct.
+ */
 function stamp(ms: number): string {
   return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
 }
@@ -82,8 +89,12 @@ export function TimeRange(): ReactElement {
         ‹
       </button>
 
-      <button className="tr-main" onClick={() => setOpen(!open)} title="Change time range">
-        🕐 {stamp(from)} → {stamp(to)}
+      <button
+        className="tr-main"
+        onClick={() => setOpen(!open)}
+        title="Change time range — every time in this app is UTC"
+      >
+        🕐 {stamp(from)} → {stamp(to)} <span className="muted">UTC</span>
         {range === null && <span className="muted"> (all)</span>}
       </button>
 
@@ -100,7 +111,7 @@ export function TimeRange(): ReactElement {
       {open && (
         <div className="tr-menu">
           <div className="tr-menu-head muted small">
-            Relative to the end of the capture
+            Relative to the end of the capture · times are UTC
             <div>{stamp(bounds.startMs)} → {stamp(bounds.endMs)}</div>
           </div>
           <button
