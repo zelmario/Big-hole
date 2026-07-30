@@ -32,6 +32,7 @@ import { groupCaptures, groupLogs, isLogFile, type SourceFile } from '../ingest/
 import { withLogs } from '../logs/logSource.js';
 import { detect, type Finding } from '../insights/detect.js';
 import { buildMemberRows, type MemberRow } from '../replset/state.js';
+import { pick } from '../replset/hostInfo.js';
 import {
   MAX_SCAN_SAMPLES,
   baselineFor,
@@ -758,7 +759,19 @@ export const useStore = create<State>((set, get) => ({
     try {
       const rows = await buildMemberRows(
         get().source(),
-        captures.map((c) => ({ id: c.id, label: c.label, paths: c.paths, catalog: c.catalog })),
+        captures.map((c) => {
+          // Which replica set a node is in only exists in the FTDC metadata document -- the
+          // sample stream is numeric. Without it, member ids collide across the shards of a
+          // sharded bundle; see StateCapture.replSetName.
+          const set = pick(c.summary.meta, 'getCmdLineOpts.parsed.replication.replSetName');
+          return {
+            id: c.id,
+            label: c.label,
+            paths: c.paths,
+            catalog: c.catalog,
+            ...(typeof set === 'string' ? { replSetName: set } : {}),
+          };
+        }),
       );
       set({ memberStates: rows });
     } catch {

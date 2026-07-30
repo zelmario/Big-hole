@@ -22,7 +22,7 @@ import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader, type SeriesQuery } from '../src/data/reader.js';
 import { buildMemberRows, stateName, type StateCapture } from '../src/replset/state.js';
-import { nodeFields, type InfoCapture } from '../src/replset/hostInfo.js';
+import { nodeFields, pick, type InfoCapture } from '../src/replset/hostInfo.js';
 
 const targets = process.argv.slice(2);
 if (targets.length === 0) {
@@ -92,7 +92,14 @@ try {
 
     const label = hostname ?? basename(target);
     const paths = new Set(reader.catalog.map((c) => c.path));
-    stateCaptures.push({ id: captureId, label, paths, catalog: reader.catalog });
+    const set = pick(manifest.meta, 'getCmdLineOpts.parsed.replication.replSetName');
+    stateCaptures.push({
+      id: captureId,
+      label,
+      paths,
+      catalog: reader.catalog,
+      ...(typeof set === 'string' ? { replSetName: set } : {}),
+    });
     infoCaptures.push({
       id: captureId,
       label,
@@ -135,7 +142,8 @@ try {
   for (const row of rows) {
     const via = row.self ? 'self' : `via ${row.reportedBy}`;
     const id = row.memberId === null ? '' : ` _id=${row.memberId}`;
-    console.log(`${row.label}${id}  (${via})`);
+    const set = row.replSetName === null ? '' : ` set=${row.replSetName}`;
+    console.log(`${row.label}${id}${set}  (${via})`);
     for (const run of row.runs) {
       const mins = (run.toMs - run.fromMs) / 60000;
       console.log(

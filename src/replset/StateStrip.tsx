@@ -84,16 +84,28 @@ function clip(runs: readonly StateRun[], fromMs: number, toMs: number): StateRun
  */
 const LABEL_MIN_PX = 66;
 
+/**
+ * Members past which the strip switches to compact rows.
+ *
+ * It is sticky, so whatever height it takes it takes for good — and a nine-member bundle at the
+ * roomy row height claims a quarter of the chart area permanently. Past this the rows and their
+ * type shrink; past what `.states-rows` caps, they scroll. A strip that crowds out the charts it
+ * exists to frame has stopped being a frame.
+ */
+const DENSE_ROWS = 5;
+
 function Row({
   row,
   fromMs,
   toMs,
   trackPx,
+  labelMinPx,
 }: {
   row: MemberRow;
   fromMs: number;
   toMs: number;
   trackPx: number;
+  labelMinPx: number;
 }): ReactElement {
   const setRange = useStore((s) => s.setRange);
   const span = Math.max(1, toMs - fromMs);
@@ -107,7 +119,7 @@ function Row({
           row.self
             ? `${row.label} — its own replSetGetStatus.myState${
                 row.memberId !== null ? ` (member ${row.memberId})` : ''
-              }`
+              }${row.replSetName !== null ? ` of ${row.replSetName}` : ''}`
             : `${row.label} — not loaded; this is ${row.reportedBy}'s heartbeat view of it, so ` +
               `DOWN here means ${row.reportedBy} could not reach it`
         }
@@ -138,7 +150,7 @@ function Row({
               // chart.
               onClick={() => setRange([Math.round(run.fromMs), Math.round(run.toMs)])}
             >
-              {(width / 100) * trackPx >= LABEL_MIN_PX && (
+              {(width / 100) * trackPx >= labelMinPx && (
                 <span className="states-run-label">{name}</span>
               )}
             </button>
@@ -181,13 +193,14 @@ export function StateStrip(): ReactElement | null {
   if (rows === null || rows.length === 0 || view === null) return null;
 
   const [fromMs, toMs] = view;
+  const dense = rows.length > DENSE_ROWS;
   const span = Math.max(1, toMs - fromMs);
   const step = tickStep(span, 8);
   const ticks: number[] = [];
   for (let t = Math.ceil(fromMs / step) * step; t <= toMs; t += step) ticks.push(t);
 
   return (
-    <div className="states">
+    <div className={dense ? 'states dense' : 'states'}>
       <div className="states-head">
         <button
           className="link small"
@@ -214,22 +227,34 @@ export function StateStrip(): ReactElement | null {
 
       {show && (
         <>
-          {rows.map((row) => (
-            <Row key={row.key} row={row} fromMs={fromMs} toMs={toMs} trackPx={trackPx} />
-          ))}
-          <div className="states-row states-axis">
-            <div className="states-name" />
-            <div className="states-track" ref={measure}>
-              {ticks.map((t) => (
-                <span
-                  key={t}
-                  className="states-tick"
-                  style={{ left: `${((t - fromMs) / span) * 100}%` }}
-                >
-                  {tickLabel(t, step)}
-                </span>
-              ))}
-              <span className="states-tz muted">UTC</span>
+          <div className="states-rows">
+            {rows.map((row) => (
+              <Row
+                key={row.key}
+                row={row}
+                fromMs={fromMs}
+                toMs={toMs}
+                trackPx={trackPx}
+                labelMinPx={dense ? 54 : LABEL_MIN_PX}
+              />
+            ))}
+            {/* Inside the scroll container, pinned to its bottom: outside it, a scrollbar
+                would narrow the bands and leave the axis measuring a wider track than the one
+                it sits under. */}
+            <div className="states-row states-axis">
+              <div className="states-name" />
+              <div className="states-track" ref={measure}>
+                {ticks.map((t) => (
+                  <span
+                    key={t}
+                    className="states-tick"
+                    style={{ left: `${((t - fromMs) / span) * 100}%` }}
+                  >
+                    {tickLabel(t, step)}
+                  </span>
+                ))}
+                <span className="states-tz muted">UTC</span>
+              </div>
             </div>
           </div>
         </>

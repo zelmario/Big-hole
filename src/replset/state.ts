@@ -108,6 +108,8 @@ export interface MemberRow {
   readonly label: string;
   /** Replica-set config `_id`, when the capture says which member is which. */
   readonly memberId: number | null;
+  /** The replica set this member belongs to, when the bundle says. */
+  readonly replSetName: string | null;
   /** The loaded capture this row *is*, or null for a member reported only by its peers. */
   readonly captureId: string | null;
   /** Label of the node whose view this is. Equal to `label` for a self-reported row. */
@@ -123,6 +125,18 @@ export interface StateCapture {
   readonly label: string;
   readonly paths: ReadonlySet<string>;
   readonly catalog: readonly CatalogEntry[];
+  /**
+   * Which replica set this node belongs to, from the FTDC metadata document.
+   *
+   * A member's `_id` is unique **within a replica set**, not across a cluster: every shard of a
+   * sharded cluster numbers its members 0, 1, 2. A nine-node bundle is usually three shards, so
+   * without this a peer of shard1 collides with a loaded member of shard0 and is silently
+   * dropped -- and the surviving row shows one shard's view while appearing to describe the
+   * cluster. Undefined for a capture with no metadata, which folds back to identifying members
+   * by bare `_id`: right for the single-replica-set bundle that is the common case, and the best
+   * available answer when the capture cannot say.
+   */
+  readonly replSetName?: string;
 }
 
 /**
@@ -330,24 +344,42 @@ export async function buildMemberRows(
   }));
 
   /**
-   * Members that have a capture of their own, by config `_id`.
+   * A member's identity across the whole bundle.
+   *
+   * Scoped by replica set, because `_id` is not: a sharded cluster numbers every shard's members
+   * 0, 1, 2, so identifying peers by bare `_id` makes shard1's member 1 collide with shard0's and
+   * vanish. Captures with no metadata share the empty scope, which is exactly the old behaviour
+   * and is correct whenever the bundle is one replica set.
+   */
+  const identity = (capture: StateCapture, memberId: number | null): string | null =>
+    memberId === null ? null : `${capture.replSetName ?? ''}/${memberId}`;
+
+  /**
+   * Members that have a capture of their own.
    *
    * Built before any row is emitted, so a peer's view of a node is never drawn beside that
    * node's own row -- the same member twice, disagreeing, is worse than not answering.
    */
-  const loadedIds = new Set<number>();
+  const loaded = new Set<string>();
   for (const plan of plans) {
     const own = plan.members.find((m) => m.isSelf);
-    if (own?.memberId != null) loadedIds.add(own.memberId);
+    const key = own === undefined ? null : identity(plan.capture, own.memberId);
+    if (key !== null) loaded.add(key);
   }
+
+  /** Whether to say which set a peer belongs to. On one replica set it is noise. */
+  const sets = new Set(captures.map((c) => c.replSetName).filter((n) => n !== undefined));
+  const nameSets = sets.size > 1;
 
   const results = await Promise.all(
     plans.map(async (plan) => {
       // Only the peers this capture is the best available source for. Its own row comes from
       // `myState`, which every replica-set member reports whether or not it lists members.
-      const peers = plan.members.filter(
-        (m) => !m.isSelf && (m.memberId === null || !loadedIds.has(m.memberId)),
-      );
+      const peers = plan.members.filter((m) => {
+        if (m.isSelf) return false;
+        const key = identity(plan.capture, m.memberId);
+        return key === null || !loaded.has(key);
+      });
       const wanted = [...(plan.myState !== null ? [plan.myState] : []), ...peers.map((p) => p.path)];
       if (wanted.length === 0) return { plan, peers, byPath: new Map<string, SeriesPayload>() };
 
@@ -366,7 +398,7 @@ export async function buildMemberRows(
   );
 
   const rows: MemberRow[] = [];
-  const claimed = new Set<number>();
+  const claimed = new Set<string>();
 
   // Self rows first, in load order, so the strip reads in the order the nodes were dropped.
   for (const { plan, byPath } of results) {
@@ -378,31 +410,46 @@ export async function buildMemberRows(
       key: plan.capture.id,
       label: plan.capture.label,
       memberId: own?.memberId ?? null,
+      replSetName: plan.capture.replSetName ?? null,
       captureId: plan.capture.id,
       reportedBy: plan.capture.label,
       self: true,
       runs: runsOf(payload.t, payload.min, payload.max),
     });
-    if (own?.memberId != null) claimed.add(own.memberId);
+    const key = own === undefined ? null : identity(plan.capture, own.memberId);
+    if (key !== null) claimed.add(key);
   }
 
   // Then the members nobody loaded, as whichever node saw them first describes them.
   for (const { plan, peers, byPath } of results) {
     for (const peer of peers) {
-      if (peer.memberId !== null && claimed.has(peer.memberId)) continue;
+      const key = identity(plan.capture, peer.memberId);
+      if (key !== null && claimed.has(key)) continue;
       const payload = byPath.get(peer.path);
       if (payload === undefined) continue;
-      if (peer.memberId !== null) claimed.add(peer.memberId);
+      if (key !== null) claimed.add(key);
+      const set = plan.capture.replSetName;
+      const name =
+        peer.memberId !== null ? `member ${peer.memberId}` : `members.${peer.index}`;
       rows.push({
         key: `${plan.capture.id}/${peer.index}`,
-        label: peer.memberId !== null ? `member ${peer.memberId}` : `members.${peer.index}`,
+        // On a bundle spanning several replica sets, "member 1" names three different servers.
+        label: nameSets && set !== undefined ? `${set} ${name}` : name,
         memberId: peer.memberId,
+        replSetName: set ?? null,
         captureId: null,
         reportedBy: plan.capture.label,
         self: false,
         runs: runsOf(payload.t, payload.min, payload.max),
       });
     }
+  }
+
+  // Group by replica set so a sharded bundle reads shard by shard rather than in load order,
+  // while a single-set bundle -- every name equal, or every name absent -- is left alone.
+  if (nameSets) {
+    const order = [...new Set(rows.map((r) => r.replSetName ?? ''))];
+    rows.sort((a, b) => order.indexOf(a.replSetName ?? '') - order.indexOf(b.replSetName ?? ''));
   }
 
   return rows;

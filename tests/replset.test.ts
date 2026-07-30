@@ -248,6 +248,88 @@ describe('building the member rows', () => {
     expect(rows[0]!.runs[0]!.state).toBe(2);
   });
 
+  /**
+   * A member `_id` is unique within a replica set and nowhere else: every shard of a sharded
+   * cluster numbers its members 0, 1, 2. A nine-node bundle is usually three shards, so
+   * identifying peers by bare `_id` made shard1's member 1 collide with shard0's and vanish --
+   * and the surviving row showed one shard's view while appearing to describe the cluster.
+   */
+  it('does not confuse one shard\'s members with another\'s', async () => {
+    const trio = (idx: number): Array<{ idx: number; memberId: number; self?: boolean }> =>
+      [0, 1, 2].map((i) => ({ idx: i, memberId: i, ...(i === idx ? { self: true } : {}) }));
+    const s0 = { ...member('c0', 'shard0-node0', { myState: 1, members: trio(0) }, 'shard.'), replSetName: 'shard0' };
+    const s1 = { ...member('c1', 'shard1-node0', { myState: 1, members: trio(0) }, 'shard.'), replSetName: 'shard1' };
+
+    const rows = await buildMemberRows(
+      constantSource({
+        'c0:shard.replSetGetStatus.myState': 1,
+        'c0:shard.replSetGetStatus.members.1.state': 2,
+        'c0:shard.replSetGetStatus.members.2.state': 8,
+        'c1:shard.replSetGetStatus.myState': 1,
+        'c1:shard.replSetGetStatus.members.1.state': 2,
+        'c1:shard.replSetGetStatus.members.2.state': 2,
+      }),
+      [s0, s1],
+    );
+
+    // Two loaded nodes and four peers, not two peers with one shard's answer for both.
+    expect(rows).toHaveLength(6);
+    // Grouped by set, and peers named by it -- "member 1" alone names two different servers.
+    expect(rows.map((r) => r.label)).toEqual([
+      'shard0-node0',
+      'shard0 member 1',
+      'shard0 member 2',
+      'shard1-node0',
+      'shard1 member 1',
+      'shard1 member 2',
+    ]);
+    // Whose DOWN it was survives the fix: shard0's member 2, not shard1's.
+    expect(rows.find((r) => r.label === 'shard0 member 2')!.runs[0]!.state).toBe(8);
+    expect(rows.find((r) => r.label === 'shard1 member 2')!.runs[0]!.state).toBe(2);
+  });
+
+  /**
+   * Without metadata there is no replica-set name to scope member ids by, and deduping is the
+   * right default: one replica set is what a bundle almost always is, and drawing each node's
+   * view of every other one would triple the strip.
+   */
+  it('still dedupes by bare id when no capture knows its replica set', async () => {
+    const a = member('c0', 'node0', {
+      myState: 1,
+      members: [{ idx: 0, memberId: 0, self: true }, { idx: 1, memberId: 1 }],
+    });
+    const b = member('c1', 'node1', {
+      myState: 2,
+      members: [{ idx: 0, memberId: 0 }, { idx: 1, memberId: 1, self: true }],
+    });
+    const rows = await buildMemberRows(
+      constantSource({
+        'c0:replSetGetStatus.myState': 1,
+        'c1:replSetGetStatus.myState': 2,
+      }),
+      [a, b],
+    );
+    expect(rows.map((r) => r.label)).toEqual(['node0', 'node1']);
+  });
+
+  it('scales to a nine-member set with one capture loaded', async () => {
+    const members = Array.from({ length: 9 }, (_, i) => ({
+      idx: i,
+      memberId: i,
+      ...(i === 0 ? { self: true } : {}),
+    }));
+    const only = member('c0', 'node0', { myState: 1, members });
+    const values: Record<string, number> = { 'c0:replSetGetStatus.myState': 1 };
+    for (let i = 1; i < 9; i++) {
+      values[`c0:replSetGetStatus.members.${i}.state`] = i === 4 ? 8 : 2;
+    }
+
+    const rows = await buildMemberRows(constantSource(values), [only]);
+    expect(rows).toHaveLength(9);
+    expect(rows.filter((r) => r.self)).toHaveLength(1);
+    expect(rows.find((r) => r.label === 'member 4')!.runs[0]!.state).toBe(8);
+  });
+
   it('produces no rows for a standalone, rather than an empty strip', async () => {
     const standalone: StateCapture = {
       id: 'c0',

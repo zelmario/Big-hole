@@ -499,7 +499,14 @@ header { align-items: center; flex-wrap: wrap; }
 .states-run-label { font-size: 10px; font-weight: 700; letter-spacing: .04em;
   color: #0b0d10; padding: 0 5px; white-space: nowrap; }
 .states-run.nodata .states-run-label { color: var(--muted); font-weight: 400; }
-.states-axis { margin-top: 1px; }
+/* Many members: the strip is sticky, so whatever height it takes it takes for good. Nine
+   members at the roomy row height claim a quarter of the chart area permanently. */
+.states-rows { max-height: 40vh; overflow-y: auto; }
+.states.dense .states-track { height: 14px; }
+.states.dense .states-row { margin-bottom: 2px; }
+.states.dense .states-name { font-size: 10px; flex-basis: 130px; }
+.states.dense .states-run-label { font-size: 9px; padding: 0 4px; }
+.states-axis { margin-top: 1px; position: sticky; bottom: 0; background: var(--panel); }
 .states-axis .states-track { background: none; height: 14px; overflow: visible; }
 /* Centred on the tick, and clipped by the row rather than widening the strip. */
 .states-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px;

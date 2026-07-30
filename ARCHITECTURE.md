@@ -287,6 +287,22 @@ Four decisions:
   read from the manifest's whole-capture min/max rather than by reading a series. The same member
   is therefore never drawn twice, disagreeing with itself.
 
+**A member `_id` is unique within a replica set and nowhere else.** Every shard of a sharded
+cluster numbers its members 0, 1, 2, and a nine-node bundle is usually three shards — so
+identifying peers by bare `_id` made shard1's member 1 collide with shard0's and disappear, while
+the surviving row showed one shard's view and appeared to describe the cluster. Peers are keyed by
+`replSetName/_id`, taken from the metadata document (`getCmdLineOpts.parsed.replication`), rows are
+grouped by set, and a peer is named `shard1 member 1` once a bundle spans more than one. A capture
+with no metadata falls back to the bare `_id` — correct whenever the bundle is one replica set,
+which is the common case, and the best available answer when the capture cannot say.
+
+**The strip is sticky, so its height is permanent.** Nine members at the roomy row height claim a
+quarter of the chart area for good. Past five members the rows and their type shrink; past 40vh
+they scroll, with the axis pinned inside the same scroll container — outside it, a scrollbar would
+narrow the bands and leave the axis measuring a wider track than the one it sits under. Band labels
+are drawn only where the measured track gives them room: a clipped state name is not a shortened
+label, it is a different word, and a 2% "no data" band rendered as "o data" reads as data.
+
 Rendered as positioned divs, not as a uPlot panel: a dozen discrete codes have nothing to
 interpolate, no y scale to share and no envelope to draw, and as DOM each run gets a label, a
 tooltip and click-to-zoom for free. Outside the grid, like the maximised panel — it is not a
