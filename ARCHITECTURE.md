@@ -252,6 +252,81 @@ width a panel already had does the work (three columns on a tiled panel, six on 
 one), with the height cap proportional and floored at two rows. Columns before rows,
 deliberately — rows are bought with chart height, columns are free.
 
+## Member state, and what a node is
+
+Two things about a capture that no panel could answer, because neither is a time series worth
+plotting.
+
+### The member-state strip
+
+`replSetGetStatus.myState` is a small integer that spends hours flat — the shape a line chart
+renders as an uninformative horizontal rule — and it is the frame every other panel is read
+inside. RSS climbing means one thing on a primary and another on a member that spent the window
+in RECOVERING. `src/replset/state.ts` collapses it into runs and `StateStrip.tsx` draws a band
+per member above the grid.
+
+Four decisions:
+
+- **Built once, from the min/max envelope, never re-read on zoom.** A state column is read at
+  20,000 buckets — about 7.6 s on the longest capture measured, full resolution under about five
+  hours — and collapsed to a handful of runs, so panning and zooming the strip costs nothing.
+  Downsampling cannot hide a transition, because a bucket containing one reports two different
+  values in `min` and `max`; that bucket is **split in half** rather than resolved to whichever
+  end happened to be sampled.
+- **A hole in the capture is its own state.** The collector stopping is one of the strongest
+  signals FTDC carries, and reading a two-hour gap as two more hours of SECONDARY is the same
+  mistake `episodesOf` refuses to make. The staleness bound is taken from the *column handed in*,
+  not from the capture's cadence — a bucketed clock steps in seconds, and a gap test written
+  against the 1 s cadence calls every bucket boundary a hole.
+- **Members nobody loaded still get a row.** A bundle routinely arrives with one member's
+  `diagnostic.data` out of three, and each node reports every *other* member's state through its
+  heartbeats — which is the only place `DOWN` comes from, since no node reports itself as down.
+  Peer rows are dimmed and italic, and say whose view they are.
+- **Self-reported always wins.** `members.N.self` is written only on the reporting node's own
+  entry, so its presence identifies self; `members.N._id` gives the replica-set config identity,
+  read from the manifest's whole-capture min/max rather than by reading a series. The same member
+  is therefore never drawn twice, disagreeing with itself.
+
+Rendered as positioned divs, not as a uPlot panel: a dozen discrete codes have nothing to
+interpolate, no y scale to share and no envelope to draw, and as DOM each run gets a label, a
+tooltip and click-to-zoom for free. Outside the grid, like the maximised panel — it is not a
+panel, so it must never enter a layout, a permalink or a saved dashboard.
+
+### The info page
+
+FTDC's sample stream is numeric by construction, so the hostname, the CPU model, the OS, the
+ulimits and the effective mongod configuration exist **only** in the type-0 metadata document at
+the head of each `metrics.*` file. That document is the server's own `hostInfo`, `buildInfo` and
+`getCmdLineOpts` verbatim, so "what was this node configured with" is not reconstructed from
+anything — it is `mongod.conf` as the server parsed it, including every `setParameter`.
+
+The whole document now rides in the manifest (`meta`), because distilling it at ingest would
+throw away the field that turns out to matter to somebody's case. It costs a few tens of KB
+against a manifest already measured in megabytes.
+
+The numbers a support engineer wants beside it — WiredTiger cache size, peak RSS, uptime,
+connections — are metrics, and they cost **no I/O either**: the manifest already carries each
+path's whole-capture min and max, so the page reads the catalogue rather than reading a series.
+Opening it touches disk zero times.
+
+Laid out as a field per row and a node per column. The question is almost never "how much RAM
+does node2 have", it is "why is node2 different", and that is a question about a row: rows where
+the nodes disagree are marked `≠`, so a member with half the cache, an older build or a
+file-descriptor limit nobody raised is visible without reading anything.
+
+Both resolve through the same machinery as everything else — `expandMetric` for metric paths,
+and a probe over the document's top-level objects for metadata, since a sharded 8.0 node nests
+everything under `common.` and a plain replica set does not. Never keyed to a version string.
+
+```bash
+npm run replset -- <dir> [more dirs]   # print the strip and the info page for real captures
+npm run verify:replset [bundle]        # both, in a real browser, on a bundle with real elections
+```
+
+Verified on the 3-node teaching capture, which contains two real failovers: node0 PRIMARY →
+SECONDARY at 14:11:17 exactly as node2's FTDC goes dark, back to PRIMARY at 14:14:46, and
+node1 taking over at 14:44:56.
+
 ## Log correlation
 
 `src/logs/` turns a mongod log into two things and keeps nothing else: a few hundred
@@ -551,6 +626,7 @@ src/panels/     uPlot panels
 src/dashboard/  grid, layout serialization, permalinks, metric catalog
 src/logs/       mongod JSON log parser
 src/insights/   pathology detectors (rules live in a data file, not compiled in)
+src/replset/    member-state timeline + the node info page (both DOM-free at the model layer)
 tests/          fixture-based decoder correctness
 tools/oracle/   Go program: fixture -> expected CSV via mongodb/ftdc
 sample-data/    gitignored; real captures for manual testing
@@ -587,6 +663,9 @@ Enforced mechanically, not by convention:
   `diagnostic.data` and a real log beside it
 - `npm run verify:explain [bundle]` — brush a window on a real chart, check the explain tab ranks
   it, and check that clicking a row puts the metric on a panel
+- `npm run verify:replset [bundle]` — the member-state strip and the info page against a bundle
+  with real elections in it: that every band tiles its track, that clicking one zooms every
+  chart, and that the info table lines three nodes up on the same rows
 - `npm run verify:nodes [bundle]` — the many-node case: a UTC 24-hour chart axis and a legend
   that stays readable at nine members. Runs with `TZ` deliberately away from UTC, because a
   local-time axis and a UTC axis are indistinguishable when you are already in UTC

@@ -1,7 +1,8 @@
 /**
  * README screenshots, taken from the real app rather than mocked up.
  *
- * The README carries two: the dashboard and the log viewer. The rest are still taken, because
+ * The README carries three: the dashboard, the log viewer and the node info page. The rest are
+ * still taken, because
  * they cost nothing on a run that has already ingested the capture and they are what you look at
  * when a UI change needs reviewing -- they are simply not referenced by the README.
  *
@@ -95,10 +96,16 @@ await page
 await page.waitForTimeout(1500);
 await shot('explain', page.locator('.sidebar'));
 
-// --- the log last, so it is showing the incident window rather than the whole capture ---
+// --- the log, so it is showing the incident window rather than the whole capture ---
 await page.locator('.sidebar-tabs .tab', { hasText: 'log' }).click();
 await page.waitForTimeout(3000);
 await shot('log', page.locator('.sidebar'));
+
+// --- the info page last: it is an overlay, so anything shot after it would be behind a scrim ---
+await page.locator('header button', { hasText: 'info' }).click();
+await page.waitForSelector('.info-table', { timeout: 30000 });
+await page.waitForTimeout(800);
+await shot('node-info', page.locator('.infopage'));
 
 console.log(errors.length === 0 ? 'no page errors' : `PAGE ERRORS:\n${errors.join('\n')}`);
 await browser.close();

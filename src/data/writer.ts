@@ -268,10 +268,17 @@ export class CaptureWriter {
    * hostname when it is first ingested and comes back as "c4" when it is reopened, which reads
    * as the tool having forgotten which node it is looking at.
    */
-  async finish(identity: { hostname?: string; mongoVersion?: string } = {}): Promise<CaptureManifest> {
+  async finish(
+    identity: {
+      hostname?: string;
+      mongoVersion?: string;
+      meta?: Record<string, unknown>;
+    } = {},
+  ): Promise<CaptureManifest> {
     // Whatever decoding turned up wins; the create-time options remain the fallback.
     const hostname = identity.hostname ?? this.opts.hostname;
     const mongoVersion = identity.mongoVersion ?? this.opts.mongoVersion;
+    const meta = identity.meta;
 
     const times = this.times.subarray(0, this.sampleCount);
     await this.timeFile.append(
@@ -289,6 +296,7 @@ export class CaptureWriter {
       sourceFile: this.opts.sourceFile,
       ...(hostname !== undefined ? { hostname } : {}),
       ...(mongoVersion !== undefined ? { mongoVersion } : {}),
+      ...(meta !== undefined ? { meta } : {}),
       sampleCount: this.sampleCount,
       startMs: this.sampleCount > 0 ? times[0]! : 0,
       endMs: this.sampleCount > 0 ? times[this.sampleCount - 1]! : 0,

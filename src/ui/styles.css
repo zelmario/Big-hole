@@ -472,3 +472,63 @@ header { align-items: center; flex-wrap: wrap; }
 .change-up { color: var(--warn); font-variant-numeric: tabular-nums; }
 .change-down { color: var(--accent); font-variant-numeric: tabular-nums; }
 .change-values { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ---- member-state strip ----
+   Bands, not a chart. A dozen discrete codes have nothing to interpolate and no y scale to
+   share, and as DOM each run gets a label, a tooltip and click-to-zoom for nothing. Sticky, so
+   the frame the charts are read inside stays on screen while the dashboard scrolls. */
+.states { position: sticky; top: -16px; z-index: 20; margin: -16px -16px 12px;
+  padding: 8px 16px 6px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.states-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 5px; }
+.states-row { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+/* Fixed, so every row's bands start at the same x and the columns can be read down. */
+.states-name { flex: 0 0 150px; font-size: 11px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; text-align: right; cursor: help; }
+/* A peer's heartbeat view is second-hand evidence and has to look like it. */
+.states-name.peer { opacity: .65; font-style: italic; }
+/* The track's own background IS the "no data" colour, so a member whose capture is shorter
+   than the bundle simply has nothing drawn there rather than needing a run to say so. */
+.states-track { position: relative; flex: 1; height: 20px; min-width: 0;
+  background: repeating-linear-gradient(45deg, #1f232b 0 6px, #191d24 6px 12px);
+  border-radius: 3px; overflow: hidden; }
+.states-run { position: absolute; top: 0; height: 100%; border: 0; padding: 0;
+  border-radius: 0; cursor: pointer; overflow: hidden; display: flex;
+  align-items: center; justify-content: flex-end; }
+.states-run:hover { filter: brightness(1.15); }
+.states-run.nodata { background: transparent; cursor: default; }
+.states-run-label { font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  color: #0b0d10; padding: 0 5px; white-space: nowrap; }
+.states-run.nodata .states-run-label { color: var(--muted); font-weight: 400; }
+.states-axis { margin-top: 1px; }
+.states-axis .states-track { background: none; height: 14px; overflow: visible; }
+/* Centred on the tick, and clipped by the row rather than widening the strip. */
+.states-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px;
+  color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.states-tz { position: absolute; right: 0; top: 0; font-size: 10px; }
+
+/* ---- node info page ----
+   A field per row and a node per column: the question is "why is this member different", which
+   is a question about a row. Reuses the log window's scrim and frame -- same kind of object. */
+.infopage { max-width: 1400px; margin: 0 auto; }
+.info-body { overflow: auto; padding: 8px 16px 20px; }
+.info-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.info-table th, .info-table td { padding: 4px 10px; text-align: left; vertical-align: top;
+  border-bottom: 1px solid #21252d; }
+.info-table thead th { position: sticky; top: 0; background: var(--panel); z-index: 1;
+  border-bottom: 1px solid var(--line); font-size: 12px; }
+/* The label column is a header cell, so it carries the source path as its tooltip. */
+.info-table tbody th { font-weight: 400; color: var(--muted); white-space: nowrap;
+  cursor: help; width: 1%; }
+.info-table td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-word; }
+.info-section th { padding-top: 14px; color: var(--fg); font-size: 11px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
+/* Marked, not hidden: on a nine-member bundle the disagreeing row is the whole finding. */
+.info-differs td { color: var(--warn); }
+.info-flag { color: var(--warn); margin-left: 6px; font-weight: 700; cursor: help; }
+.info-raw { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 10px; }
+.info-raw-tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.info-raw-tabs .tab:disabled { opacity: .4; cursor: default; }
+.info-json { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+  line-height: 1.45; background: #0f1115; border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px; margin-top: 8px; max-height: 60vh; overflow: auto; white-space: pre; }

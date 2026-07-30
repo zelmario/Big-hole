@@ -75,17 +75,27 @@ async function ingest(id: number, captureId: string, files: File[]): Promise<voi
   const skipped: string[] = [];
   let hostname: string | undefined;
   let mongoVersion: string | undefined;
+  /**
+   * The whole type-0 document, not just the two fields the chip needs.
+   *
+   * Everything about a node that is not a number lives here and nowhere else -- host, CPU,
+   * RAM, OS, the effective mongod configuration, the ulimits -- because the sample stream can
+   * only carry numbers. Read from the first file that has one; mongod writes the same metadata
+   * into every file of a run, and a rotation mid-capture does not change the hardware.
+   */
+  let meta: Record<string, unknown> | undefined;
   let done = 0;
 
   try {
     for (const file of candidates) {
       const bytes = new Uint8Array(await file.arrayBuffer());
 
-      if (hostname === undefined) {
+      if (hostname === undefined && meta === undefined) {
         try {
-          const meta = readMetadata(bytes);
-          hostname = meta?.hostname;
-          mongoVersion = meta?.version;
+          const found = readMetadata(bytes);
+          hostname = found?.hostname;
+          mongoVersion = found?.version;
+          meta = found?.doc as Record<string, unknown> | undefined;
         } catch {
           // metadata is a nicety; a file without it still decodes
         }
@@ -117,6 +127,7 @@ async function ingest(id: number, captureId: string, files: File[]): Promise<voi
     const manifest = await writer.finish({
       ...(hostname !== undefined ? { hostname } : {}),
       ...(mongoVersion !== undefined ? { mongoVersion } : {}),
+      ...(meta !== undefined ? { meta } : {}),
     });
 
     post({

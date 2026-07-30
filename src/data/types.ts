@@ -60,6 +60,17 @@ export interface CaptureManifest {
   readonly sourceFile: string;
   readonly hostname?: string;
   readonly mongoVersion?: string;
+  /**
+   * The FTDC type-0 metadata document, as the file carried it.
+   *
+   * FTDC's sample stream is numeric by construction, so everything that is not a number --
+   * the hostname, the CPU model, the OS, the effective mongod configuration, the ulimits --
+   * exists only here. Kept whole rather than distilled: it is a few tens of KB against a
+   * manifest already measured in megabytes, and which field answers the next question is not
+   * something this layer can know. Absent for a capture ingested before this was recorded,
+   * which the info page degrades to rather than fails on.
+   */
+  readonly meta?: Record<string, unknown>;
 
   readonly sampleCount: number;
   readonly startMs: number;

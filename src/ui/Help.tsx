@@ -89,6 +89,35 @@ export function Help(): ReactElement | null {
           </section>
 
           <section>
+            <h3>Member state, and what each node is</h3>
+            <ul>
+              <li>
+                The strip above the charts is one band per replica-set member, coloured by state:
+                green <b>PRIMARY</b>, olive <b>SECONDARY</b>, amber for the transitional states
+                (STARTUP2, RECOVERING), red for <b>DOWN</b>, <b>ROLLBACK</b> in purple. Hatching
+                means the capture has no sample there.
+              </li>
+              <li>
+                <b>Click a band</b> to zoom every chart to it — an election is a boundary between
+                two bands, and the minutes around it are usually what you came for.
+              </li>
+              <li>
+                <b>Dimmed, italic rows</b> are members you did not load, drawn from a loaded
+                node's heartbeats. That is the only place <b>DOWN</b> can come from — no node ever
+                reports itself as down — but it is one node's view, so it says "could not reach"
+                rather than "was not running".
+              </li>
+              <li>
+                <b>info</b> in the header shows every loaded node side by side: host, CPU, RAM,
+                WiredTiger cache, build, ulimits and the configuration mongod was actually started
+                with. Rows where the nodes disagree are marked <b>≠</b> — a member with half the
+                cache or an unraised file-descriptor limit is often the whole finding. The raw
+                metadata document is at the bottom of the page.
+              </li>
+            </ul>
+          </section>
+
+          <section>
             <h3>Logs</h3>
             <ul>
               <li>

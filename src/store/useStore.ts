@@ -31,6 +31,7 @@ import type { CaptureRef, SeriesSource } from '../data/panelData.js';
 import { groupCaptures, groupLogs, isLogFile, type SourceFile } from '../ingest/discover.js';
 import { withLogs } from '../logs/logSource.js';
 import { detect, type Finding } from '../insights/detect.js';
+import { buildMemberRows, type MemberRow } from '../replset/state.js';
 import {
   MAX_SCAN_SAMPLES,
   baselineFor,
@@ -168,6 +169,22 @@ interface State {
   findings: Finding[] | null;
   analyzing: boolean;
   analyze(): Promise<void>;
+  /**
+   * Replica-set member state over time, one row per member.
+   *
+   * Computed when the set of drawn captures changes, not when the range does. Runs are absolute
+   * spans, so the strip clips them to whatever window is on screen without going back to disk --
+   * the whole reason they are built once. `null` means the pass has not run; an empty array
+   * means it ran and this bundle has no replica-set status in it at all (a standalone).
+   */
+  memberStates: MemberRow[] | null;
+  buildMemberStates(): Promise<void>;
+  /** The member-state strip's visibility. Session view state, out of permalinks and layouts. */
+  showStates: boolean;
+  toggleStates(on?: boolean): void;
+  /** The node information page, a full-screen overlay. View state, like the log window. */
+  showInfo: boolean;
+  toggleInfo(on?: boolean): void;
   /**
    * What changed in the visible window, against the stretch of capture before it.
    *
@@ -605,6 +622,9 @@ function adopt(
   // "did the ticket pool empty at any point in these 42 hours" is the first thing anyone asks.
   // Not awaited: the dashboard must paint first, and a finding arriving a second later is fine.
   void get().analyze();
+  // Same trigger, same argument: which member was primary and when it changed is asked of
+  // every replica-set capture before anything else.
+  void get().buildMemberStates();
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -620,6 +640,9 @@ export const useStore = create<State>((set, get) => ({
   sidebarTab: 'metrics',
   findings: null,
   analyzing: false,
+  memberStates: null,
+  showStates: true,
+  showInfo: false,
   explanation: null,
   explaining: false,
   logProgress: {},
@@ -706,6 +729,41 @@ export const useStore = create<State>((set, get) => ({
 
   setSidebarTab(tab) {
     set({ sidebarTab: tab });
+  },
+
+  toggleStates(on) {
+    set({ showStates: on ?? !get().showStates });
+  },
+
+  toggleInfo(on) {
+    set({ showInfo: on ?? !get().showInfo });
+  },
+
+  /**
+   * Build the member-state strip for every drawn capture.
+   *
+   * Runs beside `analyze()` on the same triggers, and for the same reason: "which member was
+   * primary, and did that change" is one of the handful of questions asked of every capture
+   * before anyone looks at a chart, and one nobody should have to construct a panel to answer.
+   *
+   * Failure is silent by design -- a bundle with no `replSetGetStatus` in it is a standalone,
+   * not an error, and the strip simply does not appear.
+   */
+  async buildMemberStates() {
+    const captures = get().visibleCaptures();
+    if (captures.length === 0) {
+      set({ memberStates: null });
+      return;
+    }
+    try {
+      const rows = await buildMemberRows(
+        get().source(),
+        captures.map((c) => ({ id: c.id, label: c.label, paths: c.paths, catalog: c.catalog })),
+      );
+      set({ memberStates: rows });
+    } catch {
+      set({ memberStates: null });
+    }
   },
 
   /**
@@ -1209,6 +1267,8 @@ export const useStore = create<State>((set, get) => ({
       ...(closing !== undefined ? { recent: [closing.summary, ...get().recent] } : {}),
     });
     persist(panels, null);
+    // A closed node cannot keep a row, and it may have been the only node reporting a peer.
+    void get().buildMemberStates();
   },
 
   toggleCapture(id: string) {
@@ -1220,6 +1280,9 @@ export const useStore = create<State>((set, get) => ({
     });
     // Findings name the node they were found on, so hiding one has to withdraw its findings.
     void get().analyze();
+    // And a hidden node's row has to leave the strip -- including any peer row it was the only
+    // source for, which is why this rebuilds rather than filters.
+    void get().buildMemberStates();
   },
 
   setActive(id: string) {

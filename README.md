@@ -60,6 +60,20 @@ percentage or a difference? Wrap it: `rate(serverStatus.opcounters.query)`,
 three-node comparison — no configuration. Replication lag and clock skew panels appear on their
 own once a second node is loaded.
 
+**See who was primary, and when that changed.** A band per member sits above the charts — green
+PRIMARY, olive SECONDARY, red DOWN, hatched where the capture has no samples. Click a band to zoom
+every chart to it, which is how you land on an election. Members whose FTDC you weren't sent still
+get a row, drawn from a loaded node's heartbeats — and that is the only place DOWN can come from,
+since no node ever reports itself as down.
+
+**Know what each node actually is.** The **info** page puts every loaded node side by side: host,
+CPU, RAM, WiredTiger cache, build, ulimits, and the configuration `mongod` was really started with
+— read from the FTDC metadata document, so it's the server's own answer rather than a guess. Rows
+where the members disagree are flagged, because "node2 has half the cache" is frequently the whole
+finding.
+
+![Every loaded node side by side, with the rows they disagree on flagged](docs/img/node-info.png)
+
 **Zoom once, everywhere.** Drag across any chart and every panel follows, including the log.
 
 **Read the log next to the metrics.** The log viewer follows the dashboard's window, so zooming
@@ -144,6 +158,7 @@ A few command-line helpers, if you'd rather not open a browser:
 npm run inspect  -- <dir>            # what's in this capture: cadence, gaps, roles, coverage
 npm run checks   -- <dir>            # run the checks and print what fired
 npm run explain  -- <dir> [from to]  # rank what moved in a window
+npm run replset  -- <dir> [more]     # member-state timeline + what each node is
 npm test                             # the full suite, including decoder equality tests
 npm run build                        # a static build you can serve anywhere, or carry on a stick
 ```

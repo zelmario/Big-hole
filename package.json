@@ -28,7 +28,9 @@
     "verify:explain": "bash tools/browser/verify-explain.sh",
     "verify:docker": "bash tools/browser/verify-docker.sh",
     "verify:togglenode": "bash tools/browser/verify-togglenode.sh",
+    "verify:replset": "bash tools/browser/verify-replset.sh",
     "checks": "vite-node tools/checks.ts",
+    "replset": "vite-node tools/replset.ts",
     "explain": "vite-node tools/explain.ts",
     "shots": "bash tools/browser/shots.sh"
   },

@@ -10,6 +10,8 @@ import { MetricCatalog } from './dashboard/MetricCatalog.js';
 import { LogView } from './logs/LogView.js';
 import { LogWindow } from './logs/LogWindow.js';
 import { Insights } from './insights/Insights.js';
+import { StateStrip } from './replset/StateStrip.js';
+import { InfoPage } from './replset/InfoPage.js';
 import { Explain } from './insights/Explain.js';
 import { Help } from './ui/Help.js';
 import { toPermalink } from './dashboard/layout.js';
@@ -35,6 +37,7 @@ export function App(): ReactElement {
   const dashboard = useStore((s) => s.dashboard);
   const reset = useStore((s) => s.reset);
   const toggleHelp = useStore((s) => s.toggleHelp);
+  const toggleInfo = useStore((s) => s.toggleInfo);
 
   const [copied, setCopied] = useState<string | null>(null);
   const tab = useStore((s) => s.sidebarTab);
@@ -131,6 +134,12 @@ export function App(): ReactElement {
           <>
             <DashboardMenu />
             <TimeRange />
+            <button
+              title="Host, CPU, memory, WiredTiger cache and the effective mongod configuration of every loaded node"
+              onClick={() => toggleInfo()}
+            >
+              info
+            </button>
             <label className="muted small band-toggle" title="Shade min/max between samples">
               <input
                 type="checkbox"
@@ -229,6 +238,13 @@ export function App(): ReactElement {
             />
           )}
           <section className="charts">
+            {/* Above the grid rather than in it: the strip is the frame every chart below is
+                read inside -- a climbing RSS means one thing on a primary and another on a
+                member that spent the window in RECOVERING -- and it is not a panel, so it must
+                never enter a layout, a permalink or a saved dashboard. */}
+            <ErrorBoundary>
+              <StateStrip />
+            </ErrorBoundary>
             <ErrorBoundary>
               <Grid />
             </ErrorBoundary>
@@ -241,6 +257,7 @@ export function App(): ReactElement {
       )}
 
       {status === 'ready' && <LogWindow />}
+      {status === 'ready' && <InfoPage />}
       <Help />
     </div>
   );

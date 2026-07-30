@@ -154,6 +154,13 @@ export interface CaptureSummary {
   readonly captureId: string;
   readonly hostname?: string;
   readonly mongoVersion?: string;
+  /**
+   * The FTDC type-0 metadata document -- host, CPU, RAM, OS, build, effective config, ulimits.
+   *
+   * Everything about a node that is not a number is here and nowhere else, because the sample
+   * stream carries only numbers. Absent for a capture ingested before it was recorded.
+   */
+  readonly meta?: Record<string, unknown>;
   readonly sampleCount: number;
   readonly startMs: number;
   readonly endMs: number;
@@ -238,6 +245,7 @@ export function summarise(manifest: CaptureManifest, skipped: string[]): Capture
     captureId: manifest.captureId,
     ...(manifest.hostname !== undefined ? { hostname: manifest.hostname } : {}),
     ...(manifest.mongoVersion !== undefined ? { mongoVersion: manifest.mongoVersion } : {}),
+    ...(manifest.meta !== undefined ? { meta: manifest.meta } : {}),
     sampleCount: manifest.sampleCount,
     startMs: manifest.startMs,
     endMs: manifest.endMs,
