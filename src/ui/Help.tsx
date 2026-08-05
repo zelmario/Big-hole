@@ -1,6 +1,7 @@
 import { useEffect, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { AUTHOR, AUTHOR_GITHUB, AUTHOR_URL } from './author.js';
 
 /**
  * In-app help, as an overlay.
@@ -222,14 +223,14 @@ export function Help(): ReactElement | null {
           <section>
             <h3>About</h3>
             <p className="small">
-              Built by <b>Zelmar Michelini</b> —{' '}
+              Built by <b>{AUTHOR}</b>.{' '}
               {/* Plain links: nothing is requested until you click one, so the privacy promise
                   holds. rel=noreferrer keeps even the click from carrying where it came from. */}
-              <a href="https://uy.linkedin.com/in/zelmario" target="_blank" rel="noreferrer noopener">
+              <a href={AUTHOR_URL} target="_blank" rel="noreferrer noopener">
                 LinkedIn
               </a>{' '}
               ·{' '}
-              <a href="https://github.com/zelmario" target="_blank" rel="noreferrer noopener">
+              <a href={AUTHOR_GITHUB} target="_blank" rel="noreferrer noopener">
                 github.com/zelmario
               </a>
             </p>

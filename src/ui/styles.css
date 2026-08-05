@@ -22,7 +22,14 @@ h1 { font-size: 15px; margin: 0; letter-spacing: .3px; }
   min-width: 24ch; text-align: center; white-space: nowrap; flex-shrink: 0; }
 .cursor.idle { visibility: hidden; }
 main { flex: 1; display: flex; min-height: 0; }
-main.centered { align-items: center; justify-content: center; }
+/* Column, because the landing page stacks the drop target and the footer under it. */
+main.centered { flex-direction: column; align-items: center; justify-content: center; gap: 28px; }
+.site-foot { display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-align: center; line-height: 1.6; }
+.site-foot a { color: var(--muted); text-decoration: underline;
+  text-decoration-color: var(--line); }
+.site-foot a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.site-foot-links { letter-spacing: .2px; }
 .catalog { width: 420px; border-right: 1px solid var(--line); display: flex;
   flex-direction: column; padding: 12px; gap: 8px; min-height: 0; }
 .search { width: 100%; padding: 8px 10px; background: #0f1115; color: var(--fg);

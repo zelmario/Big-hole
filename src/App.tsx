@@ -14,6 +14,7 @@ import { StateStrip } from './replset/StateStrip.js';
 import { InfoPage } from './replset/InfoPage.js';
 import { Explain } from './insights/Explain.js';
 import { Help } from './ui/Help.js';
+import { AUTHOR, AUTHOR_GITHUB, AUTHOR_URL } from './ui/author.js';
 import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
 
@@ -258,6 +259,25 @@ export function App(): ReactElement {
       ) : (
         <main className="centered">
           <DropZone />
+          {/* Only on the landing page. Once a capture is open the screen belongs to the data;
+              the credit is in the help panel's About from there on. */}
+          <footer className="site-foot muted small">
+            <span>
+              Created by{' '}
+              <a href={AUTHOR_URL} target="_blank" rel="noreferrer noopener">
+                {AUTHOR}
+              </a>
+            </span>
+            <span className="site-foot-links">
+              <a href={AUTHOR_URL} target="_blank" rel="noreferrer noopener">
+                LinkedIn
+              </a>
+              {' · '}
+              <a href={AUTHOR_GITHUB} target="_blank" rel="noreferrer noopener">
+                GitHub
+              </a>
+            </span>
+          </footer>
         </main>
       )}
 
