@@ -16,7 +16,11 @@ h1 { font-size: 15px; margin: 0; letter-spacing: .3px; }
 .small { font-size: 12px; }
 .warn { color: var(--warn); }
 .error { color: var(--err); margin-top: 12px; }
-.cursor { background: #000; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+/* 24ch is the widest the timestamp gets ("2026-08-05 12:00:00.123Z"), so a sample landing
+   on a sub-second boundary widens the text without moving anything beside it. */
+.cursor { background: #000; padding: 2px 6px; border-radius: 4px; font-size: 12px;
+  min-width: 24ch; text-align: center; white-space: nowrap; flex-shrink: 0; }
+.cursor.idle { visibility: hidden; }
 main { flex: 1; display: flex; min-height: 0; }
 main.centered { align-items: center; justify-content: center; }
 .catalog { width: 420px; border-right: 1px solid var(--line); display: flex;

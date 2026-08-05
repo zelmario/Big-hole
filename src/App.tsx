@@ -129,7 +129,12 @@ export function App(): ReactElement {
           </div>
         )}
         <div className="spacer" />
-        {cursor !== null && <code className="cursor">{ms(cursor)}</code>}
+        {/* The slot is always in the flow. On a narrow screen the header wraps, and a
+            readout that appears only on hover would re-wrap the row, grow the header and
+            resize every chart under it. */}
+        <code className={cursor === null ? 'cursor idle' : 'cursor'}>
+          {cursor === null ? ' ' : ms(cursor)}
+        </code>
         {status === 'ready' && (
           <>
             <DashboardMenu />
