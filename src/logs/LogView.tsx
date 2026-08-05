@@ -8,7 +8,7 @@ import {
 } from 'react';
 
 import { useStore } from '../store/useStore.js';
-import { dropOverlap, pageSize } from './paging.js';
+import { dropOverlap, pageDirection, pageSize } from './paging.js';
 import type { LogViewLine } from '../workers/protocol.js';
 
 /**
@@ -224,6 +224,29 @@ export function LogView({
     }
   }
 
+  /**
+   * Fill the viewport when the buffer does not.
+   *
+   * Paging is driven by the scroll event, and a list shorter than its container cannot produce
+   * one -- so a window that comes back with a handful of lines and `more ↓` is a dead end: the
+   * note says there is more, and there is no gesture that reaches it. The window does not have
+   * to be narrow for this. A read stops at the scan budget as well as at the line cap, so a
+   * filter matching a few lines in the first 256 MB of a multi-gigabyte log lands here on a
+   * whole-capture window.
+   *
+   * Loading until the list can be scrolled hands the reader back the gesture. It terminates:
+   * every page either grows the buffer towards its cap, which fills the viewport, or comes back
+   * empty and clears the flag that got us here.
+   */
+  useEffect(() => {
+    const el = list.current;
+    if (el === null || loading || pagingLock.current || lines.length === 0) return;
+    if (el.scrollHeight > el.clientHeight) return;
+    if (hasAfter) void loadPage('down');
+    else if (hasBefore) void loadPage('up');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, loading, hasAfter, hasBefore]);
+
   // Hold the reader's place across a page load. Must be layout, not effect: the browser would
   // otherwise paint one frame with the buffer shifted, which reads as the log jumping.
   useLayoutEffect(() => {
@@ -356,9 +379,14 @@ export function LogView({
     // long log gets read and it does not drive the charts.
     const el = list.current;
     if (el !== null) {
-      const NEAR_EDGE_PX = 600;
-      if (el.scrollTop < NEAR_EDGE_PX) void loadPage('up');
-      else if (el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_EDGE_PX) void loadPage('down');
+      const dir = pageDirection({
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        hasBefore,
+        hasAfter,
+      });
+      if (dir !== null) void loadPage(dir);
     }
 
     if (fullscreen || followTick.current) return;

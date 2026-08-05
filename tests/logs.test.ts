@@ -13,7 +13,7 @@ import { analyzeLines, logMetricLabel } from '../src/logs/analyze.js';
 import { classify, RULES } from '../src/logs/classify.js';
 import { attrOf, durationOf, emptyStats, looksLikeMongodLog, parseLine } from '../src/logs/parse.js';
 import { logExpressionKind } from '../src/logs/logSource.js';
-import { dropOverlap, pageSize, type OverlapLine } from '../src/logs/paging.js';
+import { dropOverlap, pageDirection, pageSize, type OverlapLine } from '../src/logs/paging.js';
 import { groupLogs, isFtdcFile, isLogFile, type SourceFile } from '../src/ingest/discover.js';
 
 /** Lines in the shapes mongod actually emits, with generic hosts and namespaces. */
@@ -286,5 +286,48 @@ describe('joining log pages', () => {
     // Two thirds of what was on screen has to survive, but a tiny buffer would page one line at
     // a time; the floor keeps a scroll from turning into a round trip per row.
     expect(pageSize(120)).toBe(200);
+  });
+});
+
+/**
+ * Which edge to load, on a buffer that is inside both of them.
+ *
+ * The reported bug: a filtered window came back as a handful of lines saying "more ↓", and no
+ * amount of scrolling loaded any of it. A short buffer is within the margin of the top and the
+ * bottom at once, so deciding by scroll position alone answered "up" every time -- against a
+ * fresh window, which has nothing before it -- and the forward page was never asked for.
+ */
+describe('choosing which edge to page', () => {
+  // Shorter than the 600px margin: every scroll position it has is near both edges.
+  const short = { scrollTop: 174, scrollHeight: 733, clientHeight: 559 };
+  // Taller than twice the margin, so the two edges are distinguishable.
+  const tall = { scrollHeight: 56614, clientHeight: 559 };
+
+  it('pages forward on a short buffer that only has more after it', () => {
+    expect(pageDirection({ ...short, hasBefore: false, hasAfter: true })).toBe('down');
+  });
+
+  it('still pages forward on a short buffer that has more on both sides', () => {
+    expect(pageDirection({ ...short, hasBefore: true, hasAfter: true })).toBe('down');
+  });
+
+  it('pages backwards on a short buffer once there is nothing left after it', () => {
+    expect(pageDirection({ ...short, hasBefore: true, hasAfter: false })).toBe('up');
+  });
+
+  it('asks for nothing when the window holds nothing outside the buffer', () => {
+    expect(pageDirection({ ...short, hasBefore: false, hasAfter: false })).toBeNull();
+    expect(pageDirection({ ...tall, scrollTop: 0, hasBefore: false, hasAfter: true })).toBeNull();
+  });
+
+  it('reads a tall buffer by position, each edge on its own', () => {
+    expect(pageDirection({ ...tall, scrollTop: 0, hasBefore: true, hasAfter: true })).toBe('up');
+    expect(
+      pageDirection({ ...tall, scrollTop: 56055, hasBefore: true, hasAfter: true }),
+    ).toBe('down');
+    // The middle is nowhere near either edge, whatever is outside the buffer.
+    expect(
+      pageDirection({ ...tall, scrollTop: 28000, hasBefore: true, hasAfter: true }),
+    ).toBeNull();
   });
 });

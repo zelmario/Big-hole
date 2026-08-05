@@ -56,6 +56,37 @@ export function dropOverlap<T extends OverlapLine>(
   });
 }
 
+/** What the direction decision needs to know about the list. */
+export interface EdgeView {
+  readonly scrollTop: number;
+  readonly scrollHeight: number;
+  readonly clientHeight: number;
+  readonly hasBefore: boolean;
+  readonly hasAfter: boolean;
+}
+
+/**
+ * Which edge to load next, or null to leave the buffer alone.
+ *
+ * Loading starts before the reader reaches the very edge, so the next lines are usually already
+ * there. The subtlety is that a buffer shorter than twice that margin is inside BOTH edges at
+ * every scroll position it has -- and a filtered window, or one whose read stopped at the scan
+ * budget, is routinely that short.
+ *
+ * So position alone cannot decide it. Answering "up" for a small scrollTop makes "down"
+ * unreachable on exactly those buffers, and a freshly loaded window has nothing before it, so
+ * the request that comes back is a no-op and the log stops loading however far it is scrolled.
+ * What settles it is which side actually has more, forwards first: reading a log forward is the
+ * common direction, and it is the one a short buffer is usually short at.
+ */
+export function pageDirection(view: EdgeView, nearEdgePx = 600): 'up' | 'down' | null {
+  const nearTop = view.scrollTop < nearEdgePx;
+  const nearBottom = view.scrollHeight - view.scrollTop - view.clientHeight < nearEdgePx;
+  if (nearBottom && view.hasAfter) return 'down';
+  if (nearTop && view.hasBefore) return 'up';
+  return null;
+}
+
 /**
  * How much of the buffer one page replaces.
  *
