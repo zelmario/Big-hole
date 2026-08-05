@@ -1,0 +1,16 @@
+{
+  "label": "3-node replica set, 45 min",
+  "note": "A MongoDB Atlas replica set under a write workload, with the mongod log of each member beside its diagnostic.data.",
+  "files": [
+    "shard-00-00/diagnostic.data/metrics.2026-08-04T22-48-03Z-00000",
+    "shard-00-00/diagnostic.data/metrics.interim",
+    "shard-00-00/mongodb.log",
+    "shard-00-01/diagnostic.data/metrics.2026-08-04T23-35-46Z-00000",
+    "shard-00-01/diagnostic.data/metrics.interim",
+    "shard-00-01/mongodb.log",
+    "shard-00-02/diagnostic.data/metrics.2026-08-04T22-54-53Z-00000",
+    "shard-00-02/diagnostic.data/metrics.2026-08-05T00-20-06Z-00000",
+    "shard-00-02/diagnostic.data/metrics.interim",
+    "shard-00-02/mongodb.log"
+  ]
+}

@@ -48,6 +48,11 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0; }
   text-align: center; max-width: 640px; }
 .drop.hover { border-color: var(--accent); background: #1a2431; }
 .drop h2 { margin: 0 0 8px; font-size: 18px; }
+/* Separated from the drop instructions above it: the offer is a way in for someone with no
+   capture, not another thing to read before dropping one. */
+.demo-offer { margin: 20px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+  line-height: 1.6; }
+.demo-offer .link { font-size: inherit; }
 .bar { height: 6px; background: #0f1115; border-radius: 3px; overflow: hidden; margin: 16px 0 8px; }
 .bar-fill { height: 100%; background: var(--accent); transition: width .2s; }
 .u-legend { font-size: 11px !important; }

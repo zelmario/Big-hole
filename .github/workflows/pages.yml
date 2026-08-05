@@ -1,0 +1,66 @@
+# Publish the app, with its demo capture, to GitHub Pages.
+#
+# The whole product runs in the browser -- no backend, no API, nothing to deploy but static
+# files -- so a Pages build is the real thing rather than a marketing page with screenshots.
+# A visitor loads the demo capture and gets the same decoder, workers and OPFS storage an
+# engineer gets with a support bundle.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  # So the site can be republished without a commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; queue instead, and let a running one finish so the site is
+# never left half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The privacy gate, which is what makes "your data never leaves your machine" checkable
+      # rather than asserted. It is run on its own rather than as part of `npm test` because
+      # three decoder tests are deliberately red while the oracle is rewritten; folding the
+      # whole suite in here would mean the promise stops being enforced the moment an
+      # unrelated test breaks. Restore `npm test` once the suite is green again.
+      - name: Privacy gate
+        run: npx vitest run tests/privacy.test.ts
+
+      # `npm run build` runs `tsc --noEmit` first, so a type error fails here too.
+      - name: Build
+        env:
+          # A project page is served from /<repo>/, not from the root.
+          BIGHOLE_BASE: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

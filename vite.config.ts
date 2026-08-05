@@ -7,6 +7,19 @@ export default defineConfig(({ mode }) => ({
   worker: { format: 'es' },
 
   /**
+   * Where the site is served from.
+   *
+   * A GitHub project page lives under the repository name -- `zelmario.github.io/Big-hole/` --
+   * so every asset URL, the worker's included, needs that prefix. It comes from the
+   * environment rather than from `mode` because `mode` is already spoken for below: it feeds
+   * `process.env.NODE_ENV`, and building with `--mode pages` would set NODE_ENV to "pages",
+   * which is not "production" and so turns react-draggable's dev warnings back on.
+   *
+   * Unset, this is "/", which is what a local build and the dev server want.
+   */
+  base: process.env['BIGHOLE_BASE'] ?? '/',
+
+  /**
    * react-draggable (via react-grid-layout) guards its dev warnings with
    * `process.env.NODE_ENV`. `process` does not exist in a browser, so the first drag threw
    * `ReferenceError: process is not defined` and the gesture died silently -- the cursor

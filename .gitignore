@@ -5,6 +5,10 @@ dist/
 # Fixtures are real captures and can be large; regenerate with `npm run fixtures`.
 # The oracle dumps are derived artifacts. Neither belongs in git.
 sample-data/
+# Captures dropped here to look at carry real hostnames and namespaces, whatever the
+# folder is called. Never publishable.
+data_for_demo/
+data_for_testing/
 tools/oracle/oracle
 tools/oracle/*.jsonl
 

@@ -4,6 +4,11 @@
 tarball — onto the page and you get every metric, every node, and the mongod log on one time
 axis. No Docker, no InfluxDB, no upload. Your data stays on your laptop.
 
+**[Try it without installing anything →](https://zelmario.github.io/Big-hole/)**. The whole
+app runs in the page, and "load a demo capture" opens a real 3-node replica set (45 minutes,
+7,722 samples, an election in the middle) with each member's mongod log beside it. Same
+decoder, same workers, same storage you would get with your own bundle.
+
 ![The dashboard](docs/img/dashboard.png)
 
 ## Get it running

@@ -5,7 +5,9 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "types": ["vitest/globals"],
+    // vite/client is what types `import.meta.env`, which the demo loader reads to find the
+    // deployment's base path.
+    "types": ["vitest/globals", "vite/client"],
 
     "strict": true,
     "noUncheckedIndexedAccess": true,

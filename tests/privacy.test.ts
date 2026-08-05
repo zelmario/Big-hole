@@ -26,7 +26,11 @@ const NETWORK_APIS = [
 
 /** Files exempt, each for a stated reason. */
 const ALLOWED = new Set<string>([
-  // (empty -- nothing in the app needs the network)
+  // Loads the demo capture that ships with the built site: same-origin GETs for assets this
+  // deployment already serves, so the bytes travel towards the page and never away from it.
+  // No request body, no destination built from state, nothing that reads a loaded capture.
+  // The promise is about data leaving; this is the site handing the visitor a sample.
+  join('src', 'ingest', 'demo.ts'),
 ]);
 
 /**
@@ -68,6 +72,31 @@ describe('privacy', () => {
     expect(offenders, `network APIs found in shipped source:\n${offenders.join('\n')}`).toEqual(
       [],
     );
+  });
+
+  /**
+   * The allowlist is a hole in the gate, so the hole itself gets a test.
+   *
+   * Exempting a file from the scan means nobody looks at its `fetch` calls again. What makes
+   * the demo loader safe is not that it was reviewed once -- it is that every request it can
+   * make is a relative path under this site's own base, and carries no body. Both of those are
+   * checkable, so they are checked, and a later edit that adds an absolute URL or a POST fails
+   * here rather than shipping.
+   */
+  it('holds the allowlisted loader to same-origin reads', () => {
+    const file = join('src', 'ingest', 'demo.ts');
+    const code = stripComments(readFileSync(file, 'utf8'));
+
+    const targets = [...code.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1]!.trim());
+    expect(targets.length).toBeGreaterThan(0);
+    for (const target of targets) {
+      // A scheme or a protocol-relative prefix would be another origin.
+      expect(target).not.toMatch(/https?:|\/\//);
+      // Every request is a GET of a path: no init object, so no method, body or credentials.
+      expect(target).not.toMatch(/,/);
+    }
+    // The root every path is built from is the deployment's own base, not an outside address.
+    expect(code).toMatch(/import\.meta\.env\.BASE_URL/);
   });
 
   it('confines localStorage to layout persistence', () => {

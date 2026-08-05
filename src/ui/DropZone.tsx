@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 
 import { useStore } from '../store/useStore.js';
 import type { SourceFile } from '../ingest/discover.js';
+import { demoManifest, fetchDemoCapture, type DemoManifest } from '../ingest/demo.js';
 
 /**
  * Accepts a dropped `diagnostic.data` directory, or a folder picked through the file input.
@@ -37,11 +38,33 @@ export function DropZone(): ReactElement {
   const forget = useStore((s) => s.forget);
   const [hover, setHover] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  // The capture built into the site, when there is one. A local build without the asset, or
+  // no network at all, simply leaves the offer out rather than showing a button that fails.
+  const [demo, setDemo] = useState<DemoManifest | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
 
   // What is already decoded on this machine, asked for once on mount.
   useEffect(() => {
     void loadRecent();
   }, [loadRecent]);
+
+  useEffect(() => {
+    void demoManifest().then(setDemo);
+  }, []);
+
+  const openDemo = useCallback(async () => {
+    if (demo === null) return;
+    setFetching(true);
+    setDemoError(null);
+    try {
+      await ingest(await fetchDemoCapture(demo));
+    } catch (err) {
+      setDemoError(err instanceof Error ? err.message : 'the demo capture could not be loaded');
+    } finally {
+      setFetching(false);
+    }
+  }, [demo, ingest]);
 
   const onDrop = useCallback(
     async (event: React.DragEvent) => {
@@ -144,6 +167,20 @@ export function DropZone(): ReactElement {
           if (files.length > 0) void ingest(files);
         }}
       />
+      {/* Somewhere to start for a visitor who has no capture to hand -- which is everyone who
+          has not been sent one. Deliberately below the drop target: the product is reading
+          your own data, and the demo is how that gets shown, not what it is for. */}
+      {demo !== null && (
+        <p className="muted small demo-offer">
+          No capture to hand?{' '}
+          <button className="link" disabled={fetching} onClick={() => void openDemo()}>
+            {fetching ? 'fetching the demo capture…' : `load a demo capture (${demo.label})`}
+          </button>
+          <br />
+          {demo.note}
+        </p>
+      )}
+      {demoError !== null && <p className="error">{demoError}</p>}
       {error !== null && <p className="error">{error}</p>}
 
       {/* Ingest produces a durable artifact, so a capture opened before costs a manifest read
