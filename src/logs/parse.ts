@@ -19,9 +19,9 @@
  * most of the cost of reading a log, so the header is extracted with bounded regexes and the
  * full document is parsed only for the handful of lines that become markers.
  *
- * A pre-4.4 server writes plain text instead. Rather than half-parse it, that is detected and
- * reported: "this log is too old to correlate" is a fact worth stating, where a silently empty
- * annotation layer is indistinguishable from "nothing happened".
+ * A pre-4.4 server writes plain text. A `system.profile` export is JSON too, but it is not a
+ * log line: `op`, `ns`, `millis`, `ts`. Both are read, so a query log is not only the 4.4+
+ * "Slow query" shape.
  */
 
 export interface LogLine {
@@ -60,16 +60,20 @@ export function emptyStats(): ParseStats {
  */
 export function jsonStart(text: string): number {
   if (text.charCodeAt(0) === 123 /* { */) return 0;
-  const at = text.indexOf('{"t":');
-  return at;
+  const tight = text.indexOf('{"t":');
+  if (tight >= 0) return tight;
+  // Some collectors pretty-print the header. The `$date` anchor is the same either way.
+  return text.indexOf('{"t" :');
 }
 
-/* The header fields, in the order mongod emits them, matched over a bounded prefix. */
-const RE_DATE = /"\$date":"([^"]+)"/;
-const RE_SEVERITY = /"s":"([A-Z])"/;
-const RE_COMPONENT = /"c":"([A-Z-]+)"/;
-const RE_ID = /"id":(\d+)/;
-const RE_MSG = /"msg":"((?:[^"\\]|\\.)*)"/;
+/* Optional whitespace: mongod usually writes `"id":51803`, exporters sometimes `"id": 51803`. */
+const RE_DATE = /"\$date"\s*:\s*"([^"]+)"/;
+const RE_SEVERITY = /"s"\s*:\s*"([A-Z][0-9]?)"/;
+const RE_COMPONENT = /"c"\s*:\s*"([A-Z0-9-]+)"/;
+const RE_ID = /"id"\s*:\s*(\d+)/;
+const RE_MSG = /"msg"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+const RE_LEGACY =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)([+-]\d{2}:?\d{2})\s+([IWEFD])\d*\s+([A-Z0-9]+)/;
 
 /**
  * Header fields only, without parsing the document.
@@ -81,12 +85,32 @@ const RE_MSG = /"msg":"((?:[^"\\]|\\.)*)"/;
 export function parseLine(text: string, stats: ParseStats): LogLine | null {
   if (text.length === 0) return null;
 
-  const start = jsonStart(text);
-  if (start < 0) {
-    stats.text++;
-    return null;
+  const logv2 = readLogv2(text);
+  if (logv2 !== null) {
+    if (logv2.wrapped) stats.wrapped++;
+    stats.parsed++;
+    return logv2.line;
   }
-  if (start > 0) stats.wrapped++;
+
+  const profile = readProfile(text);
+  if (profile !== null) {
+    stats.parsed++;
+    return profile;
+  }
+
+  const legacy = readLegacy(text);
+  if (legacy !== null) {
+    stats.parsed++;
+    return legacy;
+  }
+
+  stats[text.includes('{') ? 'malformed' : 'text']++;
+  return null;
+}
+
+function readLogv2(text: string): { line: LogLine; wrapped: boolean } | null {
+  const start = jsonStart(text);
+  if (start < 0) return null;
 
   // mongod writes t, s, c, id, svc, ctx, msg before attr. 512 bytes covers that with room for
   // a long context; anything longer falls back to searching the whole line.
@@ -98,24 +122,62 @@ export function parseLine(text: string, stats: ParseStats): LogLine | null {
   }
 
   const date = RE_DATE.exec(head);
-  if (date === null || msg === null) {
-    stats.malformed++;
-    return null;
-  }
+  if (date === null || msg === null) return null;
 
   const tMs = Date.parse(date[1]!);
-  if (!Number.isFinite(tMs)) {
-    stats.malformed++;
+  if (!Number.isFinite(tMs)) return null;
+
+  return {
+    wrapped: start > 0,
+    line: {
+      tMs,
+      s: RE_SEVERITY.exec(head)?.[1] ?? 'I',
+      c: RE_COMPONENT.exec(head)?.[1] ?? '-',
+      id: Number(RE_ID.exec(head)?.[1] ?? 0),
+      msg: msg[1]!,
+    },
+  };
+}
+
+/**
+ * One `system.profile` document, as mongoexport writes it: one JSON object per line, with
+ * `millis` instead of `durationMillis` and `ts` instead of the log header.
+ */
+function readProfile(text: string): LogLine | null {
+  const start = text.indexOf('{');
+  if (start < 0 || !text.includes('"millis"') || !text.includes('"ns"')) return null;
+  let doc: Record<string, unknown>;
+  try {
+    doc = JSON.parse(text.slice(start)) as Record<string, unknown>;
+  } catch {
     return null;
   }
+  if (typeof doc['ns'] !== 'string' || typeof doc['millis'] !== 'number') return null;
+  if (doc['command'] === undefined && doc['query'] === undefined) return null;
+  const ts = doc['ts'];
+  const date =
+    ts !== null && typeof ts === 'object' && !Array.isArray(ts)
+      ? (ts as Record<string, unknown>)['$date']
+      : undefined;
+  const tMs = typeof date === 'string' ? Date.parse(date) : NaN;
+  if (!Number.isFinite(tMs)) return null;
+  const op = typeof doc['op'] === 'string' ? doc['op'] : 'command';
+  return { tMs, s: 'I', c: 'COMMAND', id: 0, msg: `profile ${op}` };
+}
 
-  stats.parsed++;
+/** Pre-4.4 plain text. The timestamp has no colon in the offset (`+0000`). */
+function readLegacy(text: string): LogLine | null {
+  const head = RE_LEGACY.exec(text.trim());
+  if (head === null) return null;
+  const tMs = Date.parse(`${head[1]!}${head[2]!}`);
+  if (!Number.isFinite(tMs)) return null;
+  const body = text.slice(head[0].length).trim();
   return {
     tMs,
-    s: RE_SEVERITY.exec(head)?.[1] ?? 'I',
-    c: RE_COMPONENT.exec(head)?.[1] ?? '-',
-    id: Number(RE_ID.exec(head)?.[1] ?? 0),
-    msg: msg[1]!,
+    s: head[3]!,
+    c: head[4]!,
+    id: 0,
+    msg: body.length > 0 ? body : 'command',
   };
 }
 
@@ -136,7 +198,7 @@ export function attrOf(text: string): Record<string, unknown> | undefined {
   }
 }
 
-const RE_DURATION = /"durationMillis":(\d+)/;
+const RE_DURATION = /"durationMillis"\s*:\s*(\d+)/;
 
 /** The duration a slow-query line reports, without parsing the document around it. */
 export function durationOf(text: string): number | null {
@@ -150,8 +212,8 @@ export function looksLikeMongodLog(sample: string): boolean {
     const text = line.trim();
     if (text.length === 0) continue;
     if (jsonStart(text) >= 0 && text.includes('"msg"')) return true;
-    // The pre-4.4 text format, recognised only so it can be reported as unsupported.
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{4}\s+[IWEF]\s/.test(text)) return true;
+    if (text.includes('"millis"') && text.includes('"ns"') && text.includes('"op"')) return true;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:?\d{2}\s+[IWEF]/.test(text)) return true;
   }
   return false;
 }

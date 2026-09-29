@@ -28,7 +28,7 @@ import {
 import { exprPaths, parseExpr } from '../data/expr.js';
 import { splitRef, type KnownCapture } from '../data/qualify.js';
 import type { CaptureRef, SeriesSource } from '../data/panelData.js';
-import { groupCaptures, groupLogs, isLogFile, type SourceFile } from '../ingest/discover.js';
+import { groupCaptures, groupLogCaptures, groupLogs, isLogFile, type CaptureGroup, type SourceFile } from '../ingest/discover.js';
 import { withLogs } from '../logs/logSource.js';
 import { detect, type Finding } from '../insights/detect.js';
 import { buildMemberRows, type MemberRow } from '../replset/state.js';
@@ -75,6 +75,11 @@ export interface CaptureState {
   readonly maxState?: number;
   /** Parsed mongod log for this node, once one has been dropped. */
   readonly logs?: LogAnalysis;
+  /**
+   * This capture is a mongod log and nothing else. The dashboard has no metric stream for it;
+   * the query report is the view.
+   */
+  readonly logOnly?: boolean;
   /** Unchecked captures stay loaded but are not drawn -- cheaper than re-ingesting. */
   readonly visible: boolean;
 }
@@ -157,8 +162,14 @@ interface State {
   showHelp: boolean;
   toggleHelp(on?: boolean): void;
   /** Which sidebar panel is showing. In the store so revealing a log line can switch to it. */
-  sidebarTab: 'metrics' | 'log' | 'insights' | 'explain';
-  setSidebarTab(tab: 'metrics' | 'log' | 'insights' | 'explain'): void;
+  sidebarTab: 'metrics' | 'log' | 'insights' | 'explain' | 'queries';
+  setSidebarTab(tab: 'metrics' | 'log' | 'insights' | 'explain' | 'queries'): void;
+  /**
+   * Main pane. `queries` is the slow-operation report — the default when a log was opened
+   * without FTDC, and available beside the charts when both were loaded.
+   */
+  mainView: 'charts' | 'queries';
+  setMainView(view: 'charts' | 'queries'): void;
   /**
    * Pathologies found by the M6 detectors, worst first.
    *
@@ -509,6 +520,98 @@ function mintCaptureId(taken: ReadonlySet<string>): string {
   return id;
 }
 
+type StoreSet = (partial: Partial<State> | ((state: State) => Partial<State>)) => void;
+
+/**
+ * Open mongod logs as captures when the drop contained no FTDC.
+ *
+ * The query report is the view. The log is still persisted, so a reload can restore it the
+ * same way a decoded capture is restored — there is just no metric file beside it.
+ */
+async function ingestLogGroups(
+  get: () => State,
+  set: StoreSet,
+  groups: readonly CaptureGroup[],
+): Promise<void> {
+  const first = get().captures.length === 0;
+  set({ status: 'ingesting', error: null, notice: null, progress: {} });
+
+  const taken = new Set([
+    ...get().captures.map((c) => c.id),
+    ...get().recent.map((c) => c.captureId),
+  ]);
+  const failures: Failure[] = [];
+
+  const results = await Promise.all(
+    groups.map(async (group): Promise<CaptureState | null> => {
+      const id = mintCaptureId(taken);
+      taken.add(id);
+      try {
+        const logs = await get().client.logsOnly(id, group.files, group.label, (p) =>
+          set((st) => ({
+            logProgress: {
+              ...st.logProgress,
+              [id]: { bytes: p.bytesWritten, lines: p.samples },
+            },
+          })),
+        );
+        const startMs = logs.stats.firstMs;
+        const endMs = logs.stats.lastMs > startMs ? logs.stats.lastMs : startMs + 1;
+        return {
+          id,
+          label: group.label,
+          source: group.key,
+          summary: {
+            captureId: id,
+            hostname: group.label,
+            sampleCount: 0,
+            startMs,
+            endMs,
+            cadenceMs: 1000,
+            pathCount: 0,
+            gaps: [],
+            restarts: [],
+            skipped: [],
+            logOnly: true,
+            hasLog: true,
+          },
+          catalog: [],
+          paths: new Set(Object.keys(logs.series)),
+          logs,
+          logOnly: true,
+          visible: true,
+        };
+      } catch (err) {
+        failures.push({
+          label: group.label,
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+      } finally {
+        set((st) => {
+          const next = { ...st.logProgress };
+          delete next[id];
+          return { logProgress: next };
+        });
+      }
+    }),
+  );
+
+  const added = results.filter((c): c is CaptureState => c !== null);
+  if (added.length === 0) {
+    set({
+      status: first ? 'error' : 'ready',
+      error: joinFailures(failures) || 'no mongod log could be read',
+      progress: {},
+    });
+    return;
+  }
+
+  adopt(get, set, added, first, failures);
+  // The report is why the log was opened. Charts stay one click away once FTDC is loaded too.
+  set({ mainView: 'queries', showCatalog: true });
+}
+
 
 /**
  * Fold newly available captures into the dashboard.
@@ -544,11 +647,17 @@ function adopt(
   const available = get().availablePaths();
   const perCapture = new Map(captures.map((c) => [c.id, c.paths] as const));
   const known: KnownCapture = (id) => perCapture.has(id);
+  const allLogs = captures.every((c) => c.logOnly === true);
 
   let panels: PanelSpec[];
   let currentId = get().currentId;
 
-  if (first) {
+  if (first && allLogs) {
+    // A query log has no metric catalogue. Loading the saved FTDC dashboard here would be a
+    // grid of empty charts, which reads as a broken file.
+    panels = [];
+    currentId = null;
+  } else if (first) {
     // A permalink beats the last-open dashboard, which beats the autosaved working layout,
     // which beats the built-in default. An explicitly shared link is the strongest statement
     // of intent.
@@ -592,15 +701,17 @@ function adopt(
     set({ library: listDashboards(), range: state.range });
   } else {
     // Adding a node to a dashboard that is already up: every unqualified panel metric picks
-    // the new capture up on its next fetch, so the layout is left alone.
+    // the new capture up on its next fetch, so the layout is left alone. The exception is a
+    // session that was opened as a log and is now gaining its first metrics.
     panels = get().panels;
+    if (panels.length === 0 && !allLogs) panels = defaultDashboard(available).panels;
   }
 
   // Cross-host panels can only exist now, and only once. Asked of the charts, not of the
   // heading: the heading is what survives when the charts were dropped, so keying off it made
   // a layout that had *lost* its cross-host panels the one case that could never rebuild them.
   const hasCrossHost = panels.some((p) => isCrossHost(p, known));
-  if (captures.length > 1 && !hasCrossHost) {
+  if (!allLogs && captures.length > 1 && !hasCrossHost) {
     const maxY = panels.reduce((m, p) => Math.max(m, p.y + p.h), 0);
     panels = [...panels, ...crossHostPanels(captures, maxY)];
   }
@@ -616,8 +727,12 @@ function adopt(
     progress: {},
     // A capture cannot be both open and "recent"; the list is what you could open next.
     recent: get().recent.filter((c) => !loaded.has(c.captureId)),
+    ...(first && allLogs ? { mainView: 'queries' as const, sidebarTab: 'log' as const } : {}),
+    ...(allLogs ? { findings: null, memberStates: [] } : {}),
   });
   persist(panels, get().range);
+
+  if (allLogs) return;
 
   // Automatic, because a check nobody remembers to run is a check that does not happen -- and
   // "did the ticket pool empty at any point in these 42 hours" is the first thing anyone asks.
@@ -639,6 +754,7 @@ export const useStore = create<State>((set, get) => ({
   recent: [],
   pins: [],
   sidebarTab: 'metrics',
+  mainView: 'charts',
   findings: null,
   analyzing: false,
   memberStates: null,
@@ -730,6 +846,10 @@ export const useStore = create<State>((set, get) => ({
 
   setSidebarTab(tab) {
     set({ sidebarTab: tab });
+  },
+
+  setMainView(view) {
+    set({ mainView: view, showCatalog: true });
   },
 
   toggleStates(on) {
@@ -1048,7 +1168,15 @@ export const useStore = create<State>((set, get) => ({
   async ingest(sources: SourceFile[]) {
     const groups = groupCaptures(sources);
     if (groups.length === 0) {
-      set({ status: get().captures.length > 0 ? 'ready' : 'error', error: 'no metrics.* files found' });
+      const logGroups = groupLogCaptures(sources);
+      if (logGroups.length === 0) {
+        set({
+          status: get().captures.length > 0 ? 'ready' : 'error',
+          error: 'no metrics.* files or mongod logs found',
+        });
+        return;
+      }
+      await ingestLogGroups(get, set, logGroups);
       return;
     }
 
@@ -1185,6 +1313,48 @@ export const useStore = create<State>((set, get) => ({
         const summary = byId.get(id);
         if (summary === undefined) return null;
         try {
+          if (summary.logOnly === true) {
+            // No columns to open. The manifest only exists so this shows up in the recent
+            // list; the log sidecar is the capture.
+            let logs: LogAnalysis | undefined;
+            try {
+              logs = await get().client.restoreLogs(id, (p) =>
+                set((st) => ({
+                  logProgress: { ...st.logProgress, [id]: { bytes: p.bytesWritten, lines: p.samples } },
+                })),
+              );
+            } catch (err) {
+              failures.push({
+                label: `${summary.hostname ?? id} logs`,
+                detail: err instanceof Error ? err.message : String(err),
+              });
+            } finally {
+              set((st) => {
+                const next = { ...st.logProgress };
+                delete next[id];
+                return { logProgress: next };
+              });
+            }
+            const startMs = logs?.stats.firstMs ?? summary.startMs;
+            const lastMs = logs?.stats.lastMs ?? summary.endMs;
+            return {
+              id,
+              label: summary.hostname ?? id,
+              source: '',
+              summary: {
+                ...summary,
+                startMs,
+                endMs: lastMs > startMs ? lastMs : startMs + 1,
+                logOnly: true,
+              },
+              catalog: [],
+              paths: new Set(Object.keys(logs?.series ?? {})),
+              ...(logs !== undefined ? { logs } : {}),
+              logOnly: true,
+              visible: true,
+            };
+          }
+
           // The bytes are already columnar in OPFS; this is a manifest read and a catalogue
           // build, not a decode.
           const catalog = await get().client.catalog(id);
@@ -1586,6 +1756,7 @@ export const useStore = create<State>((set, get) => ({
       notice: null,
       explanation: null,
       findings: null,
+      mainView: 'charts',
       recent: [...closed, ...get().recent],
     });
   },

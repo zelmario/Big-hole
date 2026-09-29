@@ -58,12 +58,30 @@ export function Help(): ReactElement | null {
             <ul>
               <li>
                 Drag a <code>diagnostic.data</code> folder (or a support tarball) onto the drop
-                zone, or use the file picker.
+                zone, or use <b>Choose folder</b>. A mongod log can also be picked as files with
+                <b>Choose log files</b>.
               </li>
               <li>
                 <b>Multiple nodes:</b> drop a bundle with one folder per node — each becomes its
                 own capture (<code>c0</code>, <code>c1</code>, …) and every panel fans out to all
                 of them. Use <b>+ node</b> to add more later.
+              </li>
+              <li>
+                Drop a <b>mongod log by itself</b> — <code>mongod.log</code>, a rotated log, a
+                <code>.jsonl</code> export, a <code>.json</code> profiler dump, pre-4.4 text, or a
+                folder of them. Compressed <code>.gz</code>, <code>.zip</code>, and <code>.xz</code>{' '}
+                logs are left unread. Logged operations are grouped by what they do (operation,
+                namespace, predicate, plan), including ones that never crossed the slow-query
+                threshold, with or without FTDC. Open <b>queries</b> for that report.
+              </li>
+              <li>
+                Each shape has two tags. <b>load</b> is the time that shape consumed: a fraction of
+                a second is green, about a second is amber, several seconds is red. <b>severity</b>{' '}
+                is how bad each call was — how long it took, how many documents it read, and how
+                many it read for each one returned. A collection scan also shows a red{' '}
+                <b>COLLSCAN</b> tag. The colors follow those numbers, not which row happened to be
+                the worst in the file. Sort from the menu; the tags do not filter. Click a shape
+                to show its lines in the log.
               </li>
               <li>
                 Captures are decoded once and stored locally (OPFS). Reopening one from the recent

@@ -1,0 +1,157 @@
+/**
+ * Group logged operations by what they do.
+ *
+ * A log holds every operation that was written down — slow queries, profiler documents, and
+ * commands that never crossed `slowms`. Same shape means same operation, namespace, predicate
+ * and plan. The raw line is parsed and dropped; nothing about the file's size is discarded.
+ */
+
+import { commandAttr, parseSlowOp, type QueryShape } from './queryShape.js';
+
+export interface QueryPattern {
+  readonly op: string;
+  readonly ns: string;
+  readonly pattern: string;
+  readonly plan: string;
+  readonly collscan: boolean;
+  readonly doing: string;
+  readonly count: number;
+  readonly totalMs: number;
+  readonly maxMs: number;
+  readonly docsExamined: number;
+  readonly keysExamined: number;
+  readonly returned: number;
+  readonly reslen: number;
+  readonly firstMs: number;
+  readonly lastMs: number;
+  readonly appNames: readonly string[];
+}
+
+export interface QueryReport {
+  /** Slowest total time first — where the log actually spent its milliseconds. */
+  readonly patterns: readonly QueryPattern[];
+  /** User operations that were grouped above. */
+  readonly ops: number;
+  /** Handshakes and heartbeats. Counted so the omission is visible, not shown as queries. */
+  readonly internal: number;
+  /** Kept for callers that used to hear about a pattern cap. There is no cap. */
+  readonly ungrouped: number;
+  /** Slow-query lines whose command document could not be read. */
+  readonly unread: number;
+}
+
+export function emptyQueryReport(): QueryReport {
+  return { patterns: [], ops: 0, internal: 0, ungrouped: 0, unread: 0 };
+}
+
+interface Acc {
+  shape: QueryShape;
+  count: number;
+  totalMs: number;
+  maxMs: number;
+  docsExamined: number;
+  keysExamined: number;
+  returned: number;
+  reslen: number;
+  firstMs: number;
+  lastMs: number;
+  apps: string[];
+}
+
+const SLOW_IDS = new Set([51803, 51801]);
+
+export class QueryAggregator {
+  private readonly groups = new Map<string, Acc>();
+  private ops = 0;
+  private internal = 0;
+  private ungrouped = 0;
+  private unread = 0;
+
+  /** True for the statement ids that always carry a command document. */
+  static isSlowOp(id: number): boolean {
+    return SLOW_IDS.has(id);
+  }
+
+  add(raw: string, tMs: number): void {
+    const attr = commandAttr(raw);
+    if (attr === undefined) {
+      this.unread++;
+      return;
+    }
+    const parsed = parseSlowOp(attr);
+    if (parsed.kind === 'internal') {
+      this.internal++;
+      return;
+    }
+    if (parsed.kind === 'skip') {
+      this.unread++;
+      return;
+    }
+
+    this.ops++;
+    const shape = parsed.shape;
+    const key = `${shape.op}\0${shape.ns}\0${shape.pattern}\0${shape.plan}`;
+    let acc = this.groups.get(key);
+    if (acc === undefined) {
+      acc = {
+        shape,
+        count: 0,
+        totalMs: 0,
+        maxMs: 0,
+        docsExamined: 0,
+        keysExamined: 0,
+        returned: 0,
+        reslen: 0,
+        firstMs: tMs,
+        lastMs: tMs,
+        apps: [],
+      };
+      this.groups.set(key, acc);
+    }
+
+    acc.count++;
+    acc.totalMs += shape.durationMs;
+    if (shape.durationMs > acc.maxMs) acc.maxMs = shape.durationMs;
+    acc.docsExamined += shape.docsExamined;
+    acc.keysExamined += shape.keysExamined;
+    acc.returned += shape.returned;
+    acc.reslen += shape.reslen;
+    if (tMs < acc.firstMs) acc.firstMs = tMs;
+    if (tMs > acc.lastMs) acc.lastMs = tMs;
+    if (shape.appName !== '' && acc.apps.length < 6 && !acc.apps.includes(shape.appName)) {
+      acc.apps.push(shape.appName);
+    }
+  }
+
+  finish(): QueryReport {
+    const patterns: QueryPattern[] = [];
+    for (const acc of this.groups.values()) {
+      patterns.push({
+        op: acc.shape.op,
+        ns: acc.shape.ns,
+        pattern: acc.shape.pattern,
+        plan: acc.shape.plan,
+        collscan: acc.shape.collscan,
+        doing: acc.shape.doing,
+        count: acc.count,
+        totalMs: acc.totalMs,
+        maxMs: acc.maxMs,
+        docsExamined: acc.docsExamined,
+        keysExamined: acc.keysExamined,
+        returned: acc.returned,
+        reslen: acc.reslen,
+        firstMs: acc.firstMs,
+        lastMs: acc.lastMs,
+        appNames: acc.apps,
+      });
+    }
+    patterns.sort((a, b) => b.totalMs - a.totalMs || b.maxMs - a.maxMs || b.count - a.count);
+    return {
+      patterns,
+      ops: this.ops,
+      internal: this.internal,
+      ungrouped: this.ungrouped,
+      unread: this.unread,
+    };
+  }
+}

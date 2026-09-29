@@ -14,8 +14,11 @@
 
 import { jsonStart } from './parse.js';
 
-/** Probe size: comfortably larger than the longest line seen in real bundles (11 KB). */
-const PROBE_BYTES = 96 * 1024;
+/**
+ * Probe size. A command line carries its whole document; real ones run past 20 KB, and a seek
+ * that lands inside a line has to read through to the next newline to see a timestamp.
+ */
+const PROBE_BYTES = 1024 * 1024;
 
 async function textAt(file: Blob, offset: number, length: number): Promise<string> {
   const slice = file.slice(offset, Math.min(file.size, offset + length));
@@ -34,11 +37,16 @@ export async function timeAt(file: Blob, offset: number): Promise<number | null>
     const line = text.slice(from, end < 0 ? undefined : end);
     const start = jsonStart(line);
     if (start >= 0) {
-      const date = /"\$date":"([^"]+)"/.exec(line.slice(start, start + 512));
+      const date = /"\$date"\s*:\s*"([^"]+)"/.exec(line);
       if (date !== null) {
         const ms = Date.parse(date[1]!);
         if (Number.isFinite(ms)) return ms;
       }
+    }
+    const legacy = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)([+-]\d{2}:?\d{2})/.exec(line.trim());
+    if (legacy !== null) {
+      const ms = Date.parse(`${legacy[1]!}${legacy[2]!}`);
+      if (Number.isFinite(ms)) return ms;
     }
     if (end < 0) break;
     from = end + 1;

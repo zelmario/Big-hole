@@ -70,6 +70,11 @@ export interface LogsRequest {
    */
   readonly fromMs?: number;
   readonly toMs?: number;
+  /**
+   * Set when the log is the capture: there is no FTDC directory to hang it off, so the worker
+   * writes a manifest and the log can be reopened on its own.
+   */
+  readonly logOnlyLabel?: string;
 }
 
 /**
@@ -170,6 +175,11 @@ export interface CaptureSummary {
   readonly restarts: number[];
   readonly skipped: string[];
   /**
+   * A mongod log opened with no FTDC. The window is the log's own span, and `sampleCount` is 0
+   * because there is no metric stream. Reopen reads the persisted log instead of `columns.bin`.
+   */
+  readonly logOnly?: boolean;
+  /**
    * A log was persisted with this capture and can be restored on reopen. Absent/false when the
    * capture has no stored log. Not carried in the manifest -- it is an existence check on the
    * log sidecar, done where the recent list is built.
@@ -254,5 +264,6 @@ export function summarise(manifest: CaptureManifest, skipped: string[]): Capture
     gaps: manifest.gaps,
     restarts: manifest.restarts,
     skipped,
+    ...(manifest.logOnly === true ? { logOnly: true } : {}),
   };
 }

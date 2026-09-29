@@ -37,7 +37,8 @@ export function DropZone(): ReactElement {
   const reopen = useStore((s) => s.reopen);
   const forget = useStore((s) => s.forget);
   const [hover, setHover] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
+  const logInput = useRef<HTMLInputElement>(null);
   // The capture built into the site, when there is one. A local build without the asset, or
   // no network at all, simply leaves the offer out rather than showing a button that fails.
   const [demo, setDemo] = useState<DemoManifest | null>(null);
@@ -87,6 +88,17 @@ export function DropZone(): ReactElement {
     [ingest],
   );
 
+  const takeFiles = useCallback(
+    (list: FileList | null, pathOf: (file: File) => string) => {
+      const files: SourceFile[] = Array.from(list ?? []).map((file) => ({
+        file,
+        path: pathOf(file),
+      }));
+      if (files.length > 0) void ingest(files);
+    },
+    [ingest],
+  );
+
   if (status === 'ingesting') {
     // One bar per node: they decode concurrently, one worker each, and a single merged bar
     // would hide a member that is stuck while the others finish.
@@ -95,7 +107,7 @@ export function DropZone(): ReactElement {
     const logLineCount = Object.values(logProgress).reduce((n, p) => n + p.lines, 0);
     return (
       <div className="drop working">
-        <h2>Decoding{nodes.length > 1 ? ` ${nodes.length} nodes` : ''}…</h2>
+      <h2>{nodes.length === 0 ? 'Reading log…' : `Decoding${nodes.length > 1 ? ` ${nodes.length} nodes` : ''}…`}</h2>
         {/* Raised while the bars are still moving, because that is the only moment at which
             "this will not fit" is still worth anything. */}
         {notice !== null && <p className="small warn">⚠ {notice}</p>}
@@ -147,24 +159,48 @@ export function DropZone(): ReactElement {
         each, and every panel becomes a per-member comparison.
       </p>
       <p className="muted">
+        A mongod log on its own works too — a folder of them, or the files themselves.
+        Logged operations are grouped by what they do, whether or not any FTDC came with them.
+      </p>
+      <p className="muted">
         Everything is decoded on this machine. No upload, no server, no telemetry.
       </p>
-      <button onClick={() => input.current?.click()}>Choose folder…</button>
+      <div className="drop-actions">
+        <button type="button" onClick={() => folderInput.current?.click()}>
+          Choose folder…
+        </button>
+        <button
+          type="button"
+          title="One or more mongod logs, .jsonl exports, or system.profile dumps. Files chosen together are read as one log."
+          onClick={() => logInput.current?.click()}
+        >
+          Choose log files…
+        </button>
+      </div>
       <input
-        ref={input}
+        ref={folderInput}
         type="file"
         multiple
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {...({ webkitdirectory: '', directory: '' } as any)}
         style={{ display: 'none' }}
         onChange={(e) => {
-          const files: SourceFile[] = Array.from(e.target.files ?? []).map((file) => ({
-            file,
-            // webkitRelativePath keeps the picked folder's tree, so a bundle containing
-            // several members still groups into one capture per member.
-            path: file.webkitRelativePath || file.name,
-          }));
-          if (files.length > 0) void ingest(files);
+          // webkitRelativePath keeps the picked folder's tree, so a bundle containing
+          // several members still groups into one capture per member.
+          takeFiles(e.target.files, (file) => file.webkitRelativePath || file.name);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={logInput}
+        type="file"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          // No directory was picked, so the name is the whole path. Several files chosen
+          // together share that empty directory and become one log.
+          takeFiles(e.target.files, (file) => file.name);
+          e.target.value = '';
         }}
       />
       {/* Somewhere to start for a visitor who has no capture to hand -- which is everyone who
@@ -207,8 +243,9 @@ export function DropZone(): ReactElement {
                   <span className="muted small">
                     {' '}
                     {when(capture.startMs)} · {hours(capture.startMs, capture.endMs)} ·{' '}
-                    {capture.sampleCount.toLocaleString()} samples ·{' '}
-                    {capture.pathCount.toLocaleString()} metrics
+                    {capture.logOnly === true
+                      ? 'query log'
+                      : `${capture.sampleCount.toLocaleString()} samples · ${capture.pathCount.toLocaleString()} metrics`}
                     {capture.mongoVersion !== undefined && ` · ${capture.mongoVersion}`}
                   </span>
                 </button>

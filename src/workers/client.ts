@@ -249,6 +249,25 @@ export class FtdcClient {
   }
 
   /**
+   * Parse a mongod log that arrived without FTDC.
+   *
+   * Same path as attaching a log to a capture, plus a manifest so the log can be reopened
+   * after a reload. The whole file is read: there is no metric window to clip it to.
+   */
+  logsOnly(
+    captureId: string,
+    files: File[],
+    label: string,
+    onProgress?: (p: IngestProgressMessage) => void,
+  ): Promise<LogAnalysis> {
+    return this.send<LogAnalysis>(
+      this.route(captureId),
+      { kind: 'logs', captureId, files, logOnlyLabel: label },
+      onProgress,
+    );
+  }
+
+  /**
    * Raw log lines within a window, read positionally from the file on disk.
    *
    * The log viewer's only data source. `hasBefore`/`hasAfter` report what the window holds

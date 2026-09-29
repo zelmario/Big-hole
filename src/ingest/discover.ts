@@ -51,13 +51,17 @@ export function isFtdcFile(name: string): boolean {
  * A mongod log, by name.
  *
  * Deliberately permissive about what surrounds `.log`: real bundles contain `mongod.log`,
- * `mongodb.log`, `mongodb.log-202607210201`, `mongod-a1_mongodb.log` and worse. Anything
- * that turns out not to be a mongod log is rejected on content when it is parsed, which is a
- * more reliable test than the filename ever is.
+ * `mongodb.log`, `mongodb.log-202607210201`, `mongod-a1_mongodb.log` and worse. JSONL and JSON
+ * exports — a day's slow-query log, a `system.profile` dump — are logs too. Anything that turns
+ * out not to be a mongod log is rejected on content when it is parsed, which is a more reliable
+ * test than the filename ever is. Compressed copies are left alone; there is nothing here that
+ * inflates them.
  */
 export function isLogFile(name: string): boolean {
   const base = (name.split('/').pop() ?? name).toLowerCase();
-  if (base.endsWith('.gz') || base.endsWith('.zip')) return false;
+  if (base.includes(':')) return false;
+  if (base.endsWith('.gz') || base.endsWith('.zip') || base.endsWith('.xz')) return false;
+  if (base.endsWith('.jsonl') || base.endsWith('.json')) return true;
   return /\.log(\.|-|$)/.test(base);
 }
 
@@ -100,6 +104,41 @@ export function groupLogs(
 
   for (const list of out.values()) list.sort((a, b) => a.name.localeCompare(b.name));
   return out;
+}
+
+/**
+ * One capture per directory of logs, for a drop that has no FTDC in it.
+ *
+ * The same grouping rule as metrics: files that share a directory are one node. A single
+ * `mongod.log` dropped on its own is one capture, named from the file rather than from a
+ * folder that is not there.
+ */
+export function groupLogCaptures(sources: readonly SourceFile[]): CaptureGroup[] {
+  const groups = new Map<string, File[]>();
+  const names = new Map<string, string>();
+
+  for (const source of sources) {
+    if (!isLogFile(source.path)) continue;
+    const dir = dirname(source.path);
+    const list = groups.get(dir);
+    if (list === undefined) groups.set(dir, [source.file]);
+    else list.push(source.file);
+    if (!names.has(dir)) names.set(dir, source.path.split('/').pop() ?? source.file.name);
+  }
+
+  const keys = [...groups.keys()].sort();
+  const labels = new Map<string, number>();
+
+  return keys.map((key) => {
+    const base = key === '' ? (names.get(key) ?? 'log') : labelFor(key);
+    const seen = labels.get(base) ?? 0;
+    labels.set(base, seen + 1);
+    return {
+      key: key === '' ? base : key,
+      label: seen === 0 ? base : `${base} (${seen + 1})`,
+      files: groups.get(key)!.sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  });
 }
 
 function dirname(path: string): string {

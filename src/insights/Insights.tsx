@@ -105,6 +105,15 @@ export function Insights(): ReactElement {
     return <div className="logview empty muted small">Load a capture and the checks run on it.</div>;
   }
 
+  if (captures.every((c) => c.logOnly === true)) {
+    return (
+      <div className="logview empty muted small">
+        These checks read FTDC metrics. This session is a query log, so there is nothing for them
+        to measure — the queries view is the report.
+      </div>
+    );
+  }
+
   return (
     <div className="insights">
       <div className="logview-note muted small">
