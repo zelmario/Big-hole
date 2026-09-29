@@ -20,6 +20,7 @@
  */
 
 import type { FileStore } from '../data/fileStore.js';
+import { MANIFEST_VERSION, type CaptureManifest } from '../data/types.js';
 import { LogAnalyzer, type LogAnalysis } from './analyze.js';
 import { rangeFor } from './locate.js';
 
@@ -181,4 +182,47 @@ export async function restoreLog(
   }
 
   return { analysis: analyzer.finish(), files };
+}
+
+/**
+ * A log opened with no FTDC is still a capture: write the manifest reopen already knows how
+ * to list. There is no sample clock and no column file; `logOnly` is what tells reopen to
+ * restore the sidecar instead of opening a reader.
+ */
+export async function sealLogCapture(
+  store: FileStore,
+  captureId: string,
+  label: string,
+  sourceFile: string,
+  startMs: number,
+  endMs: number,
+): Promise<void> {
+  const manifest: CaptureManifest = {
+    version: MANIFEST_VERSION,
+    captureId,
+    sourceFile,
+    hostname: label,
+    logOnly: true,
+    sampleCount: 0,
+    startMs,
+    endMs,
+    cadenceMs: 1000,
+    paths: [],
+    types: [],
+    min: [],
+    max: [],
+    flat: [],
+    schemas: [],
+    chunks: {
+      schemaId: [],
+      startMs: [],
+      sampleCount: [],
+      firstSample: [],
+      offset: [],
+      constCount: [],
+    },
+    gaps: [],
+    restarts: [],
+  };
+  await store.writeText(`${captureId}/manifest.json`, JSON.stringify(manifest));
 }

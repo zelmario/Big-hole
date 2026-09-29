@@ -19,6 +19,8 @@
 
 import { classify, ANNOTATION_LIMIT, RULES, type Rule } from './classify.js';
 import { attrOf, durationOf, emptyStats, parseLine, type LogLine, type ParseStats } from './parse.js';
+import { QueryAggregator, type QueryReport } from './queries.js';
+import { shouldReadQuery } from './queryShape.js';
 
 export interface LogEvent {
   readonly tMs: number;
@@ -50,6 +52,13 @@ export interface LogAnalysis {
     /** Total events matched per class, drawn or not. */
     readonly counts: Record<string, number>;
   };
+  /**
+   * Slow operations grouped by query shape.
+   *
+   * Present even when the log had none, so a caller can render an empty report instead of
+   * guessing whether the pass ran. Built during the same streaming pass as the events.
+   */
+  readonly queries: QueryReport;
 }
 
 /** Bucket width to start from. 10 s is finer than FTDC's 1 s clock needs. */
@@ -195,6 +204,7 @@ export class LogAnalyzer {
   private readonly buckets = new Map<string, Buckets>();
   private readonly counts: Record<string, number> = {};
   private readonly demotedKinds = new Set<string>();
+  private readonly queries = new QueryAggregator();
 
   private bucketMs: number;
   private readonly limit: number;
@@ -217,6 +227,10 @@ export class LogAnalyzer {
 
     if (line.tMs < this.firstMs) this.firstMs = line.tMs;
     if (line.tMs > this.lastMs) this.lastMs = line.tMs;
+
+    // Any logged command, not only the lines mongod labelled "Slow query". A profiler
+    // document and a command that never crossed slowms carry the same command document.
+    if (shouldReadQuery(line, raw)) this.queries.add(raw, line.tMs);
 
     const rule: Rule | null = classify(line);
     if (rule === null) {
@@ -303,6 +317,7 @@ export class LogAnalyzer {
         demoted: [...this.demotedKinds].map((kind) => ({ kind, count: this.counts[kind] ?? 0 })),
         counts: this.counts,
       },
+      queries: this.queries.finish(),
     };
   }
 }

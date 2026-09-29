@@ -55,7 +55,9 @@ export function CaptureBar(): ReactElement {
               {' '}
               {capture.id} · {shortTime(capture.summary.startMs)}–
               {shortTime(capture.summary.endMs)} ·{' '}
-              {capture.summary.sampleCount.toLocaleString()} samples
+              {capture.logOnly === true
+                ? `${(capture.logs?.queries.patterns.length ?? 0).toLocaleString()} query shapes`
+                : `${capture.summary.sampleCount.toLocaleString()} samples`}
               {capture.summary.mongoVersion !== undefined && ` · ${capture.summary.mongoVersion}`}
             </span>
           </button>

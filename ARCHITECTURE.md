@@ -345,9 +345,17 @@ node1 taking over at 14:44:56.
 
 ## Log correlation
 
-`src/logs/` turns a mongod log into two things and keeps nothing else: a few hundred
-**markers** on the shared time axis, and **`logs.*` series** in the metric catalogue. A support
-bundle's log is routinely 73 MB and can be gigabytes; holding lines resident would break the
+`src/logs/` turns a mongod log into three things: a few hundred
+**markers** on the shared time axis, **`logs.*` series** in the metric catalogue, and a
+**query-shape report** (`queries.ts`, `queryShape.ts`, `QueryBoard.tsx`) that groups every logged
+operation — slow or not, logv2, JSONL, a `system.profile` export, or pre-4.4 text — by operation,
+namespace, predicate, and plan. Heartbeats are dropped. The report is not capped by shape count
+or predicate length. **load** colors the time a shape consumed and **severity** colors how bad
+each call was (latency, documents read, documents read per document returned, collection scan),
+both on a fixed scale so one outlier cannot paint a slow call green. A log on its own is enough;
+FTDC is not required.
+
+A support bundle's log is routinely 73 MB and can be gigabytes; holding lines resident would break the
 same promise the storage layer keeps for metrics.
 
 The hard part is volume, not parsing. One real 24-hour production log holds:

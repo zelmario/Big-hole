@@ -46,7 +46,8 @@ Either way, drag in one of these:
 
 - a **`diagnostic.data` folder** from a mongod,
 - a **support tarball** — it finds the FTDC and the logs inside, however they're nested,
-- a **folder with one subfolder per node** — the whole replica set opens at once.
+- a **folder with one subfolder per node** — the whole replica set opens at once,
+- a **mongod log on its own** — logged operations are grouped by what they do, with no FTDC required. `.log`, `.jsonl`, a `system.profile` export, and pre-4.4 text logs all work. Pick a folder, or individual files with **Choose log files**. Compressed `.gz`, `.zip`, and `.xz` logs are not read.
 
 Drop a `mongod.log` in beside it (or use **+ log**) and the log lines land on the same timeline as
 the metrics.
@@ -86,6 +87,19 @@ into an incident narrows the log to the same minutes. Notable lines — election
 changes, restarts — are highlighted. Double-click one to pin a marker across every chart;
 double-click a chart to jump the log to that instant. There's a full-screen `less`-style view for
 reading long slow-query documents.
+
+**See what the logged operations were doing.** Each logged operation — slow or not — is grouped with the others that
+share its shape: the same command, namespace, predicate, and plan, with the literal values taken
+out. Heartbeats stay hidden. There is no cap on how many shapes or how long a predicate can be.
+Drop `mongod.log` with no `diagnostic.data` and the query view is the whole app; drop it beside
+FTDC and it sits next to the charts. Click a shape and the log opens on the minutes those calls ran.
+
+Each shape carries two tags. **load** is the time that shape consumed: under a tenth of a second is
+green, about a second is amber, and several seconds is red. **severity** is how bad each call was —
+how long it took, how many documents it read, how many it read for each one returned, and whether
+it was a collection scan. The color follows the number, so a 14 second call stays red when another
+call took longer. A collection scan also gets its own red **COLLSCAN** tag. Sort from the menu at
+the top; the tags themselves only display the color.
 
 ![The log viewer, following the dashboard's window](docs/img/log.png)
 

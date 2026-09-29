@@ -55,6 +55,7 @@ button.link { background: none; border: 0; color: var(--accent); padding: 0; }
   text-align: center; max-width: 640px; }
 .drop.hover { border-color: var(--accent); background: #1a2431; }
 .drop h2 { margin: 0 0 8px; font-size: 18px; }
+.drop-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 /* Separated from the drop instructions above it: the offer is a way in for someone with no
    capture, not another thing to read before dropping one. */
 .demo-offer { margin: 20px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
@@ -281,7 +282,7 @@ header { align-items: center; flex-wrap: wrap; }
   opacity: .75; }
 
 /* ---- M5: log events ---- */
-.sidebar-tabs { display: flex; gap: 4px; padding: 8px 8px 0; }
+.sidebar-tabs { display: flex; gap: 4px; padding: 8px 8px 0; flex-wrap: wrap; }
 .tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
   font-size: 12px; padding: 4px 8px; cursor: pointer; }
 .tab.on { color: var(--fg); border-bottom-color: var(--accent); }
@@ -555,3 +556,43 @@ header { align-items: center; flex-wrap: wrap; }
 .info-json { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
   line-height: 1.45; background: #0f1115; border: 1px solid var(--line); border-radius: 6px;
   padding: 10px; margin-top: 8px; max-height: 60vh; overflow: auto; white-space: pre; }
+
+/* --- query shapes ----------------------------------------------------------
+   A slow-query report, whether or not FTDC was loaded with the log. The row is
+   the click target: it zooms the log to the span those calls covered. */
+.charts.query-mode { display: flex; flex-direction: column; overflow: hidden; }
+.query-board { display: flex; flex-direction: column; min-height: 0; flex: 1; gap: 8px; }
+.query-sort { flex: 0 0 auto; width: auto; }
+.query-summary { padding: 0 2px; }
+.query-list { overflow: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.query-row {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: #12151b; border: 1px solid #232833; border-left-width: 3px;
+  border-left-color: var(--accent); border-radius: 6px; padding: 8px 10px; color: var(--fg);
+}
+.query-row:hover { background: #171b23; border-color: #2f3644; }
+.query-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.query-op {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  background: #1d3350; color: var(--fg); border-radius: 4px; padding: 0 6px;
+}
+.query-scan {
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #1b1e24;
+  background: var(--err); border-radius: 4px; padding: 0 5px; flex: none;
+}
+.query-rank {
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #1b1e24;
+  border-radius: 4px; padding: 0 5px; flex: none;
+}
+.query-ns {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.query-doing { margin-top: 4px; line-height: 1.45; }
+.query-pattern {
+  margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; color: var(--muted); white-space: pre-wrap; word-break: break-word;
+}
+.query-note { margin-top: 4px; color: var(--warn); font-size: 12px; }
+.query-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+

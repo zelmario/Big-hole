@@ -72,6 +72,14 @@ export interface CaptureManifest {
    */
   readonly meta?: Record<string, unknown>;
 
+  /**
+   * This directory is a mongod log with no FTDC beside it.
+   *
+   * There is no `columns.bin`. Reopen restores the log sidecar and skips the metric reader.
+   * Absent on every capture that was decoded from diagnostic data.
+   */
+  readonly logOnly?: boolean;
+
   readonly sampleCount: number;
   readonly startMs: number;
   readonly endMs: number;

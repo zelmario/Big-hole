@@ -63,12 +63,29 @@ describe('parsing mongod JSON logs', () => {
 
   it('counts unparsable lines instead of throwing', () => {
     const stats = emptyStats();
-    // A truncated final line and a pre-4.4 text line: both routine in a support bundle.
+    // A truncated final line is malformed. A line that is not a log at all is text.
     expect(parseLine('{"t":{"$date":"2026-07-2', stats)).toBeNull();
-    expect(parseLine('2026-07-20T03:38:35.067-0500 I CONTROL [main] ***** SERVER RESTARTED', stats)).toBeNull();
+    expect(parseLine('hello', stats)).toBeNull();
     expect(parseLine('', stats)).toBeNull();
     expect(stats.malformed).toBe(1);
     expect(stats.text).toBe(1);
+  });
+
+  it('reads a pre-4.4 text line', () => {
+    const stats = emptyStats();
+    const line = parseLine('2026-07-20T03:38:35.067-0500 I CONTROL [main] ***** SERVER RESTARTED', stats);
+    expect(line?.c).toBe('CONTROL');
+    expect(line?.msg).toContain('SERVER RESTARTED');
+    expect(stats.parsed).toBe(1);
+  });
+
+  it('reads a log line whose header has spaces after the colons', () => {
+    const stats = emptyStats();
+    const raw =
+      '{ "t" : { "$date" : "2026-07-20T03:38:36.171-05:00" }, "s" : "I", "c" : "COMMAND", "id" : 51803, "msg" : "Slow query", "attr" : { "ns" : "app.x" } }';
+    const line = parseLine(raw, stats);
+    expect(line?.id).toBe(51803);
+    expect(line?.msg).toBe('Slow query');
   });
 
   it('recognises both log formats, so an old one can be reported rather than ignored', () => {
@@ -183,9 +200,13 @@ describe('finding logs in a bundle', () => {
     expect(isLogFile('metrics.2026-07-20T00-00-00Z-00000')).toBe(false);
     // Compressed logs would need inflating first; claiming them would fail at parse time.
     expect(isLogFile('mongod.log.gz')).toBe(false);
+    expect(isLogFile('queries.jsonl.xz')).toBe(false);
+    expect(isLogFile('queries.jsonl')).toBe(true);
+    expect(isLogFile('slow-queries.json')).toBe(true);
     // An NTFS alternate data stream, which a capture that came through Windows carries one of
     // per file. Rejected here already, because ':' is none of the separators `.log` may precede.
     expect(isLogFile('mongo_log_36h.log:Zone.Identifier')).toBe(false);
+    expect(isLogFile('queries.jsonl:Zone.Identifier')).toBe(false);
   });
 
   /**

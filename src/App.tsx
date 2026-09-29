@@ -9,6 +9,7 @@ import { Grid } from './dashboard/Grid.js';
 import { MetricCatalog } from './dashboard/MetricCatalog.js';
 import { LogView } from './logs/LogView.js';
 import { LogWindow } from './logs/LogWindow.js';
+import { QueryBoard } from './logs/QueryBoard.js';
 import { Insights } from './insights/Insights.js';
 import { StateStrip } from './replset/StateStrip.js';
 import { InfoPage } from './replset/InfoPage.js';
@@ -43,7 +44,22 @@ export function App(): ReactElement {
   const [copied, setCopied] = useState<string | null>(null);
   const tab = useStore((s) => s.sidebarTab);
   const setTab = useStore((s) => s.setSidebarTab);
+  const mainView = useStore((s) => s.mainView);
+  const setMainView = useStore((s) => s.setMainView);
   const hasLogs = useStore((s) => s.hasLogs)();
+  const logOnly = captures.length > 0 && captures.every((c) => c.logOnly === true);
+  const queryShapes = captures.reduce(
+    (n, c) => n + (c.visible && c.logs !== undefined ? c.logs.queries.patterns.length : 0),
+    0,
+  );
+  const collscans = captures.reduce(
+    (n, c) =>
+      n +
+      (c.visible && c.logs !== undefined
+        ? c.logs.queries.patterns.filter((p) => p.collscan).length
+        : 0),
+    0,
+  );
   const pinCount = useStore((s) => s.pins.length);
   const logLoading = useStore((s) => Object.keys(s.logProgress).length > 0);
   const analyzing = useStore((s) => s.analyzing);
@@ -103,9 +119,9 @@ export function App(): ReactElement {
         {bounds !== null && (
           <div className="summary">
             <span className="muted">
-              {captures.length} node{captures.length === 1 ? '' : 's'} ·{' '}
-              {captures.reduce((n, c) => n + c.summary.sampleCount, 0).toLocaleString()} samples ·{' '}
-              {(bounds.cadenceMs / 1000).toFixed(1)}s cadence
+              {logOnly
+                ? `${captures.length} log${captures.length === 1 ? '' : 's'} · ${queryShapes} query shape${queryShapes === 1 ? '' : 's'}`
+                : `${captures.length} node${captures.length === 1 ? '' : 's'} · ${captures.reduce((n, c) => n + c.summary.sampleCount, 0).toLocaleString()} samples · ${(bounds.cadenceMs / 1000).toFixed(1)}s cadence`}
             </span>
             <div className="muted small">
               {ms(bounds.startMs)} → {ms(bounds.endMs)}
@@ -136,7 +152,7 @@ export function App(): ReactElement {
         <code className={cursor === null ? 'cursor idle' : 'cursor'}>
           {cursor === null ? ' ' : ms(cursor)}
         </code>
-        {status === 'ready' && (
+        {status === 'ready' && !logOnly && (
           <>
             <DashboardMenu />
             <TimeRange />
@@ -158,6 +174,20 @@ export function App(): ReactElement {
             <button onClick={() => void share()}>share</button>
             <button className="link" onClick={reset}>clear all</button>
           </>
+        )}
+        {status === 'ready' && logOnly && (
+          <>
+            <TimeRange />
+            <button className="link" onClick={reset}>clear all</button>
+          </>
+        )}
+        {status === 'ready' && hasLogs && !logOnly && (
+          <button
+            title="Slow queries grouped by what they do"
+            onClick={() => setMainView(mainView === 'queries' ? 'charts' : 'queries')}
+          >
+            {mainView === 'queries' ? 'charts' : 'queries'}
+          </button>
         )}
         <button className="help-btn" title="Help" aria-label="Help" onClick={() => toggleHelp(true)}>
           ?
@@ -202,6 +232,16 @@ export function App(): ReactElement {
                     {pinCount > 0 && <span className="tab-pins"> {pinCount}📌</span>}
                   </button>
                   <button
+                    className={tab === 'queries' ? 'tab on' : 'tab'}
+                    title="Slow queries grouped by what they do"
+                    onClick={() => setTab('queries')}
+                  >
+                    queries
+                    {queryShapes > 0 && (
+                      <span className={collscans > 0 ? 'tab-warn' : ''}> {queryShapes}</span>
+                    )}
+                  </button>
+                  <button
                     className={tab === 'insights' ? 'tab on' : 'tab'}
                     onClick={() => setTab('insights')}
                   >
@@ -228,6 +268,15 @@ export function App(): ReactElement {
                   <MetricCatalog />
                 ) : tab === 'log' ? (
                   <LogView />
+                ) : tab === 'queries' ? (
+                  mainView === 'queries' ? (
+                    <div className="logview empty muted small">
+                      The query report is open in the main view. The log tab lists the raw lines
+                      those queries came from.
+                    </div>
+                  ) : (
+                    <QueryBoard />
+                  )
                 ) : tab === 'insights' ? (
                   <Insights />
                 ) : (
@@ -243,17 +292,25 @@ export function App(): ReactElement {
               onMouseDown={startResize}
             />
           )}
-          <section className="charts">
-            {/* Above the grid rather than in it: the strip is the frame every chart below is
-                read inside -- a climbing RSS means one thing on a primary and another on a
-                member that spent the window in RECOVERING -- and it is not a panel, so it must
-                never enter a layout, a permalink or a saved dashboard. */}
-            <ErrorBoundary>
-              <StateStrip />
-            </ErrorBoundary>
-            <ErrorBoundary>
-              <Grid />
-            </ErrorBoundary>
+          <section className={mainView === 'queries' ? 'charts query-mode' : 'charts'}>
+            {mainView === 'queries' ? (
+              <ErrorBoundary>
+                <QueryBoard />
+              </ErrorBoundary>
+            ) : (
+              <>
+                {/* Above the grid rather than in it: the strip is the frame every chart below is
+                    read inside -- a climbing RSS means one thing on a primary and another on a
+                    member that spent the window in RECOVERING -- and it is not a panel, so it must
+                    never enter a layout, a permalink or a saved dashboard. */}
+                <ErrorBoundary>
+                  <StateStrip />
+                </ErrorBoundary>
+                <ErrorBoundary>
+                  <Grid />
+                </ErrorBoundary>
+              </>
+            )}
           </section>
         </main>
       ) : (

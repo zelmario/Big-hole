@@ -12,7 +12,7 @@ import { LogAnalyzer } from '../logs/analyze.js';
 import { emptyStats, parseLine } from '../logs/parse.js';
 import { classify } from '../logs/classify.js';
 import { rangeFor } from '../logs/locate.js';
-import { hasStoredLog, persistAndAnalyze, restoreLog, type LogProgress } from '../logs/logStore.js';
+import { hasStoredLog, persistAndAnalyze, restoreLog, sealLogCapture, type LogProgress } from '../logs/logStore.js';
 import { OpfsFileStore, OutOfStorageError } from '../data/fileStore.js';
 import { CaptureWriter } from '../data/writer.js';
 import { CaptureReader, parseManifest } from '../data/reader.js';
@@ -285,12 +285,10 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         const { fromMs, toMs, maxLines, importantOnly } = request;
         const query = request.query.toLowerCase();
         const wantTail = request.end === 'tail';
-        // Never read more than this scanning for notable lines in a wide window; past it the
-        // viewer says so and asks for a narrower one.
-        const SCAN_BUDGET = 256 * 1024 * 1024;
         // Reverse paging reads backwards from the window's end, growing the slice until it holds
         // a full page. Starting small keeps the common case -- a dense log, one page back -- to a
-        // few megabytes; doubling keeps a sparse filter from needing many round trips.
+        // few megabytes; doubling keeps a sparse filter from needing many round trips. The window
+        // itself is never truncated: a long file is read until the page is full or the window ends.
         const REVERSE_FIRST = 4 * 1024 * 1024;
 
         /** Every matching line in a byte slice, in file order. `cap` bounds head reads only. */
@@ -323,16 +321,15 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
               const important = rule?.mode === 'annotate';
               if (importantOnly && !important) continue;
 
-              const at = raw.indexOf('"attr":');
+              const at = raw.search(/"attr"\s*:/);
               found.push({
                 tMs: line.tMs,
                 severity: line.s,
                 component: line.c,
                 msg: line.msg,
-                // Enough for the row and for an expanded line to read complete: a slow-query
-                // command document runs to a few KB, and only the pathological ones exceed
-                // this. Short lines stay short -- slice just takes what is there.
-                attr: at < 0 ? '' : raw.slice(at + 7, at + 6007),
+                // The whole attribute (or the whole line, for a profiler document or a text log).
+                // A command document is the query; clipping it hides the predicate.
+                attr: at < 0 ? raw : raw.slice(raw.indexOf(':', at) + 1),
                 kind: rule?.kind ?? '',
                 label: important ? (rule?.label ?? '') : '',
                 important,
@@ -340,6 +337,32 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
               if (found.length >= cap) {
                 stopped = true;
                 break read;
+              }
+            }
+          }
+          if (!stopped && carry.length > 0) {
+            const raw = carry;
+            const line = parseLine(raw, stats);
+            if (
+              line !== null &&
+              line.tMs >= fromMs &&
+              line.tMs <= toMs &&
+              (query.length === 0 || raw.toLowerCase().includes(query))
+            ) {
+              const rule = classify(line);
+              const important = rule?.mode === 'annotate';
+              if (!importantOnly || important) {
+                const at = raw.search(/"attr"\s*:/);
+                found.push({
+                  tMs: line.tMs,
+                  severity: line.s,
+                  component: line.c,
+                  msg: line.msg,
+                  attr: at < 0 ? raw : raw.slice(raw.indexOf(':', at) + 1),
+                  kind: rule?.kind ?? '',
+                  label: important ? (rule?.label ?? '') : '',
+                  important,
+                });
               }
             }
           }
@@ -365,7 +388,7 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
               const start = Math.max(range.from, range.to - span);
               const { lines } = await scan(file, start, range.to, Number.POSITIVE_INFINITY);
               const enough = lines.length >= maxLines;
-              if (enough || start === range.from || span >= SCAN_BUDGET) {
+              if (enough || start === range.from) {
                 // Lines earlier than this page exist if we dropped some, or if the slice never
                 // reached the start of the window.
                 if (lines.length > maxLines || start > range.from) hasBefore = true;
@@ -375,9 +398,7 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
               span *= 4;
             }
           } else {
-            const end = Math.min(range.to, range.from + SCAN_BUDGET);
-            if (end < range.to) hasAfter = true;
-            const { lines, stopped } = await scan(file, range.from, end, maxLines);
+            const { lines, stopped } = await scan(file, range.from, range.to, maxLines);
             if (stopped) hasAfter = true;
             out.push(...lines);
           }
@@ -428,6 +449,18 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
           request.toMs,
           onProgress,
         );
+        if (request.logOnlyLabel !== undefined) {
+          const start = analysis.stats.firstMs;
+          const end = analysis.stats.lastMs > start ? analysis.stats.lastMs : start + 1;
+          await sealLogCapture(
+            store,
+            request.captureId,
+            request.logOnlyLabel,
+            request.files.map((file) => file.name).join(', '),
+            start,
+            end,
+          );
+        }
         const transfer: Transferable[] = Object.values(analysis.series).flatMap((s) => [
           s.t.buffer,
           s.v.buffer,
