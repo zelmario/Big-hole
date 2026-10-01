@@ -15,7 +15,10 @@ vi.mock('../src/workers/client.js', () => ({
   FtdcClient: class {},
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  useStore.setState({ range: null });
+});
 
 function pattern(partial: Partial<QueryPattern> & Pick<QueryPattern, 'op' | 'totalMs' | 'maxMs'>): QueryPattern {
   return {
@@ -28,6 +31,7 @@ function pattern(partial: Partial<QueryPattern> & Pick<QueryPattern, 'op' | 'tot
     docsExamined: 0,
     keysExamined: 0,
     returned: 0,
+    yields: true,
     reslen: 0,
     firstMs: 0,
     lastMs: 1_000,
@@ -213,6 +217,44 @@ describe('query board colors', () => {
 
     fireEvent.change(screen.getByLabelText('Sort query shapes'), { target: { value: 'severity' } });
     expect(order()[0]).toBe('wasteful scan');
+  });
+
+  it('hides a shape that fell outside the time range', () => {
+    const inside = pattern({
+      op: 'find',
+      totalMs: 20,
+      maxMs: 20,
+      pattern: '{ in: 1 }',
+      doing: 'inside the window',
+      firstMs: 1_000,
+      lastMs: 2_000,
+    });
+    const outside = pattern({
+      op: 'find',
+      totalMs: 20,
+      maxMs: 20,
+      pattern: '{ out: 1 }',
+      doing: 'outside the window',
+      firstMs: 10_000,
+      lastMs: 11_000,
+    });
+    useStore.setState({
+      captures: [
+        {
+          id: 'c0',
+          label: 'rs0',
+          visible: true,
+          logs: { queries: { patterns: [inside, outside], ops: 2, internal: 0, ungrouped: 0 } },
+        },
+      ] as never,
+      range: [1_000, 2_000],
+      setRange: vi.fn(),
+      setSidebarTab: vi.fn(),
+    });
+    render(<QueryBoard />);
+    expect(screen.getByText('inside the window')).toBeTruthy();
+    expect(screen.queryByText('outside the window')).toBeNull();
+    expect(screen.getByText(/counts are every call of that shape/)).toBeTruthy();
   });
 });
 

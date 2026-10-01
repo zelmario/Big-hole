@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import { groupLogCaptures, type SourceFile } from '../src/ingest/discover.js';
 import { analyzeLines } from '../src/logs/analyze.js';
+import { severityByRow } from '../src/logs/queryHeat.js';
 import { parseSlowOp } from '../src/logs/queryShape.js';
 import { attrOf } from '../src/logs/parse.js';
 
@@ -271,6 +272,62 @@ describe('operations that were logged without being slow', () => {
     expect(report.patterns[0]!.pattern).toBe('{ sku: 1 }');
   });
 
+  it('names findAndModify from the first key, not from its update field', () => {
+    const parsed = shape({
+      type: 'command',
+      ns: 'app.$cmd',
+      command: {
+        findAndModify: 'orders',
+        query: { _id: 1 },
+        update: { $set: { n: 2 } },
+        $db: 'app',
+      },
+      planSummary: 'IDHACK',
+      durationMillis: 4,
+    });
+    expect(parsed.op).toBe('findAndModify');
+    expect(parsed.ns).toBe('app.orders');
+    expect(parsed.doing).toContain('Modifies and returns');
+    expect(parsed.doing).toContain('$set');
+  });
+
+  it('scores a fast idhack delete from ndeleted, not as a query that returned nothing', () => {
+    const report = analyzeLines([
+      line({
+        type: 'remove',
+        ns: 'app.orders',
+        command: { q: { _id: 1 }, limit: 1 },
+        planSummary: 'IDHACK',
+        keysExamined: 1,
+        docsExamined: 1,
+        ndeleted: 1,
+        durationMillis: 2,
+      }),
+    ]).queries;
+    const row = report.patterns[0]!;
+    expect(row.op).toBe('remove');
+    expect(row.returned).toBe(1);
+    expect(row.yields).toBe(true);
+    expect(severityByRow([row]).get(row)!).toBeLessThan(0.25);
+  });
+
+  it('does not score a fast count as if it had returned nothing', () => {
+    const report = analyzeLines([
+      line({
+        type: 'command',
+        ns: 'app.$cmd',
+        command: { count: 'orders', query: { _id: 1 }, $db: 'app' },
+        planSummary: 'IDHACK',
+        docsExamined: 1,
+        durationMillis: 2,
+      }),
+    ]).queries;
+    const row = report.patterns[0]!;
+    expect(row.op).toBe('count');
+    expect(row.yields).toBe(false);
+    expect(severityByRow([row]).get(row)!).toBeLessThan(0.25);
+  });
+
   it('reads a pre-4.4 text command, shell syntax included', () => {
     const text =
       '2026-07-20T03:38:35.067-0500 I COMMAND  [conn1] command app.orders command: find { find: "orders", filter: { sku: "abc" }, $db: "app" } planSummary: IXSCAN { sku: 1 } 8ms';
@@ -279,6 +336,17 @@ describe('operations that were logged without being slow', () => {
     expect(report.patterns[0]!.ns).toBe('app.orders');
     expect(report.patterns[0]!.pattern).toBe('{ sku: 1 }');
     expect(report.patterns[0]!.maxMs).toBe(8);
+  });
+
+  it('keeps documents examined and returned on a pre-4.4 text line', () => {
+    const text =
+      '2026-07-20T03:38:35.067-0500 I COMMAND  [conn1] command app.orders command: find { find: "orders", filter: { sku: "abc" } } planSummary: COLLSCAN keysExamined:0 docsExamined:100000 nreturned:64 150ms';
+    const row = analyzeLines([text]).queries.patterns[0]!;
+    expect(row.collscan).toBe(true);
+    expect(row.keysExamined).toBe(0);
+    expect(row.docsExamined).toBe(100_000);
+    expect(row.returned).toBe(64);
+    expect(row.yields).toBe(true);
   });
 
   it('reads an update and a remove logged with a top-level q and u', () => {

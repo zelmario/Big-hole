@@ -75,8 +75,8 @@ export function Help(): ReactElement | null {
                 threshold, with or without FTDC. Open <b>queries</b> for that report.
               </li>
               <li>
-                Each shape has two tags. <b>load</b> is the time that shape consumed: a fraction of
-                a second is green, about a second is amber, several seconds is red. <b>severity</b>{' '}
+                Each shape has two tags. <b>load</b> is the total time that shape used, added up across
+                every call. <b>severity</b>{' '}
                 is how bad each call was — how long it took, how many documents it read, and how
                 many it read for each one returned. A collection scan also shows a red{' '}
                 <b>COLLSCAN</b> tag. The colors follow those numbers, not which row happened to be
