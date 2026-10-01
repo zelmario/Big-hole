@@ -114,6 +114,17 @@ describe('query heat', () => {
     expect(severities.get(popular)!).toBeLessThan(0.25);
   });
 
+  it('does not paint a fast delete or count red for having no documents returned', () => {
+    const peer = sortable({ totalMs: 2, maxMs: 2, docsExamined: 1, returned: 1 });
+    const deleted = sortable({ totalMs: 2, maxMs: 2, docsExamined: 1, returned: 0, yields: false });
+    const counted = sortable({ totalMs: 2, maxMs: 2, docsExamined: 1, returned: 0, yields: false });
+    const scores = severityByRow([peer, deleted, counted]);
+    expect(scores.get(deleted)!).toBeLessThan(0.25);
+    expect(scores.get(counted)!).toBeLessThan(0.25);
+    const scanned = sortable({ totalMs: 40, maxMs: 40, docsExamined: 100_000, returned: 1, yields: true });
+    expect(severityByRow([scanned, peer]).get(scanned)!).toBeGreaterThan(0.9);
+  });
+
   it('ranks a wasteful read as more severe even when it used little of the log', () => {
     const indexed = sortable({ totalMs: 5_000, maxMs: 5_000, docsExamined: 10, returned: 10 });
     const waste = sortable({ totalMs: 40, maxMs: 40, docsExamined: 50_000, returned: 1, collscan: true });

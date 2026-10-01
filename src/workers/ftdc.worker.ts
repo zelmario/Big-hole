@@ -287,8 +287,10 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
         const wantTail = request.end === 'tail';
         // Reverse paging reads backwards from the window's end, growing the slice until it holds
         // a full page. Starting small keeps the common case -- a dense log, one page back -- to a
-        // few megabytes; doubling keeps a sparse filter from needing many round trips. The window
-        // itself is never truncated: a long file is read until the page is full or the window ends.
+        // few megabytes; doubling keeps a sparse filter from needing many round trips.
+        // Past this, stop and say the window continues. The query report is a separate streaming
+        // pass and is not limited here; this only bounds one page of the log viewer.
+        const SCAN_BUDGET = 256 * 1024 * 1024;
         const REVERSE_FIRST = 4 * 1024 * 1024;
 
         /** Every matching line in a byte slice, in file order. `cap` bounds head reads only. */
@@ -388,7 +390,7 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
               const start = Math.max(range.from, range.to - span);
               const { lines } = await scan(file, start, range.to, Number.POSITIVE_INFINITY);
               const enough = lines.length >= maxLines;
-              if (enough || start === range.from) {
+              if (enough || start === range.from || span >= SCAN_BUDGET) {
                 // Lines earlier than this page exist if we dropped some, or if the slice never
                 // reached the start of the window.
                 if (lines.length > maxLines || start > range.from) hasBefore = true;
@@ -398,7 +400,9 @@ self.onmessage = async (event: MessageEvent<{ id: number; request: Request }>) =
               span *= 4;
             }
           } else {
-            const { lines, stopped } = await scan(file, range.from, range.to, maxLines);
+            const end = Math.min(range.to, range.from + SCAN_BUDGET);
+            if (end < range.to) hasAfter = true;
+            const { lines, stopped } = await scan(file, range.from, end, maxLines);
             if (stopped) hasAfter = true;
             out.push(...lines);
           }

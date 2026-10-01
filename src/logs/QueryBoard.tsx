@@ -33,10 +33,11 @@ function insight(row: Row): string | null {
   if (row.collscan && docs >= 1000) {
     return `About ${Math.round(docs).toLocaleString()} documents read per call, with no index.`;
   }
-  if (back >= 1 && docs / back >= 50) {
-    return `About ${Math.round(docs / back).toLocaleString()} documents examined per document returned.`;
+  if (row.yields && back >= 1 && docs / back >= 50) {
+    const each = row.op === 'delete' || row.op === 'remove' ? 'deleted' : row.op === 'update' ? 'modified' : 'returned';
+    return `About ${Math.round(docs / back).toLocaleString()} documents examined per document ${each}.`;
   }
-  if (row.keysExamined > 0 && back >= 1 && row.keysExamined / row.count / back >= 50) {
+  if (row.yields && row.keysExamined > 0 && back >= 1 && row.keysExamined / row.count / back >= 50) {
     const keys = row.keysExamined / row.count / back;
     return `About ${Math.round(keys).toLocaleString()} index keys examined per document returned.`;
   }
@@ -45,6 +46,7 @@ function insight(row: Row): string | null {
 
 export function QueryBoard(): ReactElement {
   const captures = useStore((s) => s.captures);
+  const range = useStore((s) => s.range);
   const setRange = useStore((s) => s.setRange);
   const setSidebarTab = useStore((s) => s.setSidebarTab);
   const [sort, setSort] = useState<SortKey>('load');
@@ -80,6 +82,7 @@ export function QueryBoard(): ReactElement {
   const multi = new Set(rows.map((row) => row.captureId)).size > 1;
   const needle = query.trim().toLowerCase();
   const shown = rows
+    .filter((row) => range === null || (row.lastMs >= range[0] && row.firstMs <= range[1]))
     .filter((row) => !collscanOnly || row.collscan)
     .filter((row) => {
       if (needle === '') return true;
@@ -158,6 +161,7 @@ export function QueryBoard(): ReactElement {
         {scans > 0 && ` · ${scans} collection scan${scans === 1 ? '' : 's'}`}
         {stats.internal > 0 && ` · ${stats.internal.toLocaleString()} handshakes hidden`}
         {stats.ungrouped > 0 && ` · ${stats.ungrouped.toLocaleString()} extra shapes not listed`}
+        {range !== null && ' · counts are every call of that shape, not only this time range'}
       </div>
 
       <div className="query-list">
@@ -185,7 +189,7 @@ export function QueryBoard(): ReactElement {
                     className="query-rank"
                     data-rank="load"
                     style={{ background: costColor(load) }}
-                    title="Time this shape consumed. A second is amber; several seconds is red."
+                    title="Total time of every call of this shape."
                   >
                     {LOAD_LABEL}
                   </span>
@@ -195,7 +199,7 @@ export function QueryBoard(): ReactElement {
                     className="query-rank"
                     data-rank="severity"
                     style={{ background: costColor(severity) }}
-                    title="Each call: how long it took, and how many documents it read for each one returned."
+                    title="How long one call took, and how many documents it read."
                   >
                     {SEVERITY_LABEL}
                   </span>
@@ -214,10 +218,13 @@ export function QueryBoard(): ReactElement {
                 {row.docsExamined > 0 && (
                   <span>{Math.round(row.docsExamined / row.count).toLocaleString()} docs examined</span>
                 )}
-                {row.returned > 0 && (
-                  <span>{Math.round(row.returned / row.count).toLocaleString()} returned</span>
+                {row.yields && row.returned > 0 && (
+                  <span>
+                    {Math.round(row.returned / row.count).toLocaleString()}{' '}
+                    {row.op === 'delete' || row.op === 'remove' ? 'deleted' : row.op === 'update' ? 'modified' : 'returned'}
+                  </span>
                 )}
-                {row.returned === 0 && row.docsExamined > 0 && <span>0 returned</span>}
+                {row.yields && row.returned === 0 && row.docsExamined > 0 && <span>0 returned</span>}
                 {row.plan !== '' && !row.collscan && <span>{row.plan}</span>}
                 {row.appNames.length > 0 && <span>{row.appNames.join(', ')}</span>}
               </div>

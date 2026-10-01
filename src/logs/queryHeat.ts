@@ -19,6 +19,11 @@ export interface HeatInput {
   readonly maxMs: number;
   readonly docsExamined: number;
   readonly returned: number;
+  /**
+   * Set false when the operation has no document yield to compare with documents examined.
+   * Absent means the ratio applies, which is the case for a find.
+   */
+  readonly yields?: boolean;
 }
 
 interface Cut {
@@ -60,10 +65,11 @@ export function docsPerCall(row: HeatInput): number {
 /**
  * Documents read per document returned.
  *
- * Infinite when the query read documents and returned none: that is the worst yield, not a
- * missing number.
+ * Infinite when a read examined documents and returned none. A count, or a write that did not
+ * report how many documents it affected, has no yield: that is not the same as returning none.
  */
 export function examineRatio(row: HeatInput): number {
+  if (row.yields === false) return 0;
   if (row.docsExamined <= 0) return 0;
   if (row.returned <= 0) return Number.POSITIVE_INFINITY;
   return row.docsExamined / row.returned;
@@ -124,7 +130,7 @@ export function rowHeat(row: HeatInput, scale: HeatScale): RowHeat {
   return { avg, max, total, docs, ratio, row: worst([avg, max, total, docs]) };
 }
 
-/** Share of time. The color is how much time that share actually was. */
+/** Total time the shape used, summed across every call. The color is that total, on a log scale. */
 export const LOAD_LABEL = 'load';
 
 /** How bad each call was: latency, documents read, and a collection scan. */

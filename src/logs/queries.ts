@@ -21,6 +21,8 @@ export interface QueryPattern {
   readonly docsExamined: number;
   readonly keysExamined: number;
   readonly returned: number;
+  /** False for a count, or a write that did not report how many documents it affected. */
+  readonly yields: boolean;
   readonly reslen: number;
   readonly firstMs: number;
   readonly lastMs: number;
@@ -52,6 +54,7 @@ interface Acc {
   docsExamined: number;
   keysExamined: number;
   returned: number;
+  yields: boolean;
   reslen: number;
   firstMs: number;
   lastMs: number;
@@ -101,6 +104,7 @@ export class QueryAggregator {
         docsExamined: 0,
         keysExamined: 0,
         returned: 0,
+        yields: false,
         reslen: 0,
         firstMs: tMs,
         lastMs: tMs,
@@ -115,6 +119,7 @@ export class QueryAggregator {
     acc.docsExamined += shape.docsExamined;
     acc.keysExamined += shape.keysExamined;
     acc.returned += shape.returned;
+    if (shape.yields) acc.yields = true;
     acc.reslen += shape.reslen;
     if (tMs < acc.firstMs) acc.firstMs = tMs;
     if (tMs > acc.lastMs) acc.lastMs = tMs;
@@ -139,6 +144,7 @@ export class QueryAggregator {
         docsExamined: acc.docsExamined,
         keysExamined: acc.keysExamined,
         returned: acc.returned,
+        yields: acc.yields,
         reslen: acc.reslen,
         firstMs: acc.firstMs,
         lastMs: acc.lastMs,

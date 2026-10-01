@@ -12,21 +12,6 @@
 
 import { attrOf } from './parse.js';
 
-const OP_KEYS = [
-  'aggregate',
-  'find',
-  'update',
-  'delete',
-  'insert',
-  'count',
-  'distinct',
-  'findAndModify',
-  'findandmodify',
-  'getMore',
-  'remove',
-  'createIndexes',
-] as const;
-
 /** Heartbeats and handshakes. They dominate a log and are not a query anyone sent. */
 const INTERNAL = new Set([
   'hello',
@@ -70,6 +55,11 @@ export interface QueryShape {
   readonly docsExamined: number;
   readonly keysExamined: number;
   readonly returned: number;
+  /**
+   * False when this operation does not report a document yield (`nreturned`, `ndeleted`,
+   * `nModified`). A count or a delete with no `ndeleted` must not be read as "returned none".
+   */
+  readonly yields: boolean;
   readonly reslen: number;
   readonly appName: string;
 }
@@ -87,12 +77,41 @@ function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function opOf(command: Record<string, unknown>): string {
-  for (const key of OP_KEYS) {
-    if (key in command) return key === 'findandmodify' ? 'findAndModify' : key;
+function numOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Documents this call produced, matched, modified, or deleted.
+ *
+ * Finds report `nreturned`. Deletes report `ndeleted` and updates report `nModified`. A count
+ * reports none of those: missing is not the same as zero, and must not become an infinite
+ * examined-per-returned ratio.
+ */
+function yieldOf(op: string, attr: Record<string, unknown>): { returned: number; yields: boolean } {
+  if (op === 'count' || op === 'insert' || op === 'createIndexes') {
+    return { returned: 0, yields: false };
   }
+  if (op === 'delete' || op === 'remove') {
+    const deleted = numOrNull(attr['ndeleted']);
+    return deleted === null ? { returned: 0, yields: false } : { returned: deleted, yields: true };
+  }
+  if (op === 'update') {
+    const modified = numOrNull(attr['nModified']) ?? numOrNull(attr['nMatched']);
+    return modified === null ? { returned: 0, yields: false } : { returned: modified, yields: true };
+  }
+  const returned = numOrNull(attr['nreturned']) ?? numOrNull(attr['nMatched']);
+  return returned === null ? { returned: 0, yields: true } : { returned, yields: true };
+}
+
+/**
+ * The command name is the first key. Later keys are arguments, so `update` inside a
+ * findAndModify is the modification, not the operation.
+ */
+function opOf(command: Record<string, unknown>): string {
   for (const key of Object.keys(command)) {
-    if (!key.startsWith('$') && key !== 'lsid') return key;
+    if (key.startsWith('$') || key === 'lsid') continue;
+    return key === 'findandmodify' ? 'findAndModify' : key;
   }
   return '';
 }
@@ -314,7 +333,7 @@ export function parseSlowOp(attr: Record<string, unknown>): SlowOpParse {
     originating: originatingOp,
   });
 
-  const returned = num(attr['nreturned']) || num(attr['nMatched']);
+  const yieldCount = yieldOf(op, attr);
 
   return {
     kind: 'op',
@@ -328,7 +347,8 @@ export function parseSlowOp(attr: Record<string, unknown>): SlowOpParse {
       durationMs: num(attr['durationMillis']),
       docsExamined: num(attr['docsExamined']),
       keysExamined: num(attr['keysExamined']),
-      returned,
+      returned: yieldCount.returned,
+      yields: yieldCount.yields,
       reslen: num(attr['reslen']),
       appName: typeof attr['appName'] === 'string' ? attr['appName'] : '',
     },
@@ -378,6 +398,9 @@ function profileAttr(raw: string): Record<string, unknown> | undefined {
     ...(typeof doc['docsExamined'] === 'number' ? { docsExamined: doc['docsExamined'] } : {}),
     ...(typeof doc['keysExamined'] === 'number' ? { keysExamined: doc['keysExamined'] } : {}),
     ...(typeof doc['nreturned'] === 'number' ? { nreturned: doc['nreturned'] } : {}),
+    ...(typeof doc['nMatched'] === 'number' ? { nMatched: doc['nMatched'] } : {}),
+    ...(typeof doc['nModified'] === 'number' ? { nModified: doc['nModified'] } : {}),
+    ...(typeof doc['ndeleted'] === 'number' ? { ndeleted: doc['ndeleted'] } : {}),
     ...(typeof doc['responseLength'] === 'number' ? { reslen: doc['responseLength'] } : {}),
     ...(typeof doc['appName'] === 'string' ? { appName: doc['appName'] } : {}),
   };
@@ -436,12 +459,31 @@ function legacyAttr(raw: string): Record<string, unknown> | undefined {
   const plan = /planSummary:\s*(\S+(?:\s+\{[^}]*\})?)/.exec(raw);
   const millis = /(\d+)ms\s*$/.exec(raw.trim()) ?? /durationMillis[:=]\s*(\d+)/.exec(raw);
   const app = /appName:\s*"([^"]*)"/.exec(raw);
+  // Counters sit after the command object. Reading them from the whole line would also
+  // match a field of the same name inside the predicate.
+  const tail = raw.slice(brace + body.length);
+  const counted = (name: string): number | undefined => {
+    const match = new RegExp(`(?:^|\\s)${name}:(\\d+)`).exec(tail);
+    return match === null ? undefined : Number(match[1]);
+  };
+  const docs = counted('docsExamined') ?? counted('nscannedObjects');
+  const keys = counted('keysExamined') ?? counted('nscanned');
+  const returned = counted('nreturned');
+  const matched = counted('nMatched');
+  const modified = counted('nModified');
+  const deleted = counted('ndeleted');
   return {
     type: 'command',
     ...(nsMatch !== null ? { ns: nsMatch[1]! } : {}),
     command,
     ...(plan !== null ? { planSummary: plan[1]!.trim() } : {}),
     ...(millis !== null ? { durationMillis: Number(millis[1]) } : {}),
+    ...(docs !== undefined ? { docsExamined: docs } : {}),
+    ...(keys !== undefined ? { keysExamined: keys } : {}),
+    ...(returned !== undefined ? { nreturned: returned } : {}),
+    ...(matched !== undefined ? { nMatched: matched } : {}),
+    ...(modified !== undefined ? { nModified: modified } : {}),
+    ...(deleted !== undefined ? { ndeleted: deleted } : {}),
     ...(app !== null ? { appName: app[1]! } : {}),
   };
 }

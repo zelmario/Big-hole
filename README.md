@@ -94,8 +94,8 @@ out. Heartbeats stay hidden. There is no cap on how many shapes or how long a pr
 Drop `mongod.log` with no `diagnostic.data` and the query view is the whole app; drop it beside
 FTDC and it sits next to the charts. Click a shape and the log opens on the minutes those calls ran.
 
-Each shape carries two tags. **load** is the time that shape consumed: under a tenth of a second is
-green, about a second is amber, and several seconds is red. **severity** is how bad each call was —
+Each shape carries two tags. **load** is the total time that shape used, added up across every call —
+a query that ran often can be red here even when each call was fast. **severity** is how bad each call was —
 how long it took, how many documents it read, how many it read for each one returned, and whether
 it was a collection scan. The color follows the number, so a 14 second call stays red when another
 call took longer. A collection scan also gets its own red **COLLSCAN** tag. Sort from the menu at
