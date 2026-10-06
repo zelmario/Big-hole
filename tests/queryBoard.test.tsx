@@ -256,6 +256,44 @@ describe('query board colors', () => {
     expect(screen.queryByText('outside the window')).toBeNull();
     expect(screen.getByText(/counts are every call of that shape/)).toBeTruthy();
   });
+
+  it('opens the whole query when a shape is clicked, and closes it', () => {
+    const setRange = vi.fn();
+    const setSidebarTab = vi.fn();
+    const row = pattern({
+      op: 'find',
+      totalMs: 40,
+      maxMs: 40,
+      pattern: '{ status: "open", customer: 1, items: [1] }',
+      doing: 'find on app.orders',
+    });
+    useStore.setState({
+      captures: [
+        {
+          id: 'c0',
+          label: 'rs0',
+          visible: true,
+          logs: { queries: { patterns: [row], ops: 1, internal: 0, ungrouped: 0 } },
+        },
+      ] as never,
+      setRange,
+      setSidebarTab,
+    });
+    render(<QueryBoard />);
+
+    fireEvent.click(screen.getByText('find on app.orders'));
+    const dialog = screen.getByRole('dialog', { name: 'Query' });
+    expect(dialog.textContent).toContain('{ status: "open", customer: 1, items: [1] }');
+
+    fireEvent.click(screen.getByTitle('Close (Esc)'));
+    expect(screen.queryByRole('dialog', { name: 'Query' })).toBeNull();
+
+    fireEvent.click(screen.getByText('find on app.orders'));
+    fireEvent.click(screen.getByText('Show in log'));
+    expect(setRange).toHaveBeenCalledOnce();
+    expect(setSidebarTab).toHaveBeenCalledWith('log');
+    expect(screen.queryByRole('dialog', { name: 'Query' })).toBeNull();
+  });
 });
 
 function redness(row: Element, rank: 'load' | 'severity'): number {

@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { QueryPattern } from './queries.js';
 import { compareQueries, costColor, loadByRow, LOAD_LABEL, SEVERITY_LABEL, severityByRow, type QuerySort } from './queryHeat.js';
@@ -9,8 +10,8 @@ import { useStore } from '../store/useStore.js';
  *
  * One row is every call that shared an operation, a namespace, a predicate shape and a plan.
  * Literals from the log are already replaced, so a query that ran a thousand times with a
- * thousand different ids is one sentence. Clicking a row zooms the log to the span those calls
- * covered.
+ * thousand different ids is one sentence. Clicking a row opens the query so it can be read
+ * without scrolling the sidebar. The log for those calls is one step from there.
  */
 
 type SortKey = QuerySort | 'load' | 'severity';
@@ -52,6 +53,7 @@ export function QueryBoard(): ReactElement {
   const [sort, setSort] = useState<SortKey>('load');
   const [collscanOnly, setCollscanOnly] = useState(false);
   const [query, setQuery] = useState('');
+  const [reading, setReading] = useState<Row | null>(null);
 
   const rows = useMemo(() => {
     const out: Row[] = [];
@@ -102,6 +104,16 @@ export function QueryBoard(): ReactElement {
     });
 
   const scans = rows.filter((row) => row.collscan).length;
+
+  useEffect(() => {
+    if (reading === null) return undefined;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setReading(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [reading]);
+
   const openLog = (row: Row) => {
     const span = Math.max(row.lastMs - row.firstMs, 60_000);
     const pad = Math.min(span, 60_000);
@@ -174,8 +186,8 @@ export function QueryBoard(): ReactElement {
             <button
               key={`${row.captureId}\0${row.op}\0${row.ns}\0${row.pattern}\0${row.plan}`}
               className="query-row"
-              onClick={() => openLog(row)}
-              title="Show the log lines from when this query was running"
+              onClick={() => setReading(row)}
+              title="Read this query"
             >
               <div className="query-top">
                 <span className="query-op">{row.op}</span>
@@ -232,6 +244,41 @@ export function QueryBoard(): ReactElement {
           );
         })}
       </div>
+      {reading !== null &&
+        createPortal(
+          <div className="logwindow-scrim" onMouseDown={() => setReading(null)}>
+            <div
+              className="query-modal"
+              role="dialog"
+              aria-label="Query"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="logwindow-bar">
+                <span className="query-op">{reading.op}</span>
+                <span className="query-ns">{reading.ns}</span>
+                <div className="spacer" />
+                <button
+                  className="link"
+                  onClick={() => {
+                    openLog(reading);
+                    setReading(null);
+                  }}
+                >
+                  Show in log
+                </button>
+                <button className="link" title="Close (Esc)" onClick={() => setReading(null)}>
+                  ✕
+                </button>
+              </div>
+              <div className="query-modal-body">
+                <div className="query-doing">{reading.doing}</div>
+                {reading.pattern !== '' && <pre className="query-modal-pattern">{reading.pattern}</pre>}
+                {reading.plan !== '' && <div className="muted small query-modal-plan">{reading.plan}</div>}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

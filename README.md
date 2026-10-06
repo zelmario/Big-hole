@@ -84,15 +84,16 @@ finding.
 
 **Read the log next to the metrics.** The log viewer follows the dashboard's window, so zooming
 into an incident narrows the log to the same minutes. Notable lines — elections, sync-source
-changes, restarts — are highlighted. Double-click one to pin a marker across every chart;
-double-click a chart to jump the log to that instant. There's a full-screen `less`-style view for
-reading long slow-query documents.
+changes, restarts — are highlighted. Click a line to read the whole thing, including a long
+command document, instead of scrolling sideways. Double-click one to pin a marker across every
+chart; double-click a chart to jump the log to that instant. There's a full-screen `less`-style
+view as well.
 
 **See what the logged operations were doing.** Each logged operation — slow or not — is grouped with the others that
 share its shape: the same command, namespace, predicate, and plan, with the literal values taken
 out. Heartbeats stay hidden. There is no cap on how many shapes or how long a predicate can be.
 Drop `mongod.log` with no `diagnostic.data` and the query view is the whole app; drop it beside
-FTDC and it sits next to the charts. Click a shape and the log opens on the minutes those calls ran.
+FTDC and it sits next to the charts. Click a shape to read the query. Show in log opens the minutes those calls ran.
 
 Each shape carries two tags. **load** is the total time that shape used, added up across every call —
 a query that ran often can be red here even when each call was fast. **severity** is how bad each call was —

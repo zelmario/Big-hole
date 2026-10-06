@@ -81,7 +81,7 @@ export function Help(): ReactElement | null {
                 many it read for each one returned. A collection scan also shows a red{' '}
                 <b>COLLSCAN</b> tag. The colors follow those numbers, not which row happened to be
                 the worst in the file. Sort from the menu; the tags do not filter. Click a shape
-                to show its lines in the log.
+                to read the query. Show in log opens the lines it came from.
               </li>
               <li>
                 Captures are decoded once and stored locally (OPFS). Reopening one from the recent
@@ -149,15 +149,17 @@ export function Help(): ReactElement | null {
                 changes, stalls) are highlighted; the <b>notable</b> box shows only those.
               </li>
               <li>
-                <b>Double-click a log line</b> to pin a marker on every chart — that is how a log
-                event and a metric spike become the same observation.
+                <b>Click a log line</b> to read the whole line. A long command document opens in a
+                window, with a close button, instead of a sideways scroll. <b>Double-click</b> still
+                pins a marker on every chart — that is how a log event and a metric spike become
+                the same observation.
               </li>
               <li>
                 <b>Double-click a chart</b> to jump the log to that instant.
               </li>
               <li>
-                <b>Full-screen window</b> (<b>⤢ full screen</b>): a <code>less</code>-style reader
-                with room for long lines — scroll sideways to read a full command document.
+                <b>Full-screen window</b> (<b>⤢ full screen</b>): a <code>less</code>-style reader.
+                Click a line there too, to read a command document without scrolling sideways.
               </li>
               <li>
                 <b>Zoom the log</b>: the log leads instead of following. Scroll it and the charts

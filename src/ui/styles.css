@@ -559,7 +559,8 @@ header { align-items: center; flex-wrap: wrap; }
 
 /* --- query shapes ----------------------------------------------------------
    A slow-query report, whether or not FTDC was loaded with the log. The row is
-   the click target: it zooms the log to the span those calls covered. */
+   the click target: it opens the query in a window that wraps, so a long
+   predicate is readable in the narrow sidebar. */
 .charts.query-mode { display: flex; flex-direction: column; overflow: hidden; }
 .query-board { display: flex; flex-direction: column; min-height: 0; flex: 1; gap: 8px; }
 .query-sort { flex: 0 0 auto; width: auto; }
@@ -595,4 +596,18 @@ header { align-items: center; flex-wrap: wrap; }
 }
 .query-note { margin-top: 4px; color: var(--warn); font-size: 12px; }
 .query-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+.query-modal {
+  display: flex; flex-direction: column; align-self: center; width: min(920px, 100%);
+  max-height: 100%; margin: 0 auto; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); overflow: hidden;
+}
+.query-modal .query-ns { min-width: 0; }
+.query-modal .link { flex: none; }
+.query-modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 20px; }
+.query-modal-pattern {
+  margin: 12px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+  background: #0f1115; border: 1px solid var(--line); border-radius: 6px; padding: 12px;
+}
+.query-modal-plan { margin-top: 10px; }
 
