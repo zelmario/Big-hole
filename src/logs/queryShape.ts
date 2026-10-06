@@ -56,8 +56,9 @@ export interface QueryShape {
   readonly keysExamined: number;
   readonly returned: number;
   /**
-   * False when this operation does not report a document yield (`nreturned`, `ndeleted`,
-   * `nModified`). A count or a delete with no `ndeleted` must not be read as "returned none".
+   * False when this operation does not report a document yield (`nreturned`, `nMatched`,
+   * `ndeleted`). A count, a distinct, or a delete with no `ndeleted` must not be read as
+   * "returned none".
    */
   readonly yields: boolean;
   readonly reslen: number;
@@ -82,14 +83,15 @@ function numOrNull(value: unknown): number | null {
 }
 
 /**
- * Documents this call produced, matched, modified, or deleted.
+ * Documents this call produced, matched, or deleted.
  *
- * Finds report `nreturned`. Deletes report `ndeleted` and updates report `nModified`. A count
- * reports none of those: missing is not the same as zero, and must not become an infinite
- * examined-per-returned ratio.
+ * Finds report `nreturned`. Deletes report `ndeleted`. Updates report `nMatched`: an update
+ * that finds the document and writes the value it already holds logs `nModified: 0`, and that
+ * is not "returned none". `distinct` and `count` log no yield on any version. Missing is not
+ * the same as zero.
  */
 function yieldOf(op: string, attr: Record<string, unknown>): { returned: number; yields: boolean } {
-  if (op === 'count' || op === 'insert' || op === 'createIndexes') {
+  if (op === 'count' || op === 'distinct' || op === 'insert' || op === 'createIndexes') {
     return { returned: 0, yields: false };
   }
   if (op === 'delete' || op === 'remove') {
@@ -97,8 +99,13 @@ function yieldOf(op: string, attr: Record<string, unknown>): { returned: number;
     return deleted === null ? { returned: 0, yields: false } : { returned: deleted, yields: true };
   }
   if (op === 'update') {
-    const modified = numOrNull(attr['nModified']) ?? numOrNull(attr['nMatched']);
-    return modified === null ? { returned: 0, yields: false } : { returned: modified, yields: true };
+    const matched = numOrNull(attr['nMatched']) ?? numOrNull(attr['nModified']);
+    return matched === null ? { returned: 0, yields: false } : { returned: matched, yields: true };
+  }
+  if (op === 'findAndModify') {
+    // `remove: true` logs `ndeleted`. An update logs `nMatched`, which stays 1 when `nModified` is 0.
+    const affected = numOrNull(attr['ndeleted']) ?? numOrNull(attr['nMatched']) ?? numOrNull(attr['nreturned']);
+    return affected === null ? { returned: 0, yields: false } : { returned: affected, yields: true };
   }
   const returned = numOrNull(attr['nreturned']) ?? numOrNull(attr['nMatched']);
   return returned === null ? { returned: 0, yields: true } : { returned, yields: true };
@@ -455,7 +462,11 @@ function legacyAttr(raw: string): Record<string, unknown> | undefined {
       return undefined;
     }
   }
-  const nsMatch = /\b(?:command|query)\s+([\w.$]+)\s/.exec(raw);
+  // 4.0 and 4.2 write `update t.c ... command: { q, u }` and `remove t.c ... command: { q }`.
+  // The namespace is the word after that verb, not after `command`.
+  const nsMatch = /\b(update|remove|command|query)\s+([\w.$]+)\s/.exec(raw);
+  const verb = nsMatch?.[1];
+  const ns = nsMatch?.[2];
   const plan = /planSummary:\s*(\S+(?:\s+\{[^}]*\})?)/.exec(raw);
   const millis = /(\d+)ms\s*$/.exec(raw.trim()) ?? /durationMillis[:=]\s*(\d+)/.exec(raw);
   const app = /appName:\s*"([^"]*)"/.exec(raw);
@@ -473,8 +484,8 @@ function legacyAttr(raw: string): Record<string, unknown> | undefined {
   const modified = counted('nModified');
   const deleted = counted('ndeleted');
   return {
-    type: 'command',
-    ...(nsMatch !== null ? { ns: nsMatch[1]! } : {}),
+    type: verb === 'update' || verb === 'remove' ? verb : 'command',
+    ...(ns !== undefined ? { ns } : {}),
     command,
     ...(plan !== null ? { planSummary: plan[1]!.trim() } : {}),
     ...(millis !== null ? { durationMillis: Number(millis[1]) } : {}),

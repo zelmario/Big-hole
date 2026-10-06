@@ -6,6 +6,7 @@ import {
   useState,
   type ReactElement,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 import { useStore } from '../store/useStore.js';
 import { dropOverlap, pageDirection, pageSize } from './paging.js';
@@ -20,8 +21,9 @@ import type { LogViewLine } from '../workers/protocol.js';
  * precomputed: the lines for a window are a positioned read from the file the worker still
  * holds, so a 2.5 GB log costs the same as a small one to browse.
  *
- * Three interactions: click a line to expand it and read it in full; double-click to pin a
- * marker across every chart; and double-clicking a chart scrolls this list to the moment there.
+ * Three interactions: click a line to read it in a window, since a command document is wider
+ * than the sidebar; double-click to pin a marker across every chart; and double-clicking a
+ * chart scrolls this list to the moment there.
  *
  * Rendered twice over: the narrow sidebar strip, and -- when `fullscreen` is set -- a `less`-like
  * window (see LogWindow) with room to read and keyboard navigation. The data path is identical;
@@ -33,6 +35,37 @@ const SEVERITY_CLASS: Record<string, string> = { F: 'sev-error', E: 'sev-error',
 
 function stamp(ms: number): string {
   return new Date(ms).toISOString().replace('T', ' ').slice(0, 23);
+}
+
+/** The attribute object, indented when it is JSON, so a command document can be read. */
+function readableAttr(attr: string): string {
+  const start = attr.indexOf('{');
+  if (start < 0) return attr.trim();
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < attr.length; i++) {
+    const ch = attr[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.stringify(JSON.parse(attr.slice(start, i + 1)), null, 2);
+        } catch {
+          return attr.trim();
+        }
+      }
+    }
+  }
+  return attr.trim();
 }
 
 // How many lines the buffer holds. Generous, because zooming out to see more of the log is the
@@ -85,6 +118,8 @@ export function LogView({
   // Keyboard selection, only meaningful in the full-screen window. The highlighted row the
   // arrow/j-k keys move, expand and page around.
   const [selected, setSelected] = useState<number | null>(null);
+  const [reading, setReading] = useState<ViewLine | null>(null);
+  const clickTimer = useRef<number | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const rows = useRef(new Map<string, HTMLDivElement>());
   const rowEls = useRef<Array<HTMLDivElement | null>>([]);
@@ -279,6 +314,24 @@ export function LogView({
     if (selected === null) return;
     rowEls.current[selected]?.scrollIntoView({ block: 'nearest' });
   }, [selected]);
+
+  useEffect(() => {
+    return () => {
+      if (clickTimer.current !== null) window.clearTimeout(clickTimer.current);
+    };
+  }, []);
+
+  // Escape closes the line window first, including over the full-screen log's own Escape.
+  useEffect(() => {
+    if (reading === null) return undefined;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setReading(null);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [reading]);
 
   // less-style keyboard navigation, only while the full-screen window is up. Typing in the
   // filter takes precedence -- only Escape is honoured there, to step back out to the list.
@@ -522,14 +575,23 @@ export function LogView({
                 else rows.current.delete(key);
               }}
               className={cls}
-              // No expand-on-click any more -- the full line is read by scrolling the window
-              // sideways. A click just anchors the keyboard selection; a double-click still pins
-              // a marker across every chart.
-              title="Double-click to pin a marker on every chart"
-              onClick={() => setSelected(i)}
-              onDoubleClick={() =>
+              title="Click to read the whole line. Double-click to pin a marker on every chart"
+              onClick={() => {
+                setSelected(i);
+                // Wait out a double-click so pinning does not also open the window.
+                if (clickTimer.current !== null) window.clearTimeout(clickTimer.current);
+                clickTimer.current = window.setTimeout(() => {
+                  clickTimer.current = null;
+                  setReading(line);
+                }, 220);
+              }}
+              onDoubleClick={() => {
+                if (clickTimer.current !== null) {
+                  window.clearTimeout(clickTimer.current);
+                  clickTimer.current = null;
+                }
                 togglePin({ tMs: line.tMs, label: line.label || line.msg, severity: line.severity })
-              }
+              }}
             >
               <div className="logline-row">
                 <span className="logline-time">{stamp(line.tMs)}</span>
@@ -550,6 +612,34 @@ export function LogView({
           </div>
         )}
       </div>
+      {reading !== null &&
+        createPortal(
+          <div className="logwindow-scrim" onMouseDown={() => setReading(null)}>
+            <div
+              className="query-modal"
+              role="dialog"
+              aria-label="Log line"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="logwindow-bar">
+                <span className="logline-time">{stamp(reading.tMs)}</span>
+                <span className="muted">{reading.component}</span>
+                {reading.label !== '' && <span className="logline-badge">{reading.label}</span>}
+                <div className="spacer" />
+                <button className="link" title="Close (Esc)" onClick={() => setReading(null)}>
+                  ✕
+                </button>
+              </div>
+              <div className="query-modal-body">
+                <div className="query-doing">
+                  <b>{reading.msg}</b>
+                </div>
+                {reading.attr !== '' && <pre className="query-modal-pattern">{readableAttr(reading.attr)}</pre>}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
