@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { useClock } from './clock.js';
 import type { SourceFile } from '../ingest/discover.js';
 import { demoManifest, fetchDemoCapture, type DemoManifest } from '../ingest/demo.js';
 
@@ -16,9 +17,6 @@ import { demoManifest, fetchDemoCapture, type DemoManifest } from '../ingest/dem
  * another's -- they are all called `metrics.<timestamp>`, and merging them would produce one
  * incoherent timeline rather than three nodes.
  */
-function when(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').slice(0, 16);
-}
 
 function hours(from: number, to: number): string {
   const h = (to - from) / 3_600_000;
@@ -26,6 +24,7 @@ function hours(from: number, to: number): string {
 }
 
 export function DropZone(): ReactElement {
+  const clock = useClock();
   const ingest = useStore((s) => s.ingest);
   const status = useStore((s) => s.status);
   const progress = useStore((s) => s.progress);
@@ -242,7 +241,7 @@ export function DropZone(): ReactElement {
                   <b>{capture.hostname ?? capture.captureId}</b>
                   <span className="muted small">
                     {' '}
-                    {when(capture.startMs)} · {hours(capture.startMs, capture.endMs)} ·{' '}
+                    {clock.minute(capture.startMs)} {clock.zone} · {hours(capture.startMs, capture.endMs)} ·{' '}
                     {capture.logOnly === true
                       ? 'query log'
                       : `${capture.sampleCount.toLocaleString()} samples · ${capture.pathCount.toLocaleString()} metrics`}

@@ -9,6 +9,7 @@ import {
 import { createPortal } from 'react-dom';
 
 import { useStore } from '../store/useStore.js';
+import { useClock } from '../ui/clock.js';
 import { dropOverlap, pageDirection, pageSize } from './paging.js';
 import type { LogViewLine } from '../workers/protocol.js';
 
@@ -32,10 +33,6 @@ import type { LogViewLine } from '../workers/protocol.js';
 type ViewLine = LogViewLine & { captureId: string; captureLabel: string };
 
 const SEVERITY_CLASS: Record<string, string> = { F: 'sev-error', E: 'sev-error', W: 'sev-warn' };
-
-function stamp(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').slice(0, 23);
-}
 
 /** The attribute object, indented when it is JSON, so a command document can be read. */
 function readableAttr(attr: string): string {
@@ -102,6 +99,7 @@ export function LogView({
   const setRange = useStore((s) => s.setRange);
   const setLogViewSpan = useStore((s) => s.setLogViewSpan);
   const logReveal = useStore((s) => s.logReveal);
+  const clock = useClock();
   // A log being parsed: bytes read so far, summed across whatever is loading.
   const progress = useStore((s) => s.logProgress);
   // Redraw when a log is attached to a node that is already open.
@@ -595,7 +593,7 @@ export function LogView({
               }}
             >
               <div className="logline-row">
-                <span className="logline-time">{stamp(line.tMs)}</span>
+                <span className="logline-time">{clock.wall(line.tMs)}</span>
                 {multiNode && <span className="logline-host">{line.captureLabel}</span>}
                 <span className="logline-comp muted">{line.component}</span>
                 {line.label !== '' && <span className="logline-badge">{line.label}</span>}
@@ -623,7 +621,7 @@ export function LogView({
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="logwindow-bar">
-                <span className="logline-time">{stamp(reading.tMs)}</span>
+                <span className="logline-time">{clock.stamp(reading.tMs)}</span>
                 <span className="muted">{reading.component}</span>
                 {reading.label !== '' && <span className="logline-badge">{reading.label}</span>}
                 <div className="spacer" />

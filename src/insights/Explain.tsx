@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { useClock } from '../ui/clock.js';
 import { formatValue } from '../data/format.js';
 import { unitOfPath, type Unit } from '../data/expr.js';
 import { legendLabel } from '../panels/plotData.js';
@@ -19,10 +20,6 @@ import { MAX_SCAN_SAMPLES, type HostChange } from './ranking.js';
  * metric's own units, and clicking one puts the metric on the focused panel so the claim can be
  * checked against the curve rather than believed.
  */
-
-function stamp(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').slice(11, 19);
-}
 
 function span(ms: number): string {
   const s = Math.round(ms / 1000);
@@ -113,6 +110,7 @@ export function Explain(): ReactElement {
   const explainWindow = useStore((s) => s.explainWindow);
   const captures = useStore((s) => s.captures);
   const revealLogAt = useStore((s) => s.revealLogAt);
+  const clock = useClock();
   const multiNode = captures.filter((c) => c.visible).length > 1;
 
   const cadence = bounds?.cadenceMs ?? 1000;
@@ -157,7 +155,7 @@ export function Explain(): ReactElement {
   return (
     <div className="insights">
       <div className="logview-note muted small">
-        {stamp(range[0])}–{stamp(range[1])} ({span(range[1] - range[0])})
+        {clock.time(range[0])}–{clock.time(range[1])} {clock.zone} ({span(range[1] - range[0])})
         <button
           className="link small"
           onClick={() => {
@@ -171,7 +169,7 @@ export function Explain(): ReactElement {
 
       {explanation !== null && explanation.baseline !== null && (
         <div className="muted small pad">
-          against {stamp(explanation.baseline.fromMs)}–{stamp(explanation.baseline.toMs)}, the{' '}
+          against {clock.time(explanation.baseline.fromMs)}–{clock.time(explanation.baseline.toMs)}, the{' '}
           {span(explanation.baseline.toMs - explanation.baseline.fromMs)} before it ·{' '}
           {explanation.compared.toLocaleString()} metrics compared
         </div>
@@ -188,7 +186,7 @@ export function Explain(): ReactElement {
           over and over. */}
       {explanation?.restarts.map((r) => (
         <div key={`${r.captureId}-${r.tMs}`} className="small warn pad">
-          ⚠ {multiNode ? `${r.captureLabel} ` : ''}restarted at {stamp(r.tMs)}, inside the{' '}
+          ⚠ {multiNode ? `${r.captureLabel} ` : ''}restarted at {clock.time(r.tMs)}, inside the{' '}
           {r.where}. Counters reset at a restart, so much of what follows is that, not a change
           in behaviour.
         </div>
@@ -210,7 +208,7 @@ export function Explain(): ReactElement {
                 {multiNode && <span className="finding-host">{event.captureLabel}</span>}
                 <span className="change-label">{event.label}</span>
                 <span className="spacer" />
-                <span className="muted small">{stamp(event.tMs)}</span>
+                <span className="muted small">{clock.time(event.tMs)}</span>
               </div>
               <div className="change-values muted small">{event.detail || event.message}</div>
             </button>

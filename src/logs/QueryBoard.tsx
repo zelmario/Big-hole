@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import type { QueryPattern } from './queries.js';
 import { compareQueries, costColor, loadByRow, LOAD_LABEL, SEVERITY_LABEL, severityByRow, type QuerySort } from './queryHeat.js';
 import { useStore } from '../store/useStore.js';
+import { useClock } from '../ui/clock.js';
 
 /**
  * Slow operations, grouped by what they do.
@@ -26,10 +27,6 @@ function ms(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)} s`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)} s`;
   return `${Math.round(n)} ms`;
-}
-
-function stamp(tMs: number): string {
-  return new Date(tMs).toISOString().replace('T', ' ').replace('Z', ' UTC');
 }
 
 function insight(row: Row): string | null {
@@ -56,6 +53,7 @@ export function QueryBoard(): ReactElement {
   const setRange = useStore((s) => s.setRange);
   const setSidebarTab = useStore((s) => s.setSidebarTab);
   const revealLogAt = useStore((s) => s.revealLogAt);
+  const clock = useClock();
   const [sort, setSort] = useState<SortKey>('load');
   const [collscanOnly, setCollscanOnly] = useState(false);
   const [query, setQuery] = useState('');
@@ -288,7 +286,7 @@ export function QueryBoard(): ReactElement {
                 {reading.slowest !== undefined && (
                   <>
                     <div className="muted small query-modal-call">
-                      Slowest call · {stamp(reading.slowest.tMs)} · {ms(reading.slowest.durationMs)}
+                      Slowest call · {clock.stamp(reading.slowest.tMs)} · {ms(reading.slowest.durationMs)}
                       {multi && ` · ${reading.captureLabel}`}
                     </div>
                     <pre className="query-modal-pattern query-modal-command">{reading.slowest.command}</pre>

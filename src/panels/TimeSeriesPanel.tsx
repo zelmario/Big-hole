@@ -13,21 +13,22 @@ import type { KnownCapture } from '../data/qualify.js';
 import type { Gap } from '../data/types.js';
 
 /**
- * Render the time axis in UTC, not in the viewer's timezone.
+ * Render the time axis in the reader's clock (src/ui/clock.ts), not in the browser's timezone.
  *
- * Every other timestamp in this app is `toISOString()`, and the log sidebar shows the instant
- * a log line records after honouring the server's own UTC offset (`src/logs/parse.ts`). uPlot
- * is the one component that reads a timestamp with the local `Date` getters, so without this
- * the axis silently shifts by the viewer's offset: an engineer in UTC+2 selects a window in
+ * Every other timestamp in this app goes through that clock, and the log sidebar shows the
+ * instant a log line records after honouring the server's own UTC offset (`src/logs/parse.ts`).
+ * uPlot is the one component that reads a timestamp with the local `Date` getters, so without
+ * this the axis silently shifts by the viewer's offset: an engineer in UTC+2 selects a window in
  * the log at 06:09 UTC and the chart above it labels the same instant 08:09. Nothing is
  * misplotted -- the points are at the right x -- but every number a reader copies into a
  * ticket is wrong, and which of the two is "the real time" is not guessable from the screen.
  *
- * UTC rather than a picker because a capture is not local to the person reading it: FTDC is
- * epoch milliseconds, mongod logs carry their own offset, and a replica set routinely spans
- * timezones. UTC is the one clock every node and every reader of the ticket already agrees on.
+ * The default is UTC, the one clock every node and every reader of the ticket agrees on. A
+ * chosen offset is applied by shifting the instant and reading it back in UTC, which is how
+ * uPlot's own `tzDate` represents a zone; ticks then fall on the offset's round hours.
  */
-const utcDate = (ts: number): Date => uPlot.tzDate(new Date(ts * 1000), 'UTC');
+const dateIn = (offsetMin: number) => (ts: number): Date =>
+  uPlot.tzDate(new Date(ts * 1000 + offsetMin * 60_000), 'UTC');
 
 /**
  * 24-hour ISO tick labels, replacing uPlot's `3:10pm` default.
@@ -249,6 +250,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
   const known = useStore((s) => s.known);
   const focused = useStore((s) => s.focused);
   const showBand = useStore((s) => s.showBand);
+  const tzOffsetMin = useStore((s) => s.tzOffsetMin);
   const setRange = useStore((s) => s.setRange);
   const setCursor = useStore((s) => s.setCursor);
   const toggleSeries = useStore((s) => s.toggleSeries);
@@ -394,7 +396,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       width: size.w,
       height: Math.max(60, size.h),
       legend: { show: false }, // the chip row below the plot is the legend
-      tzDate: utcDate,
+      tzDate: dateIn(tzOffsetMin),
       cursor: {
         drag: { x: true, y: false, setScale: false },
         sync: { key: 'ftdc' },
@@ -488,7 +490,7 @@ export function TimeSeriesPanel({ panel }: { panel: PanelSpec }): ReactElement {
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [data, visible, size.w, size.h, unit, showBand, setCursor, setRange]);
+  }, [data, visible, size.w, size.h, unit, showBand, tzOffsetMin, setCursor, setRange]);
 
   useEffect(() => {
     plot.current?.redraw();

@@ -123,6 +123,12 @@ interface State {
    * averaged away by downsampling, so it stays available.
    */
   showBand: boolean;
+  /**
+   * Minutes east of UTC that every displayed time is written in; 0 is UTC. A label, never a
+   * shift of the data (see src/ui/clock.ts). Not persisted: each load starts in UTC, so an
+   * offset picked for one customer's capture is never silently applied to the next one.
+   */
+  tzOffsetMin: number;
   /** Metric catalogue visibility; charts take the full width when hidden. */
   showCatalog: boolean;
   /** Sidebar width in px, dragged by the resizer on its right edge. Session state, like the toggle. */
@@ -307,6 +313,7 @@ interface State {
   setRange(range: [number, number] | null): void;
   setCursor(ms: number | null): void;
   setShowBand(on: boolean): void;
+  setTzOffset(minutes: number): void;
   toggleCatalog(): void;
   toggleMaximized(id: string | null): void;
 
@@ -772,6 +779,7 @@ export const useStore = create<State>((set, get) => ({
   range: null,
   cursor: null,
   showBand: false,
+  tzOffsetMin: 0,
   showCatalog: true,
   sidebarWidth: 380,
   logFollow: false,
@@ -1626,6 +1634,10 @@ export const useStore = create<State>((set, get) => ({
 
   setCursor(ms) {
     set({ cursor: ms });
+  },
+
+  setTzOffset(minutes) {
+    set({ tzOffsetMin: minutes });
   },
 
   setShowBand(on) {

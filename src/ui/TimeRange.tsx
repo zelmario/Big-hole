@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { OFFSETS, offsetLabel, useClock } from './clock.js';
 
 /**
  * Grafana-style time range control.
@@ -21,23 +22,16 @@ const PRESETS: ReadonlyArray<[string, number]> = [
   ['7d', 7 * 86_400_000],
 ];
 
-/**
- * UTC, like every other timestamp in the app -- including the chart axes, which say so too.
- *
- * The bare form used to read `2026-07-28 00:09:50` with nothing to say which clock that was,
- * which is only harmless while the charts agree. They did not, so the label is now explicit
- * rather than merely correct.
- */
-function stamp(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
-}
-
 export function TimeRange(): ReactElement {
   // The union across every loaded node: the picker covers the whole investigation window,
   // not one member's slice of it.
   const bounds = useStore((s) => s.bounds)();
   const range = useStore((s) => s.range);
   const setRange = useStore((s) => s.setRange);
+  const setTzOffset = useStore((s) => s.setTzOffset);
+  // The clock is named beside the range, never implied: the bare form once read
+  // `2026-07-28 00:09:50` with nothing to say which clock that was.
+  const clock = useClock();
   const [open, setOpen] = useState(false);
 
   if (bounds === null) return <></>;
@@ -92,9 +86,9 @@ export function TimeRange(): ReactElement {
       <button
         className="tr-main"
         onClick={() => setOpen(!open)}
-        title="Change time range — every time in this app is UTC"
+        title={`Change time range or clock — every time in this app is ${clock.zone}`}
       >
-        🕐 {stamp(from)} → {stamp(to)} <span className="muted">UTC</span>
+        🕐 {clock.second(from)} → {clock.second(to)} <span className="muted">{clock.zone}</span>
         {range === null && <span className="muted"> (all)</span>}
       </button>
 
@@ -111,9 +105,23 @@ export function TimeRange(): ReactElement {
       {open && (
         <div className="tr-menu">
           <div className="tr-menu-head muted small">
-            Relative to the end of the capture · times are UTC
-            <div>{stamp(bounds.startMs)} → {stamp(bounds.endMs)}</div>
+            Relative to the end of the capture · times are {clock.zone}
+            <div>{clock.second(bounds.startMs)} → {clock.second(bounds.endMs)}</div>
           </div>
+          <label className="tr-zone muted small">
+            Show times in{' '}
+            <select
+              value={clock.offsetMin}
+              onChange={(event) => setTzOffset(Number(event.target.value))}
+              title="Changes the labels only. FTDC and log lines already sit on one absolute clock."
+            >
+              {OFFSETS.map((min) => (
+                <option key={min} value={min}>
+                  {offsetLabel(min)}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             className="tr-preset"
             onClick={() => {

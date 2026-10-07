@@ -158,6 +158,9 @@ header button { flex-shrink: 0; }
   box-shadow: 0 8px 28px rgba(0,0,0,.55); }
 .tr-menu-head { padding: 2px 6px 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tr-zone { display: flex; align-items: center; gap: 6px; padding: 2px 6px 8px;
+  border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.tr-zone select { font: inherit; }
 .tr-preset { display: block; width: 100%; text-align: left; background: none; border: 0;
   color: var(--fg); padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; }
 .tr-preset:hover { background: #2f3641; }

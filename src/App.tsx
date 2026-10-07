@@ -18,16 +18,14 @@ import { Help } from './ui/Help.js';
 import { AUTHOR, AUTHOR_GITHUB, AUTHOR_URL } from './ui/author.js';
 import { toPermalink } from './dashboard/layout.js';
 import { useStore } from './store/useStore.js';
-
-function ms(d: number): string {
-  return new Date(d).toISOString().replace('T', ' ').replace('.000Z', 'Z');
-}
+import { useClock } from './ui/clock.js';
 
 export function App(): ReactElement {
   const status = useStore((s) => s.status);
   const captures = useStore((s) => s.captures);
   const bounds = useStore((s) => s.bounds)();
   const cursor = useStore((s) => s.cursor);
+  const clock = useClock();
   const error = useStore((s) => s.error);
   const showBand = useStore((s) => s.showBand);
   const showCatalog = useStore((s) => s.showCatalog);
@@ -124,7 +122,7 @@ export function App(): ReactElement {
                 : `${captures.length} node${captures.length === 1 ? '' : 's'} · ${captures.reduce((n, c) => n + c.summary.sampleCount, 0).toLocaleString()} samples · ${(bounds.cadenceMs / 1000).toFixed(1)}s cadence`}
             </span>
             <div className="muted small">
-              {ms(bounds.startMs)} → {ms(bounds.endMs)}
+              {clock.stamp(bounds.startMs)} → {clock.stamp(bounds.endMs)}
             </div>
             {captures.some((c) => c.summary.gaps.length > 0 || c.summary.restarts.length > 0) && (
               <div className="small warn">
@@ -150,7 +148,7 @@ export function App(): ReactElement {
             readout that appears only on hover would re-wrap the row, grow the header and
             resize every chart under it. */}
         <code className={cursor === null ? 'cursor idle' : 'cursor'}>
-          {cursor === null ? ' ' : ms(cursor)}
+          {cursor === null ? ' ' : clock.stamp(cursor)}
         </code>
         {status === 'ready' && !logOnly && (
           <>

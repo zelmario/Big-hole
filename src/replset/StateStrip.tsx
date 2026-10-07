@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { useClock, type Clock } from '../ui/clock.js';
 import { NO_DATA, stateColour, stateName, type MemberRow, type StateRun } from './state.js';
 
 /**
@@ -36,20 +37,15 @@ function tickStep(spanMs: number, target: number): number {
 }
 
 /**
- * UTC, like every other timestamp this app renders.
+ * In the reader's clock, like every other timestamp this app renders (src/ui/clock.ts).
  *
- * A local-time axis here beside a UTC axis on the charts would be the exact bug fixed in
+ * An axis here in another clock than the charts' would be the exact bug fixed in
  * `TimeSeriesPanel` -- two notations for one clock, with nothing on screen saying which is which.
  */
-function tickLabel(ms: number, step: number): string {
-  const iso = new Date(ms).toISOString();
-  if (step >= 86_400_000) return iso.slice(0, 10);
-  if (step >= 60_000) return iso.slice(11, 16);
-  return iso.slice(11, 19);
-}
-
-function fullStamp(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').replace('.000Z', 'Z');
+function tickLabel(clock: Clock, ms: number, step: number): string {
+  if (step >= 86_400_000) return clock.date(ms);
+  if (step >= 60_000) return clock.hm(ms);
+  return clock.time(ms);
 }
 
 function humanSpan(ms: number): string {
@@ -108,6 +104,7 @@ function Row({
   labelMinPx: number;
 }): ReactElement {
   const setRange = useStore((s) => s.setRange);
+  const clock = useClock();
   const span = Math.max(1, toMs - fromMs);
   const runs = clip(row.runs, fromMs, toMs);
 
@@ -142,7 +139,7 @@ function Row({
                 ...(run.state === NO_DATA ? {} : { background: stateColour(run.state) }),
               }}
               title={
-                `${row.label} — ${name}\n${fullStamp(run.fromMs)} → ${fullStamp(run.toMs)}` +
+                `${row.label} — ${name}\n${clock.stamp(run.fromMs)} → ${clock.stamp(run.toMs)}` +
                 ` (${humanSpan(run.toMs - run.fromMs)})\nclick to zoom to it`
               }
               // Zooming to the run is the gesture this makes obvious: an election is a boundary
@@ -168,6 +165,7 @@ export function StateStrip(): ReactElement | null {
   const show = useStore((s) => s.showStates);
   const toggle = useStore((s) => s.toggleStates);
   const setRange = useStore((s) => s.setRange);
+  const clock = useClock();
 
   // Every row's track is the same width, so one measurement serves all of them. It decides
   // which bands are wide enough to be named -- see LABEL_MIN_PX.
@@ -197,7 +195,9 @@ export function StateStrip(): ReactElement | null {
   const span = Math.max(1, toMs - fromMs);
   const step = tickStep(span, 8);
   const ticks: number[] = [];
-  for (let t = Math.ceil(fromMs / step) * step; t <= toMs; t += step) ticks.push(t);
+  // Round in the reader's clock, so a +05:30 offset still ticks on its own hours, not on :30.
+  const lead = clock.shift(0);
+  for (let t = Math.ceil((fromMs + lead) / step) * step - lead; t <= toMs; t += step) ticks.push(t);
 
   return (
     <div className={dense ? 'states dense' : 'states'}>
@@ -250,10 +250,10 @@ export function StateStrip(): ReactElement | null {
                     className="states-tick"
                     style={{ left: `${((t - fromMs) / span) * 100}%` }}
                   >
-                    {tickLabel(t, step)}
+                    {tickLabel(clock, t, step)}
                   </span>
                 ))}
-                <span className="states-tz muted">UTC</span>
+                <span className="states-tz muted">{clock.zone}</span>
               </div>
             </div>
           </div>

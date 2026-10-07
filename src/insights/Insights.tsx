@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { useClock } from '../ui/clock.js';
 import { formatValue } from '../data/format.js';
 import type { Finding } from './detect.js';
 
@@ -16,14 +17,6 @@ import type { Finding } from './detect.js';
  * answer -- it is a coordinate. The answer is on the charts at that moment.
  */
 
-function stamp(ms: number): string {
-  return new Date(ms).toISOString().replace('T', ' ').slice(11, 19);
-}
-
-function day(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
-
 /** "6m 30s", "2h 05m" -- durations here span seconds to hours. */
 function span(ms: number): string {
   const s = Math.round(ms / 1000);
@@ -34,6 +27,7 @@ function span(ms: number): string {
 }
 
 function Row({ finding }: { finding: Finding }): ReactElement {
+  const clock = useClock();
   const setRange = useStore((s) => s.setRange);
   const explainRange = useStore((s) => s.explainRange);
   const captures = useStore((s) => s.captures);
@@ -62,7 +56,7 @@ function Row({ finding }: { finding: Finding }): ReactElement {
           feature of the capture at all -- 174 episodes over twenty minutes and over sixty hours
           mean very different things. The second is the stretch the click jumps to. */}
       <div className="finding-when muted small">
-        {day(finding.firstMs)} {stamp(finding.firstMs)}–{stamp(finding.lastMs)}
+        {clock.date(finding.firstMs)} {clock.time(finding.firstMs)}–{clock.time(finding.lastMs)} {clock.zone}
         {finding.episodes > 1 && ` · ${finding.episodes} episodes`}
         {' · '}
         {span(finding.totalMs)} in state
@@ -70,7 +64,7 @@ function Row({ finding }: { finding: Finding }): ReactElement {
         {formatValue(finding.peak, finding.unit)}
       </div>
       <div className="finding-when muted small">
-        worst stretch {stamp(finding.worstFromMs)}–{stamp(finding.worstToMs)} — click to zoom,
+        worst stretch {clock.time(finding.worstFromMs)}–{clock.time(finding.worstToMs)} — click to zoom,
         or{' '}
         {/* The finding says a threshold was crossed; the explanation says what else was
             different while it was. Stop the click so it does not also fire the plain zoom. */}

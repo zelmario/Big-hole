@@ -1,6 +1,7 @@
 import { useRef, type ReactElement } from 'react';
 
 import { useStore } from '../store/useStore.js';
+import { useClock } from './clock.js';
 import type { SourceFile } from '../ingest/discover.js';
 
 /**
@@ -11,11 +12,9 @@ import type { SourceFile } from '../ingest/discover.js';
  * listing, and which was primary -- the last of those decides the sign of every cross-host
  * lag panel, so it is worth showing rather than leaving implicit.
  */
-function shortTime(ms: number): string {
-  return new Date(ms).toISOString().slice(11, 19);
-}
 
 export function CaptureBar(): ReactElement {
+  const clock = useClock();
   const captures = useStore((s) => s.captures);
   const activeId = useStore((s) => s.activeId);
   const setActive = useStore((s) => s.setActive);
@@ -53,8 +52,8 @@ export function CaptureBar(): ReactElement {
             {capture.maxState === 1 && <span className="badge" title="was primary">P</span>}
             <span className="muted small">
               {' '}
-              {capture.id} · {shortTime(capture.summary.startMs)}–
-              {shortTime(capture.summary.endMs)} ·{' '}
+              {capture.id} · {clock.time(capture.summary.startMs)}–
+              {clock.time(capture.summary.endMs)} ·{' '}
               {capture.logOnly === true
                 ? `${(capture.logs?.queries.patterns.length ?? 0).toLocaleString()} query shapes`
                 : `${capture.summary.sampleCount.toLocaleString()} samples`}
