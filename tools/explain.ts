@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 
 import { decodeFTDC, readMetadata } from '../src/ftdc/index.js';
+import { isFtdcFile } from '../src/ingest/discover.js';
 import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader } from '../src/data/reader.js';
@@ -46,7 +47,7 @@ function collect(path: string): string[] {
   const st = statSync(path);
   if (st.isFile()) return [path];
   return readdirSync(path)
-    .filter((n) => n.startsWith('metrics.') && !n.includes(':'))
+    .filter(isFtdcFile)
     .sort()
     .map((n) => join(path, n));
 }

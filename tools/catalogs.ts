@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { decodeFTDC } from '../src/ftdc/index.js';
+import { isFtdcFile } from '../src/ingest/discover.js';
 import { DEFAULT_TEMPLATES } from '../src/dashboard/defaultDashboard.js';
 import { defaultDashboard, detectRolePrefixes, expandMetric } from '../src/dashboard/layout.js';
 import { exprPaths, parseExpr } from '../src/data/expr.js';
@@ -29,7 +30,7 @@ if (!existsSync(ROOT)) {
 function catalogue(dir: string): Set<string> {
   const paths = new Set<string>();
   for (const name of readdirSync(dir)) {
-    if (!name.startsWith('metrics.')) continue;
+    if (!isFtdcFile(name)) continue;
     const file = join(dir, name);
     if (!statSync(file).isFile()) continue;
     try {

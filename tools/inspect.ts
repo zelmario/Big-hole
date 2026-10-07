@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 
 import { decodeFTDC, readMetadata } from '../src/ftdc/index.js';
+import { isFtdcFile } from '../src/ingest/discover.js';
 import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader } from '../src/data/reader.js';
@@ -31,8 +32,12 @@ if (target === undefined) {
 function collect(path: string): string[] {
   const st = statSync(path);
   if (st.isFile()) return [path];
+  // isFtdcFile, not a local startsWith: a Windows-sourced capture carries one
+  // `<name>:Zone.Identifier` stub per real file, and counting those reports 24 files where
+  // there are 12, each junk entry printed with the running sample total of the file before it.
+  // The oracle's `.jsonl` dumps sit in the fixture directories too, and are not input either.
   return readdirSync(path)
-    .filter((n) => n.startsWith('metrics.') && !n.endsWith('.jsonl'))
+    .filter((n) => isFtdcFile(n) && !n.endsWith('.jsonl'))
     .sort()
     .map((n) => join(path, n));
 }

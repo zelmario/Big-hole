@@ -12,6 +12,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { decodeFTDC } from '../src/ftdc/index.js';
+import { isFtdcFile } from '../src/ingest/discover.js';
 import { NodeFileStore } from '../src/data/nodeFileStore.js';
 import { CaptureWriter } from '../src/data/writer.js';
 import { CaptureReader } from '../src/data/reader.js';
@@ -23,7 +24,7 @@ const dir = process.argv[2]!;
 const tmp = await mkdtemp(join(tmpdir(), 'u-'));
 const store = new NodeFileStore(tmp);
 const w = await CaptureWriter.create(store, { captureId: 'c', sourceFile: dir });
-for (const n of readdirSync(dir).filter((f) => f.startsWith('metrics.')).sort()) {
+for (const n of readdirSync(dir).filter(isFtdcFile).sort()) {
   const f = join(dir, n);
   if (!statSync(f).isFile()) continue;
   for (const ch of decodeFTDC(new Uint8Array(readFileSync(f)))) await w.addChunk(ch);
