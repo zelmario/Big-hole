@@ -47,13 +47,29 @@ export function readUint32LE(b: Uint8Array, p: number): number {
  * Read a signed 64-bit little-endian value as a JS number.
  *
  * Exact while |value| < 2^53, which holds for every realistic FTDC integer (epoch ms are
- * ~1.7e12; a byte counter would need to reach 9 petabytes). Not valid for Double bit
- * patterns -- those keep their hi/lo halves, see docs/ftdc-format.md CORRECTION 1.
+ * ~1.7e12; a byte counter would need to reach 9 petabytes).
  */
 export function readInt64LE(b: Uint8Array, p: number): number {
   const lo = readUint32LE(b, p);
   const hi = readInt32LE(b, p + 4);
   return hi * 0x100000000 + lo;
+}
+
+/**
+ * The int64 mongod writes into the metrics array for a BSON Double, as unsigned 32-bit halves.
+ *
+ * `static_cast<long long>(value)`: truncated toward zero, NaN -> 0, and anything at or beyond
+ * ±2^63 (±Inf included) saturated to INT64_MAX / INT64_MIN. That is mongod 5.0+
+ * (src/mongo/db/ftdc/util.cpp, extractMetricsFromDocument). Earlier versions cast without the
+ * guards: identical for every finite in-range double, undefined behaviour otherwise (x86 gives
+ * INT64_MIN, ARM saturates like this). The seed matters past the first sample, because every
+ * later value in the chunk is this plus deltas.
+ */
+export function int64FromDouble(v: number): { hi: number; lo: number } {
+  if (Number.isNaN(v)) return { hi: 0, lo: 0 };
+  if (v >= 2 ** 63) return { hi: 0x7fffffff, lo: 0xffffffff };
+  if (v < -(2 ** 63)) return { hi: 0x80000000, lo: 0 };
+  return toHiLo(Math.trunc(v));
 }
 
 /** Split an integral JS number into unsigned two's-complement 32-bit halves. */

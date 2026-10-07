@@ -37,9 +37,9 @@ Full detail with source citations in [`docs/ftdc-format.md`](docs/ftdc-format.md
 
 | # | Issue | Failure mode |
 |---|-------|--------------|
-| 1 | `Double` metrics are delta-encoded as their **raw IEEE-754 bit pattern**, requiring `Float64frombits` on decode. Brief omits this entirely. | All float metrics render as ~4.6e18. Loud failure. |
+| 1 | mongod stores `Double` metrics as **`int64(value)`, truncated**, not as their bit pattern. An earlier version of this table said bit pattern, following the Go `ftdc` library's reader; corrected 2026-10-07 against mongod's `util.cpp`. | Decoding them as bit patterns freezes every Double column within a few ULPs of the chunk's first value. **Silent**, and an oracle built on the Go library agrees. |
 | 2 | BSON `Timestamp` expands to **two** columns (`key` and `key.inc`). Brief treats it as one. | **Silent, total corruption.** Every column after the first Timestamp shifts by one, so real numbers appear under wrong metric names. `replSetGetStatus` is full of Timestamps. |
-| 3 | Deltas are unsigned varints holding **two's-complement-wrapped int64**. No zigzag. | Requires exact 64-bit wrapping arithmetic. `Float64Array`/JS `Number` cannot do it — and issue 1 guarantees values above 2^53. Must decode in `BigInt64Array`. |
+| 3 | Deltas are unsigned varints holding **two's-complement-wrapped int64**. No zigzag. | Requires exact 64-bit wrapping arithmetic. `Float64Array`/JS `Number` cannot do it, and WiredTiger timestamp columns (`seconds << 32`) sit above 2^53. Decoded as exact int64 in two 32-bit halves (docs/ftdc-format.md CORRECTION 3). |
 | 4 | The zero-run counter **carries across column boundaries** — the delta block is one continuous stream, not independent per-column segments. | Works on busy captures, silently corrupts idle ones. The worst possible bug distribution. |
 
 Issues 2 and 4 both produce output that passes a spot-check. Which leads to:

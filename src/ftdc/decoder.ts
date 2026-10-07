@@ -6,22 +6,24 @@
  * collapsed to TypedArray.fill. A node-day is ~216M values; this loop is the product's floor.
  */
 
-import { f64FromBits, readInt32LE, readUint32LE } from './bson.js';
+import { readInt32LE, readUint32LE } from './bson.js';
 import { flattenReference } from './flatten.js';
 import { FTDCFormatError, type DecodedChunk } from './types.js';
 
 const enum Kind {
-  Wide = 0, // int64 / datetime
+  Wide = 0, // int64 / datetime / double
   Int32 = 1,
-  Double = 2,
   Bool = 3,
 }
 
+// A Double column is Wide: mongod stores it as int64(value), so it accumulates and converts
+// exactly like any other wide integer. See the seed in flatten.ts and docs/ftdc-format.md
+// CORRECTION 1.
 const KIND: Record<string, Kind> = {
   int64: Kind.Wide,
   datetime: Kind.Wide,
+  double: Kind.Wide,
   int32: Kind.Int32,
-  double: Kind.Double,
   bool: Kind.Bool,
 };
 
@@ -36,7 +38,7 @@ const KIND: Record<string, Kind> = {
  * its low 32 bits. Every FTDC tool in the ecosystem reports that truncated value; diverging
  * would make our charts disagree with MongoDB's own tooling on identical bytes.
  *
- * Each case reads straight off the halves, so all four are exact and none needs a modulo.
+ * Each case reads straight off the halves, so all three are exact and none needs a modulo.
  */
 function convert(kind: Kind, hi: number, lo: number): number {
   switch (kind) {
@@ -44,8 +46,6 @@ function convert(kind: Kind, hi: number, lo: number): number {
       return lo | 0; // int32(value): low 32 bits, sign-extended
     case Kind.Bool:
       return hi !== 0 || lo !== 0 ? 1 : 0;
-    case Kind.Double:
-      return f64FromBits(hi, lo);
     default:
       // Single correctly-rounded conversion of the exact int64. See the precision note in
       // docs/ftdc-format.md CORRECTION 3: values above 2^53 (WiredTiger timestamps) are
@@ -97,9 +97,9 @@ export function decodeChunkPayload(b: Uint8Array, startMs: number): DecodedChunk
     const out = new Float64Array(nSamples);
     const kind = KIND[types[m]!] ?? Kind.Wide;
 
-    // The accumulator stays an exact int64 in two halves for every column type, not just
-    // doubles. Accumulating in double would round once per sample and drift a full ULP
-    // away from the reference on WiredTiger timestamp columns.
+    // The accumulator stays an exact int64 in two halves for every column type. Accumulating
+    // in double would round once per sample and drift a full ULP away from the reference on
+    // WiredTiger timestamp columns.
     let accHi = startHi[m]!;
     let accLo = startLo[m]!;
     let cur = convert(kind, accHi, accLo);

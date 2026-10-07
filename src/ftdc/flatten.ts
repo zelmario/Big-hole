@@ -13,6 +13,8 @@
 import {
   BsonType,
   cstringEnd,
+  f64FromBits,
+  int64FromDouble,
   readCString,
   readInt32LE,
   readUint32LE,
@@ -65,9 +67,25 @@ class Builder {
 function walkValue(b: Uint8Array, type: number, p: number, key: string, out: Builder): void {
   switch (type) {
     case BsonType.Double:
-      // The starting value is the raw IEEE-754 bit pattern reinterpreted as int64, and the
-      // deltas are differences between bit patterns (CORRECTION 1). Keep the halves.
-      out.push(key, 'double', readUint32LE(b, p + 4), readUint32LE(b, p));
+      // mongod truncates a Double to int64 when it builds the metrics array, so the starting
+      // value is the *numeric* value and the deltas are ordinary value deltas. It does not
+      // store the IEEE-754 bit pattern.
+      //
+      // docs/ftdc-format.md CORRECTION 1 once said the opposite, citing `normalizeFloat` in
+      // github.com/mongodb/ftdc. That function belongs to the Go library's own *writer*; it
+      // describes files that library produces, not the ones mongod produces. Applying it to a
+      // real capture leaves every Double column frozen: the deltas land in the mantissa's low
+      // bits, so the value only moves by an ULP per sample and snaps back to the truth at each
+      // chunk boundary, where the reference document restores it. serverStatus.uptime reads
+      // flat at 29 while uptimeMillis, an int64 in the same document, counts correctly.
+      //
+      // Verified on sample-data/demo: read this way, uptime advances by exactly 1 per second
+      // and systemMetrics.cpu.user_ms by 660-4400 ms/s on an 8-core host under load. The rule
+      // itself is mongod's extractMetricsFromDocument; int64FromDouble has the edge cases.
+      {
+        const { hi, lo } = int64FromDouble(f64FromBits(readUint32LE(b, p + 4), readUint32LE(b, p)));
+        out.push(key, 'double', hi, lo);
+      }
       return;
 
     case BsonType.Int32:

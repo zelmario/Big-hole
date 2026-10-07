@@ -41,9 +41,12 @@ find elsewhere, including in older drafts of the project brief, several of which
 These are the errors that sink this project. Full detail and citations in
 `docs/ftdc-format.md`; this is the checklist.
 
-1. **`Double` metrics are delta-encoded as their raw IEEE-754 bit pattern.** Retain the
-   per-column BSON type from the reference document and apply `Float64frombits` after
-   undelta. Symptom if missed: float metrics render as ~4.6e18.
+1. **mongod stores a `Double` metric as `int64(value)`, truncated, not as its bit pattern.**
+   Seed the column with the truncated reference value (NaN → 0, saturated at ±2^63) and
+   decode it like any int64. The Go `ftdc` library gets this wrong: it seeds with the bit
+   pattern, and an oracle built on it agrees with a decoder that does the same. Symptom of
+   the bit-pattern mistake: every Double column sits frozen within a few ULPs of the chunk's
+   first value, then jumps at each chunk boundary. `serverStatus.uptime` reads flat.
 
 2. **BSON `Timestamp` produces TWO columns** — `key` and a synthetic `key.inc`. Symptom if
    missed: every column after the first Timestamp shifts by one, so real numbers appear

@@ -19,8 +19,9 @@ export interface DecodedChunk {
 
   /**
    * Per-column source BSON type, positionally aligned with `keys`. Required for correct
-   * restoration -- `double` columns are delta-encoded as IEEE-754 bit patterns and must be
-   * reinterpreted (docs/ftdc-format.md CORRECTION 1).
+   * restoration: an `int32` column keeps only its low 32 bits, a `bool` is 0 or 1. A `double`
+   * column is mongod's int64(value), truncated, so it restores like any int64
+   * (docs/ftdc-format.md CORRECTION 1).
    */
   readonly types: readonly MetricType[];
 
@@ -28,9 +29,10 @@ export interface DecodedChunk {
    * Column-major series. `columns[i]` is the full series for `keys[i]` and has length
    * `sampleCount`.
    *
-   * Values are fully restored: `double` columns have already been passed through
-   * Float64frombits, `datetime` columns are epoch milliseconds. Integer columns are exact
-   * while |value| < 2^53, which holds for every realistic FTDC metric.
+   * Values are fully restored: `double` columns are the integers mongod stored (the fraction
+   * of a Double is gone before it reaches the file), `datetime` columns are epoch
+   * milliseconds. Integer columns are exact while |value| < 2^53, which holds for every
+   * realistic FTDC metric.
    */
   readonly columns: readonly Float64Array[];
 

@@ -18,6 +18,19 @@
 // Emitting the ordered key list rather than a map is deliberate: flatten *order* defines
 // the delta-block column order, so a decoder that produces right values in wrong order
 // must fail the test.
+//
+// Double columns are NOT taken from the library as-is. mongod stores a Double in the metrics
+// array as int64(value), truncated, with NaN -> 0 and out-of-range values saturated
+// (src/mongo/db/ftdc/util.cpp, extractMetricsFromDocument, 5.0+), and its deltas are value
+// deltas. The Go library seeds the same column with the value's IEEE-754 bit pattern
+// (normalizeFloat, bson_metric.go) and then adds mongod's value deltas to it, so every sample
+// it restores is bits(ref) + (v - ref): a number a few ULPs from the reference, never the
+// metric. Our decoder made the same mistake for as long as this oracle agreed with it. So for
+// each Double column the oracle removes the library's seed and puts mongod's back:
+//
+//	stored = Values[i] - Values[0] + mongodInt64(ref)
+//
+// in wrapping int64 arithmetic, exactly as mongod's own reader would see it.
 package main
 
 import (
@@ -87,6 +100,24 @@ func value(v *birch.Value) (interface{}, string) {
 	}
 }
 
+// mongodInt64 is the value mongod 5.0+ writes for a Double in the metrics array.
+//
+// Before 5.0 the cast was an unguarded (long long)value: identical for every finite in-range
+// double, undefined for NaN, ±Inf and |v| >= 2^63 (x86 gives INT64_MIN, ARM saturates like
+// this). Those never occur in the fixtures; see docs/ftdc-format.md.
+func mongodInt64(v float64) int64 {
+	switch {
+	case math.IsNaN(v):
+		return 0
+	case !(v < 9223372036854775808.0): // 2^63, kLongLongMaxPlusOneAsDouble
+		return math.MaxInt64
+	case v < -9223372036854775808.0:
+		return math.MinInt64
+	default:
+		return int64(v)
+	}
+}
+
 func sameKeys(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -133,50 +164,86 @@ func main() {
 
 	enc := json.NewEncoder(w)
 	ctx := context.Background()
-	iter := ftdc.ReadMetrics(ctx, f)
-	defer iter.Close()
+	// ReadMetrics is exactly this loop (combinedIterator: ReadChunks, then chunk.Iterator per
+	// chunk). It is spelled out so the chunk's own metric columns are in reach: the Double
+	// correction needs each column's starting value, which the flattened document hides.
+	chunks := ftdc.ReadChunks(ctx, f)
+	defer chunks.Close()
 
 	var (
 		prevKeys []string
 		samples  int
 		schemas  int
+		iterErr  error
 	)
 
-	for iter.Next() {
-		doc := iter.Document()
+	for chunks.Next() {
+		chunk := chunks.Chunk()
 
-		di := doc.Iterator()
-		keys := make([]string, 0, 2048)
-		types := make([]string, 0, 2048)
-		vals := make([]interface{}, 0, 2048)
-
-		for di.Next() {
-			e := di.Element()
-			v, t := value(e.Value())
-			keys = append(keys, e.Key())
-			types = append(types, t)
-			vals = append(vals, v)
+		// Per Double column: the library's seed, bits(ref), and the one mongod used.
+		type fix struct{ libSeed, mongodSeed int64 }
+		fixes := make(map[string]fix)
+		for i := range chunk.Metrics {
+			m := &chunk.Metrics[i]
+			if len(m.Values) == 0 {
+				continue
+			}
+			ref := math.Float64frombits(uint64(m.Values[0]))
+			fixes[m.Key()] = fix{libSeed: m.Values[0], mongodSeed: mongodInt64(ref)}
 		}
 
-		if !sameKeys(keys, prevKeys) {
-			if err := enc.Encode(map[string]interface{}{
-				"t": "schema", "i": schemas, "keys": keys, "types": types,
-			}); err != nil {
-				fmt.Fprintf(os.Stderr, "error: writing schema: %v\n", err)
+		sample := chunk.Iterator(ctx)
+		for sample.Next() {
+			doc := sample.Document()
+
+			di := doc.Iterator()
+			keys := make([]string, 0, 2048)
+			types := make([]string, 0, 2048)
+			vals := make([]interface{}, 0, 2048)
+
+			for di.Next() {
+				e := di.Element()
+				v, t := value(e.Value())
+				if t == "double" {
+					fx, ok := fixes[e.Key()]
+					if !ok {
+						fmt.Fprintf(os.Stderr, "error: double %q has no metric column in its chunk\n", e.Key())
+						os.Exit(1)
+					}
+					v = int64(math.Float64bits(e.Value().Double())) - fx.libSeed + fx.mongodSeed
+				}
+				keys = append(keys, e.Key())
+				types = append(types, t)
+				vals = append(vals, v)
+			}
+
+			if !sameKeys(keys, prevKeys) {
+				if err := enc.Encode(map[string]interface{}{
+					"t": "schema", "i": schemas, "keys": keys, "types": types,
+				}); err != nil {
+					fmt.Fprintf(os.Stderr, "error: writing schema: %v\n", err)
+					os.Exit(1)
+				}
+				schemas++
+				prevKeys = keys
+			}
+
+			if err := enc.Encode(map[string]interface{}{"t": "sample", "v": vals}); err != nil {
+				fmt.Fprintf(os.Stderr, "error: writing sample: %v\n", err)
 				os.Exit(1)
 			}
-			schemas++
-			prevKeys = keys
+			samples++
 		}
-
-		if err := enc.Encode(map[string]interface{}{"t": "sample", "v": vals}); err != nil {
-			fmt.Fprintf(os.Stderr, "error: writing sample: %v\n", err)
-			os.Exit(1)
+		if err := sample.Err(); err != nil && iterErr == nil {
+			iterErr = err
 		}
-		samples++
+		sample.Close()
+	}
+	if err := chunks.Err(); err != nil && iterErr == nil {
+		iterErr = err
 	}
 
-	if err := iter.Err(); err != nil {
+	if err := iterErr; err != nil {
 		// A truncated trailing chunk is normal for metrics.interim. Report it on stderr
 		// and still emit the summary: everything decoded up to that point is valid, and
 		// the interim fixture exists specifically to exercise this path.

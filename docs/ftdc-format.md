@@ -80,7 +80,7 @@ Per BSON type (`bson_metric.go:43-141`):
 | `Int64` | 1 metric | `value` |
 | `Boolean` | 1 metric | `1` or `0` |
 | `DateTime` | 1 metric | epoch **milliseconds** |
-| `Double` | 1 metric | **the IEEE-754 bit pattern reinterpreted as int64** — see ⚠ below |
+| `Double` | 1 metric | **`int64(value)`, truncated** — see ⚠ below |
 | `Timestamp` | **2 metrics** | `seconds * 1000`, then `<key>.inc` = increment — see ⚠ below |
 | `EmbeddedDocument` | recurse, prefixing the path | — |
 | `Array` | recurse, child key = `<key>.<index>` | — |
@@ -98,43 +98,62 @@ that stores only paths and numbers is unrecoverably lossy.
 
 ---
 
-### ⚠ CORRECTION 1 — Doubles are delta-encoded as their raw bit pattern
+### ⚠ CORRECTION 1 — mongod stores a Double as a truncated int64
 
-`util.go:93-94`:
+mongod puts every numeric field into the metrics array as an `int64`. For a `Double` that is
+the value truncated toward zero, not its bit pattern. From `src/mongo/db/ftdc/util.cpp`,
+`extractMetricsFromDocument` (mongod 5.0+):
 
-```go
-func normalizeFloat(in float64) int64 { return int64(math.Float64bits(in)) }
-func restoreFloat(in int64) float64   { return math.Float64frombits(uint64(in)) }
+```cpp
+case NumberDouble: {
+    double value = currentElement.numberDouble();
+    long long newValue = 0;
+    if (std::isnan(value)) {
+        newValue = 0;
+    } else if (!(value < BSONElement::kLongLongMaxPlusOneAsDouble)) {
+        newValue = std::numeric_limits<long long>::max();
+    } else if (value < std::numeric_limits<long long>::min()) {
+        newValue = std::numeric_limits<long long>::min();
+    } else {
+        newValue = static_cast<long long>(value);
+    }
+    metrics->emplace_back(newValue);
 ```
 
-Every `Double` metric is converted to its 64-bit IEEE-754 **bit pattern**, that integer is
-what gets delta-encoded, and it must be reinterpreted back to a float after undelta.
+The comment above it in the source says so directly: *"all numeric types are extracted as
+long (int64) [...] and requires doubles to be integer"*. mongod's own reader puts the value
+back with `static_cast<long long int>(metrics[...])`. So:
 
-Confirmed independently on the restore path (`bson_restore.go:107-108`), where the library
-reconstructs values using the retained `originalType`:
+- The first sample of a chunk is `int64(ref)`, computed from the reference document, and the
+  deltas are ordinary value deltas. A `Double` column decodes exactly like an `Int64` column.
+- The fraction is gone before the value reaches the file. A load average of `0.37` is stored
+  as `0`. Nothing a decoder does can recover it.
+- The edges: NaN → `0`, `≥ 2^63` and `+Inf` → `INT64_MAX`, `< -2^63` and `-Inf` →
+  `INT64_MIN`. The seed matters past the first sample, because every later value in the
+  chunk is that seed plus deltas.
 
-```go
-case bsontype.Double:
-	return birch.EC.Double(key, math.Float64frombits(uint64(value))), true
-```
+**Versions before 5.0** use `currentElement.numberLong()`, which for a Double is an unguarded
+`(long long)value` (`bsonelement.h`, r4.4.0). It is identical for every finite, in-range
+double. For NaN, ±Inf and `|v| ≥ 2^63` it is undefined behaviour in C++: x86 produces
+`INT64_MIN`, ARM saturates like 5.0+. We follow 5.0+. A pre-5.0 x86 chunk whose reference
+document holds one of those values would decode that column offset by the difference. No
+capture so far has shown one.
 
-Note that `restoreFlat` has **no** `Timestamp` case — it falls through to `Int64`. So in the
-CSV oracle output (§7), a BSON Timestamp appears as two plain integer columns, `key` and
-`key.inc`. That is convenient: the oracle will show you the doubled column directly.
+**This section used to say the opposite**, and every Double column decoded wrong because of
+it. It cited `normalizeFloat` / `restoreFloat` in `github.com/mongodb/ftdc` (`util.go:93-94`,
+`bson_restore.go:107-108`). Those are real, but they belong to the Go library's own writer,
+and describe the files *that library* produces. Its reader applies the same convention to
+mongod's files: it seeds a Double column with the bit pattern of the reference value
+(`bson_metric.go:92`) and adds mongod's value deltas to it. The result is a value a few ULPs
+from the reference that moves by about one ULP per sample, then snaps back to the truth at
+every chunk boundary. On screen, `serverStatus.uptime` read flat at 29 while `uptimeMillis`,
+an `Int64` in the same document, counted correctly.
 
-Consequences:
-
-- You **must** retain the original BSON type per column from the reference doc, and apply
-  `Float64frombits` only to the `Double` columns at the very end of decoding.
-- Skip this and `wiredTiger` percentages and load averages come out as values around
-  `4.6e18` — large enough that a chart looks "broken" rather than subtly wrong, which is
-  the one mercy here.
-- The deltas for these columns are differences between bit patterns and are frequently
-  enormous and negative. This interacts directly with CORRECTION 3.
-- In JS: `new DataView(buf).setBigInt64(0, v); getFloat64(0)` or a reusable
-  `Float64Array`/`BigInt64Array` pair over one 8-byte buffer.
-
-The build brief does not mention this at all.
+It survived because the oracle (§7) is built on that same Go reader, so both sides made the
+same mistake and a 40-million-value equality test passed. `tools/oracle` now undoes the
+library's seed per chunk (`stored = Values[i] - Values[0] + int64(ref)`) and emits the integer
+mongod stored. Agreement with an oracle only proves agreement; a plausibility check on a
+value with a known rate (uptime, 1 per second) is what caught this.
 
 ### ⚠ CORRECTION 2 — BSON `Timestamp` expands to TWO columns
 
@@ -215,14 +234,14 @@ accHi = (accHi + dHi + (sum > 0xFFFFFFFF ? 1 : 0)) >>> 0;
 
 Wrapping is intended: a delta of `-1` arrives as `hi=0xFFFFFFFF, lo=0xFFFFFFFF` and wraps
 back to exactly `-1`. Then convert **once per changed sample**, branching on the column's
-declared type. Each case reads straight off the halves, so all four are exact and none needs
-a modulo:
+declared type. Each case reads straight off the halves, so all three are exact and none needs
+a modulo. A `Double` column takes the default case, because mongod stores it as an int64
+(CORRECTION 1):
 
 ```js
 switch (kind) {
   case Int32:  return lo | 0;                       // int32(value), sign-extended
   case Bool:   return (hi !== 0 || lo !== 0) ? 1 : 0;
-  case Double: return f64FromBits(hi, lo);          // CORRECTION 1
   default:     return (hi >= 0x80000000 ? hi - 0x100000000 : hi) * 0x100000000 + lo;
 }
 ```
@@ -308,7 +327,7 @@ not just relabelling** (`bson_restore.go:100-115`):
 
 | Declared type | Restored as |
 |---|---|
-| `Double` | `Float64frombits(value)` |
+| `Double` | unchanged — mongod stored `int64(value)` (CORRECTION 1) |
 | `Int32` | **`int32(value)` — truncated to the low 32 bits, sign-extended** |
 | `Boolean` | `value != 0` |
 | `DateTime` | epoch ms, unchanged |
@@ -432,15 +451,17 @@ case bsontype.DateTime:
 }                                                              // other types -> empty string
 ```
 
-- `Double` is emitted as the **undecoded int64 bit pattern** — so CORRECTION 1, the whole
-  point of testing doubles, goes unverified.
+- `Double` is emitted as the library's int64 for the column, which is mongod's value delta
+  added to the reference's bit pattern (CORRECTION 1): neither the bit pattern nor the
+  value. `ReadMetrics` has the same problem; the oracle corrects it.
 - `DateTime` is truncated to whole seconds — and the sample clock is a DateTime column (§5).
 - Any type outside the switch silently yields an empty string.
 
-**Use `ftdc.ReadMetrics(ctx, r)` instead.** It sets `flatten: true`, runs `restoreFlat`
-(`bson_restore.go:100-115`), and yields per-sample documents with dotted keys and properly
-restored values. That is what `tools/oracle/` does; it emits JSONL with an ordered key list
-per schema, so column *order* is verified alongside values.
+**Use `ftdc.ReadChunks` with `chunk.Iterator` instead**, which is what `ReadMetrics` does
+inside. It runs `restoreFlat` (`bson_restore.go:100-115`) and yields per-sample documents with
+dotted keys and restored values. `tools/oracle/` does this, then replaces each Double with the
+int64 mongod stored, using the chunk's own starting value (CORRECTION 1). It emits JSONL with
+an ordered key list per schema, so column *order* is verified alongside values.
 
 ### Fixture coverage
 
@@ -452,7 +473,7 @@ per schema, so column *order* is verified alongside values.
 | `busy-replset` | dense deltas; BSON Timestamps via `replSetGetStatus.optimes.*.ts` + `.ts.inc` (CORRECTION 2); schema drift (§6) | ✅ 1541 samples, 5 schemas |
 | `idle` | long zero runs across column boundaries (CORRECTION 4) | ✅ 1500 samples |
 | `interim` | truncated trailing chunk (§1) | ✅ 251 samples |
-| fractional doubles (CORRECTION 1) | present in all three | ✅ 23 double columns |
+| Double columns (CORRECTION 1) | present in all three | ✅ 23 double columns; NaN, ±Inf and ±2^63 seeds covered by `tests/doubleSeed.test.ts`, not by a fixture |
 | major-version upgrade | cross-version metric renames | ❌ needs a second mongod version |
 
 The drift in `busy-replset` arises naturally: `replSetGetStatus` holds 4 columns before
@@ -475,9 +496,9 @@ From `busy-replset` chunk 0 (mongod 6.0.26, 1,685 columns):
 Sections: `serverStatus` 1,263 · `systemMetrics` 413 · `replSetGetStatus` 4 (pre-initiate)
 · `local` 3 · `start`/`end` 2.
 
-**Doubles are 1.4% of columns.** This is a direct empirical justification for the split
-arithmetic in CORRECTION 3: the expensive exact-64-bit hi/lo path runs on ~1% of columns
-while the fast `Number` path handles ~98%.
+**Doubles are 1.4% of columns**, and since mongod stores them as int64 (CORRECTION 1) they
+need no path of their own. Every column, whatever its type, accumulates as an exact int64 in
+two 32-bit halves (CORRECTION 3).
 
 
 ---

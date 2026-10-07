@@ -61,10 +61,11 @@ describe.each(fixtures)('ftdc decoder: $name', (fixture) => {
           const actual = chunk.columns[m]![s]!;
           const want = expected.values[m]!;
 
-          // Exact equality is correct here, not approximate. Integer columns are exact
-          // below 2^53, and doubles come from a deterministic Float64frombits of an
-          // exactly-reconstructed bit pattern -- there is no floating-point drift to
-          // tolerate. Any mismatch is a decoder bug.
+          // Exact equality is correct here, not approximate. Every column is an exact int64
+          // rounded once to a double, doubles included: mongod stores int64(value), and the
+          // oracle undoes the Go library's bit-pattern seed to get the same integer
+          // (tools/oracle/main.go). There is no floating-point drift to tolerate. Any
+          // mismatch is a decoder bug.
           if (Number.isNaN(want)) {
             expect(
               Number.isNaN(actual),
