@@ -221,9 +221,12 @@ interface State {
    * A log line to scroll to and flash, set by double-clicking a chart. `nonce` makes repeated
    * reveals of the same instant still fire.
    */
-  logReveal: { tMs: number; nonce: number } | null;
-  /** Zoom to an instant and reveal the log line there -- the double-click-a-chart gesture. */
-  revealLogAt(tMs: number): void;
+  logReveal: { tMs: number; captureId?: string; nonce: number } | null;
+  /**
+   * Zoom to an instant and reveal the log line there -- the double-click-a-chart gesture. With a
+   * capture, the line is that node's own, not whichever node logged something nearest in time.
+   */
+  revealLogAt(tMs: number, captureId?: string): void;
 
   /** Saved dashboards, most recently updated first. */
   library: SavedDashboard[];
@@ -1079,7 +1082,7 @@ export const useStore = create<State>((set, get) => ({
     void get().explainWindow();
   },
 
-  revealLogAt(tMs) {
+  revealLogAt(tMs, captureId) {
     // Zoom to a couple of minutes either side, so the log window is small enough to hold this
     // instant (the whole-capture window is capped at a few hundred lines and might not), and
     // the charts show what surrounds it. Then switch to the log and mark the moment; the
@@ -1088,7 +1091,11 @@ export const useStore = create<State>((set, get) => ({
     set({
       sidebarTab: 'log',
       showCatalog: true,
-      logReveal: { tMs, nonce: (get().logReveal?.nonce ?? 0) + 1 },
+      logReveal: {
+        tMs,
+        ...(captureId !== undefined ? { captureId } : {}),
+        nonce: (get().logReveal?.nonce ?? 0) + 1,
+      },
     });
   },
 

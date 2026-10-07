@@ -121,7 +121,6 @@ export function LogView({
   const [reading, setReading] = useState<ViewLine | null>(null);
   const clickTimer = useRef<number | null>(null);
   const list = useRef<HTMLDivElement>(null);
-  const rows = useRef(new Map<string, HTMLDivElement>());
   const rowEls = useRef<Array<HTMLDivElement | null>>([]);
   const search = useRef<HTMLInputElement>(null);
   // Where to scroll the buffer to on entering follow mode, so the charts do not jump.
@@ -296,14 +295,18 @@ export function LogView({
   const [flash, setFlash] = useState<number | null>(null);
   useEffect(() => {
     if (logReveal === null || lines.length === 0) return;
-    let best = lines[0]!;
-    for (const line of lines) {
-      if (Math.abs(line.tMs - logReveal.tMs) < Math.abs(best.tMs - logReveal.tMs)) best = line;
-    }
-    const key = `${best.captureId}-${best.tMs}`;
-    const el = [...rows.current].find(([k]) => k.startsWith(key))?.[1];
-    el?.scrollIntoView({ block: 'center' });
-    setFlash(best.tMs);
+    // A reveal that names its node -- a query's slowest call -- lands on that node's line. On
+    // a multi-node log, another member may have logged something closer in time.
+    const own = logReveal.captureId;
+    const candidates = own !== undefined && lines.some((l) => l.captureId === own) ? own : undefined;
+    let best = -1;
+    lines.forEach((line, i) => {
+      if (candidates !== undefined && line.captureId !== candidates) return;
+      if (best < 0 || Math.abs(line.tMs - logReveal.tMs) < Math.abs(lines[best]!.tMs - logReveal.tMs)) best = i;
+    });
+    if (best < 0) return;
+    rowEls.current[best]?.scrollIntoView({ block: 'center' });
+    setFlash(lines[best]!.tMs);
     const timer = setTimeout(() => setFlash(null), 1600);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -571,8 +574,6 @@ export function LogView({
               key={key}
               ref={(el) => {
                 rowEls.current[i] = el;
-                if (el) rows.current.set(key, el);
-                else rows.current.delete(key);
               }}
               className={cls}
               title="Click to read the whole line. Double-click to pin a marker on every chart"

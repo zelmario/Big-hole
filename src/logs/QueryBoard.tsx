@@ -11,7 +11,8 @@ import { useStore } from '../store/useStore.js';
  * One row is every call that shared an operation, a namespace, a predicate shape and a plan.
  * Literals from the log are already replaced, so a query that ran a thousand times with a
  * thousand different ids is one sentence. Clicking a row opens the query so it can be read
- * without scrolling the sidebar. The log for those calls is one step from there.
+ * without scrolling the sidebar, with the slowest call's command in full -- the shape says
+ * `/…/`, the call says whether the regex was anchored. "Show in log" lands on that call's line.
  */
 
 type SortKey = QuerySort | 'load' | 'severity';
@@ -25,6 +26,10 @@ function ms(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)} s`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)} s`;
   return `${Math.round(n)} ms`;
+}
+
+function stamp(tMs: number): string {
+  return new Date(tMs).toISOString().replace('T', ' ').replace('Z', ' UTC');
 }
 
 function insight(row: Row): string | null {
@@ -50,6 +55,7 @@ export function QueryBoard(): ReactElement {
   const range = useStore((s) => s.range);
   const setRange = useStore((s) => s.setRange);
   const setSidebarTab = useStore((s) => s.setSidebarTab);
+  const revealLogAt = useStore((s) => s.revealLogAt);
   const [sort, setSort] = useState<SortKey>('load');
   const [collscanOnly, setCollscanOnly] = useState(false);
   const [query, setQuery] = useState('');
@@ -115,6 +121,10 @@ export function QueryBoard(): ReactElement {
   }, [reading]);
 
   const openLog = (row: Row) => {
+    if (row.slowest !== undefined) {
+      revealLogAt(row.slowest.tMs, row.captureId);
+      return;
+    }
     const span = Math.max(row.lastMs - row.firstMs, 60_000);
     const pad = Math.min(span, 60_000);
     setRange([row.firstMs - pad, row.lastMs + pad]);
@@ -259,6 +269,7 @@ export function QueryBoard(): ReactElement {
                 <div className="spacer" />
                 <button
                   className="link"
+                  title={reading.slowest !== undefined ? 'Open the log at the slowest call' : 'Open the log over the time these calls ran'}
                   onClick={() => {
                     openLog(reading);
                     setReading(null);
@@ -274,6 +285,15 @@ export function QueryBoard(): ReactElement {
                 <div className="query-doing">{reading.doing}</div>
                 {reading.pattern !== '' && <pre className="query-modal-pattern">{reading.pattern}</pre>}
                 {reading.plan !== '' && <div className="muted small query-modal-plan">{reading.plan}</div>}
+                {reading.slowest !== undefined && (
+                  <>
+                    <div className="muted small query-modal-call">
+                      Slowest call · {stamp(reading.slowest.tMs)} · {ms(reading.slowest.durationMs)}
+                      {multi && ` · ${reading.captureLabel}`}
+                    </div>
+                    <pre className="query-modal-pattern query-modal-command">{reading.slowest.command}</pre>
+                  </>
+                )}
               </div>
             </div>
           </div>,

@@ -610,4 +610,6 @@ header { align-items: center; flex-wrap: wrap; }
   background: #0f1115; border: 1px solid var(--line); border-radius: 6px; padding: 12px;
 }
 .query-modal-plan { margin-top: 10px; }
+.query-modal-call { margin-top: 18px; }
+.query-modal-command { margin-top: 6px; }
 

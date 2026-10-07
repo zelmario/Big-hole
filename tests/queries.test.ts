@@ -71,6 +71,52 @@ describe('what a slow query is doing', () => {
     expect(row.appNames).toEqual(['checkout']);
   });
 
+  it('keeps the slowest call whole, so the literal the shape hides can still be read', () => {
+    const at = (iso: string, ms: number, regex: string) =>
+      JSON.stringify({
+        t: { $date: iso },
+        s: 'I',
+        c: 'COMMAND',
+        id: 51803,
+        ctx: 'conn7',
+        msg: 'Slow query',
+        attr: {
+          type: 'command',
+          ns: 'demo.events',
+          command: { find: 'events', filter: { blob: { $regularExpression: { pattern: regex, options: '' } } }, $db: 'demo' },
+          planSummary: 'COLLSCAN',
+          durationMillis: ms,
+        },
+      });
+    const report = analyzeLines([
+      at('2026-08-05T00:01:00.000Z', 48, 'abc'),
+      at('2026-08-05T00:02:00.000Z', 332, '^zz'),
+      at('2026-08-05T00:03:00.000Z', 332, 'later'),
+    ]).queries;
+    expect(report.patterns).toHaveLength(1);
+    const row = report.patterns[0]!;
+    expect(row.pattern).toBe('{ blob: /…/ }');
+    // The first of two equally slow calls, so the choice does not move as the log grows.
+    expect(row.slowest?.tMs).toBe(Date.parse('2026-08-05T00:02:00.000Z'));
+    expect(row.slowest?.durationMs).toBe(332);
+    expect(row.slowest?.command).toContain('"pattern": "^zz"');
+  });
+
+  it('keeps the command that opened the cursor beside a slow getMore', () => {
+    const report = analyzeLines([
+      line({
+        type: 'getMore',
+        ns: 'demo.events',
+        command: { getMore: 42, collection: 'events', $db: 'demo' },
+        originatingCommand: { find: 'events', filter: { n: { $gt: 7 } }, $db: 'demo' },
+        durationMillis: 90,
+      }),
+    ]).queries;
+    const command = JSON.parse(report.patterns[0]!.slowest!.command) as Record<string, unknown>;
+    expect(command['command']).toEqual({ getMore: 42, collection: 'events', $db: 'demo' });
+    expect(command['originatingCommand']).toEqual({ find: 'events', filter: { n: { $gt: 7 } }, $db: 'demo' });
+  });
+
   it('keeps an indexed find apart from the collection scan of the same predicate', () => {
     const scan = line({
       type: 'command',
